@@ -97,6 +97,10 @@ Coord = Annotated[int, Field(ge=0, le=9)]
 TilePair = Annotated[list[Coord], Field(min_length=2, max_length=2)]  # [row, col]
 
 
+class EndGame(Strict):
+    """An empty body: ending a game takes no input, and a client can't send a score (S5)."""
+
+
 class Submission(Strict):
     """Tile coordinates only, never a word or a score: the server rebuilds the word (S5)."""
 
@@ -148,6 +152,11 @@ def submit(game_id: str, body: Submission, conn: Conn, s: Cfg, lex: Lex, player:
     # T17: the 1-second submit gap (S4) is checked here, before the transaction.
     tiles = [(row, col) for row, col in body.tiles]
     return games.submit(conn, lex, s, player["id"], game_id, tiles, now)
+
+
+@router.post("/api/games/{game_id}/end", dependencies=POST)
+def end(game_id: str, body: EndGame, conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now) -> dict:
+    return games.end_by_player(conn, lex, s, player["id"], game_id, now)
 
 
 @router.get("/api/games/current")

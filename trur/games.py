@@ -5,7 +5,6 @@ the score. Answers never leave the server for an open game (S12); `missed_words`
 only once a free game is over.
 
 Seams for later tasks, each marked where it goes:
-- T14: sweep_abandoned before create/current, end_by_player
 - T17: the 1-second submit gap (S4), checked in memory before the submit transaction
 - T18: the server-side event log (game_started, word_*, game_ended)
 - T21: daily games, and keeping today's daily words out of free play
@@ -68,7 +67,7 @@ def create_game(
     """Start a new free game, ending the player's open one as `replaced`. The bool is True when a game was created."""
     if mode != "free":
         raise NotImplementedError("daily games come with T21")
-    # T14: sweep_abandoned(conn, lex, s, now, user_id) runs first.
+    sweep_abandoned(conn, lex, s, now, user_id)
     # T21: ensure_daily_pair(today), and the accept rule also refuses today's daily words.
     try:  # the picker runs outside the transaction: it can take a while and needs no lock
         word1, word2, answers = pick_pair(lex, rng, lambda w1, w2, found: len(found) >= s.min_free_words)
@@ -96,7 +95,7 @@ def current_game(
     conn: sqlite3.Connection, lex: Lexicon, s: Settings, user_id: str, mode: Mode, now: datetime
 ) -> GameState | None:
     """The player's open game in this mode, so a reload can resume it."""
-    # T14: sweep_abandoned(conn, lex, s, now, user_id) first, so a game from a past day is closed, not resumed.
+    sweep_abandoned(conn, lex, s, now, user_id)  # a game from a past day is closed, not resumed
     game = conn.execute(
         "SELECT * FROM games WHERE user_id = ? AND mode = ? AND ended_at IS NULL", (user_id, mode)
     ).fetchone()
@@ -123,6 +122,50 @@ def submit(
     if closed is not None:
         raise closed
     return result
+
+
+def end_by_player(
+    conn: sqlite3.Connection, lex: Lexicon, s: Settings, user_id: str, game_id: str, now: datetime
+) -> GameState:
+    """The player presses End game. Same order of checks as submit: ownership, the day, already over."""
+    closed = None
+    with db.tx(conn):
+        game = _load_owned(conn, user_id, game_id)
+        if _day_over(game, now):
+            _end(conn, lex, s, game, "day_closed", now)
+            closed = ApiError(409, "day_closed", "This game's day is over, so the game has been closed.")
+        elif game["ended_at"] is not None:
+            closed = ApiError(409, "game_over", "This game is over.")
+        else:
+            _end(conn, lex, s, game, "player", now)
+            state = _state(conn, lex, conn.execute("SELECT * FROM games WHERE id = ?", (game_id,)).fetchone())
+    if closed is not None:
+        raise closed
+    return state
+
+
+def sweep_abandoned(
+    conn: sqlite3.Connection, lex: Lexicon, s: Settings, now: datetime, user_id: str | None = None
+) -> int:
+    """Close open games whose UTC day is over, with their current score (reason day_closed).
+
+    There's no timer, because the machine stops when idle: this runs at startup, before a board
+    is served, and whenever a request touches a player's games. Returns how many were closed.
+    """
+    today = now.date().isoformat()
+    sql = (
+        "SELECT * FROM games WHERE ended_at IS NULL"
+        " AND ((mode = 'daily' AND daily_date < ?) OR (mode = 'free' AND substr(started_at, 1, 10) < ?))"
+    )
+    params: tuple = (today, today)
+    if user_id is not None:
+        sql += " AND user_id = ?"
+        params += (user_id,)
+    with db.tx(conn):
+        stale = conn.execute(sql, params).fetchall()
+        for game in stale:
+            _end(conn, lex, s, game, "day_closed", now)
+    return len(stale)
 
 
 # --- private helpers ---

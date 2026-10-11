@@ -73,7 +73,8 @@ def console_errors(page: Page) -> list[str]:
     errors: list[str] = []
 
     def on_console(msg: ConsoleMessage) -> None:
-        if msg.type == "error":
+        expected_401 = "status of 401" in msg.text and msg.location.get("url", "").endswith("/api/users/me")
+        if msg.type == "error" and not expected_401:  # a first visit has no player yet: that 401 is by design
             errors.append(msg.text)
 
     page.on("console", on_console)
@@ -88,10 +89,18 @@ def fake_api(page: Page, lex: Lexicon) -> FakeApi:
     return api
 
 
+def register(page: Page, nickname: str = "Tester") -> None:
+    """Flow 1's first step: the nickname prompt, then the first free game."""
+    page.locator("#nick").fill(nickname)
+    page.get_by_role("button", name="Play").click()
+    page.locator('[data-testid="grid"] .tile').first.wait_for()
+
+
 @pytest.fixture
-def game_page(page: Page, live_server, fake_api: FakeApi, console_errors: list[str]) -> Page:
+def game_page(page: Page, live_server, console_errors: list[str]) -> Page:
+    """A registered player in their first free game (GARDEN × SUMMER) on the real backend."""
     page.set_viewport_size({"width": 1000, "height": 800})
     page.goto(live_server.base_url + "/")
-    page.locator('[data-testid="grid"] .tile').first.wait_for()
+    register(page)
     yield page
     assert console_errors == []

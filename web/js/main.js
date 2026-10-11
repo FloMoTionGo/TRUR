@@ -2,6 +2,7 @@
 
 import { api, ApiError } from "./api.js";
 import { startGame } from "./game.js";
+import { showScreen, showStatus } from "./screens.js";
 
 const THEME_KEY = "trur-theme";
 const root = document.documentElement;
@@ -40,22 +41,6 @@ function toggleTheme() {
   applyTheme();
 }
 
-// --- screens ---
-
-const SCREENS = ["loading", "nickname", "game"];
-
-export function showScreen(name) {
-  for (const screen of SCREENS) {
-    document.getElementById(`screen-${screen}`).hidden = screen !== name;
-  }
-  for (const el of document.querySelectorAll("[data-game-only]")) el.hidden = name !== "game";
-}
-
-function showStatus(text) {
-  document.querySelector('[data-testid="status"]').textContent = text;
-  showScreen("loading");
-}
-
 // --- nickname prompt (full rules and lookalike checks arrive with T16) ---
 
 function askNickname() {
@@ -78,7 +63,6 @@ function askNickname() {
 }
 
 async function play() {
-  showScreen("game");
   await startGame("free");
 }
 

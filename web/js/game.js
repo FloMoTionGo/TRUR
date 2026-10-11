@@ -1,6 +1,7 @@
 // The game screen: grid, selection, submit and feedback. All text goes in with textContent (S8).
 
 import { api, ApiError } from "./api.js";
+import { showScreen } from "./screens.js";
 
 const grid = document.getElementById("grid");
 const foundList = document.getElementById("found-list");
@@ -27,10 +28,15 @@ const isSelected = (row, col) => selection.findIndex(([r, c]) => r === row && c 
 
 export async function startGame(mode) {
   const current = await api.currentGame(mode);
-  game = current.game || (await api.newGame(mode));
+  show(current.game || (await api.newGame(mode)));
+}
+
+function show(state) {
+  game = state;
   selection = [];
   buildGrid();
   render();
+  showScreen("game");
 }
 
 // --- rendering ---
@@ -91,16 +97,7 @@ function render() {
   preview.dataset.empty = String(!word);
   preview.textContent = game.game_over ? "Game over" : word ? `→ ${word}` : "Click tiles to build a word";
 
-  foundList.replaceChildren(...game.found.map(({ word: w, points }) => {
-    const li = document.createElement("li");
-    const name = document.createElement("span");
-    const pts = document.createElement("span");
-    name.textContent = w;
-    pts.className = "pts";
-    pts.textContent = String(points);
-    li.append(name, pts);
-    return li;
-  }));
+  foundList.replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
   byTestId("counter").textContent = `Found ${game.found_count} of ${game.total_words}`;
   byTestId("score").textContent = String(game.score);
   const tries = byTestId("tries");
@@ -185,7 +182,64 @@ submitButton.addEventListener("click", async () => {
     busy = false;
     render();
   }
+  if (game.game_over) showGameOver();
 });
+
+byTestId("end").addEventListener("click", async () => {
+  if (busy || !game || game.game_over) return;
+  busy = true;
+  render();
+  try {
+    game = await api.end(game.game_id);
+  } catch (err) {
+    if (!(err instanceof ApiError && (err.code === "game_over" || err.code === "day_closed"))) {
+      showToast("rejected", "Couldn’t end the game", err instanceof ApiError ? err.message : "Something went wrong.");
+      return;
+    }
+    game.game_over = true;
+  } finally {
+    busy = false;
+    render();
+  }
+  showGameOver();
+});
+
+byTestId("new-game").addEventListener("click", async () => {
+  try {
+    show(await api.newGame(game ? game.mode : "free"));
+  } catch (err) {
+    showToast("rejected", "Couldn’t start a game", err instanceof ApiError ? err.message : "Something went wrong.");
+  }
+});
+
+// --- game over ---
+
+const wordPoints = (word) => (word.length / 2) ** 2;
+
+function wordItem(word, points) {
+  const li = document.createElement("li");
+  const name = document.createElement("span");
+  const pts = document.createElement("span");
+  name.textContent = word;
+  pts.className = "pts";
+  pts.textContent = String(points);
+  li.append(name, pts);
+  return li;
+}
+
+function showGameOver() {
+  document.getElementById("toast").hidden = true;
+  const reason = game.tries_left === 0 ? "Three wrong words"
+    : game.found_count === game.total_words ? "Every word found" : "You ended the game";
+  byTestId("over-reason").textContent = `${reason} · ${game.word1} × ${game.word2}`;
+  byTestId("over-score").textContent = String(game.score);
+  byTestId("over-meta").textContent = `points · ${game.found_count} of ${game.total_words} words`;
+  byTestId("over-found").replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
+  const missed = game.missed_words || [];
+  document.getElementById("over-missed-head").textContent = `Missed words · ${missed.length}`;
+  byTestId("missed").replaceChildren(...missed.map((w) => wordItem(w, wordPoints(w))));
+  showScreen("over");
+}
 
 function flashRejected(tiles) {
   for (const [row, col] of tiles) {

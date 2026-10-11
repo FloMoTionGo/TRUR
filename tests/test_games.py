@@ -334,6 +334,111 @@ def test_submit_after_midnight_closes_the_game(alice: TestClient, clock: FakeClo
     assert rows(db_path, "SELECT word FROM submissions") == [("GEAR",)]
 
 
+# --- POST /end (T14) ---
+
+def end_path(game: dict) -> str:
+    return f"{GAMES}/{game['game_id']}/end"
+
+
+def test_end_returns_the_final_state_with_missed_words(alice: TestClient, game: dict, db_path: Path) -> None:
+    send(alice, game, TILES["GEAR"])
+    r = alice.post(end_path(game), json={})
+    assert r.status_code == 200
+    state = r.json()
+    assert set(state) == STATE_KEYS
+    assert (state["game_over"], state["score"], state["found_count"], state["tries_left"]) == (True, 4, 1, 3)
+    assert state["missed_words"] == ["DEARER", "GENRES", "NEARER", "RERUNS", "AMAM", "DEER", "NEAR", "RUNE"]
+    assert rows(db_path, "SELECT ended_at, score FROM games") == [("2026-10-11T12:00:00.000000Z", 4)]
+    assert alice.get(CURRENT).json() == {"game": None}
+
+
+def test_second_end_is_409_and_changes_nothing(alice: TestClient, game: dict, db_path: Path) -> None:
+    send(alice, game, TILES["GEAR"])
+    alice.post(end_path(game), json={})
+    before = db_snapshot(db_path)
+    r = alice.post(end_path(game), json={})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "game_over"
+    assert db_snapshot(db_path) == before
+
+
+def test_submit_after_end_is_409(alice: TestClient, game: dict) -> None:
+    alice.post(end_path(game), json={})
+    r = alice.post(submit_path(game), json={"tiles": TILES["GEAR"]})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "game_over"
+
+
+def test_end_someone_elses_game_is_404(player: Player, game: dict, db_path: Path) -> None:
+    bob = player("Bob")
+    before = db_snapshot(db_path)
+    for game_id in (game["game_id"], str(uuid.uuid4()), "not-a-uuid"):  # Alice's game looks like a missing one
+        r = bob.post(f"{GAMES}/{game_id}/end", json={})
+        assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
+    assert db_snapshot(db_path) == before
+
+
+@pytest.mark.parametrize("body", [{"score": 99}, {"won": True}, {"reason": "player"}])
+def test_end_takes_no_input(alice: TestClient, game: dict, db_path: Path, body: dict) -> None:
+    before = db_snapshot(db_path)
+    r = alice.post(end_path(game), json=body)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_request"
+    assert db_snapshot(db_path) == before
+
+
+def test_end_after_midnight_is_day_closed(alice: TestClient, clock: FakeClock, db_path: Path) -> None:
+    clock.set(clock.now().replace(hour=23, minute=59, second=0))
+    game = start(alice)
+    send(alice, game, TILES["GEAR"])
+    clock.advance(60)
+    r = alice.post(end_path(game), json={})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "day_closed"
+    assert rows(db_path, "SELECT ended_at, score FROM games") == [("2026-10-12T00:00:00.000000Z", 4)]
+
+
+# --- closing abandoned games (T14) ---
+
+def test_current_closes_yesterdays_open_game(alice: TestClient, clock: FakeClock, db_path: Path) -> None:
+    clock.set(clock.now().replace(hour=23, minute=0))
+    game = start(alice)
+    send(alice, game, TILES["GEAR"])
+    clock.advance(3600)  # 2026-10-12T00:00
+    assert alice.get(CURRENT).json() == {"game": None}
+    assert rows(db_path, "SELECT ended_at, score FROM games") == [("2026-10-12T00:00:00.000000Z", 4)]
+
+
+def test_new_game_closes_yesterdays_game_as_day_closed_not_replaced(alice: TestClient, clock: FakeClock, db_path: Path) -> None:
+    clock.set(clock.now().replace(hour=23, minute=0))
+    old = start(alice)
+    clock.advance(7200)
+    new = start(alice)
+    assert new["game_id"] != old["game_id"]
+    # ended_at is when the sweep closed it; the game still counts for the day it started
+    assert rows(db_path, "SELECT ended_at FROM games WHERE id = ?", old["game_id"]) == [("2026-10-12T01:00:00.000000Z",)]
+
+
+def test_sweep_only_closes_past_days(alice: TestClient, player: Player, clock: FakeClock, db_path: Path, settings: Settings, lex: Lexicon) -> None:
+    clock.set(clock.now().replace(hour=23, minute=0))
+    start(alice)  # yesterday's game, once the clock moves on
+    clock.advance(7200)
+    start(player("Bob"))  # today's game
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        assert games.sweep_abandoned(conn, lex, settings, clock.now()) == 1
+        assert games.sweep_abandoned(conn, lex, settings, clock.now()) == 0
+    finally:
+        conn.close()
+    assert rows(db_path, "SELECT COUNT(*) FROM games WHERE ended_at IS NULL") == [(1,)]
+
+
+def test_startup_closes_abandoned_games(alice: TestClient, clock: FakeClock, db_path: Path, settings: Settings) -> None:
+    game = start(alice)
+    send(alice, game, TILES["GEAR"])
+    clock.advance(86400)
+    with make_client(create_app(settings, clock, random.Random(0))):
+        pass  # the lifespan runs the sweep
+    assert rows(db_path, "SELECT ended_at, score FROM games") == [("2026-10-12T12:00:00.000000Z", 4)]
+
+
 # --- invalid tiles: 422, no try used, nothing stored ---
 
 @pytest.mark.parametrize(

@@ -14,7 +14,7 @@ from datetime import timedelta
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from trur import db
+from trur import db, games
 from trur.api import install_error_handlers, router
 from trur.clock import Clock, SystemClock
 from trur.config import Settings, load_settings
@@ -39,7 +39,10 @@ def _startup(app: FastAPI) -> None:
         purged = db.purge_events(conn, app.state.clock.now() - timedelta(days=s.event_retention_days))
         if purged:
             log.info("purged %d events older than %d days", purged, s.event_retention_days)
-        # Lifespan step 6 (import the daily JSON) comes with T20, step 7 (sweep abandoned games) with T14.
+        # Lifespan step 6 (import the daily JSON) comes with T20.
+        closed = games.sweep_abandoned(conn, lex, s, app.state.clock.now())
+        if closed:
+            log.info("closed %d abandoned games from past days", closed)
     finally:
         conn.close()
     app.state.lexicon = lex

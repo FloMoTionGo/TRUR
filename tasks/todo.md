@@ -96,9 +96,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T10: App factory and security middleware
 **Description:** `trur/app.py` `create_app(settings, clock, rng)` with the lifespan (Arch §2 steps 1–5 and 7; the daily import comes in T20), `trur/security.py` (pure-ASGI `BodySizeLimit` and `SecurityHeaders`), exception handlers that return the error envelope (generic 500), `/healthz`, the static mount of `web/` only, and docs routes off unless `DEBUG`.
 **Acceptance criteria:**
-- [ ] S9: the DB and repo files are not downloadable (TS §4 paths → 404)
-- [ ] S12: headers on HTML, JSON, 404, 422 and 500 responses; a raising route returns the generic envelope with no traceback
-- [ ] S7: 16 KB + 1 → 413, also when the body is chunked
+- [x] S9: the DB and repo files are not downloadable (TS §4 paths → 404)
+- [x] S12: headers on HTML, JSON, 404, 422 and 500 responses; a raising route returns the generic envelope with no traceback
+- [x] S7: 16 KB + 1 → 413, also when the body is chunked
 **Dependencies:** T9 · **Files:** trur/app.py, trur/security.py, trur/api.py, tests/test_security.py · **Scope:** M
 
 ### T11: Minimal player cookie (pulled forward from step 4; see plan.md)

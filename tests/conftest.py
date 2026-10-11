@@ -1,14 +1,22 @@
+import random
 import shutil
 import sqlite3
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from trur import db
+from trur.app import create_app
+from trur.config import Settings
 from trur.solver import Lexicon, load_lexicon
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+ROOT = FIXTURES.parent.parent
+ORIGIN = "https://testserver"
 DEFAULT_NOW = datetime(2026, 10, 11, 12, 0, 0, tzinfo=timezone.utc)
 
 
@@ -76,3 +84,44 @@ def db_snapshot(path: Path) -> tuple[list[str], dict[str, int]]:
     finally:
         conn.close()
     return schema, counts
+
+
+# --- app and clients (docs/test-strategy.md §2, docs/architecture.md §5 "Test" column) ---
+
+def make_settings(data_dir: Path, **overrides: object) -> Settings:
+    values: dict[str, object] = dict(
+        data_dir=data_dir,
+        lexicon_dir=FIXTURES,
+        web_dir=ROOT / "web",
+        daily_json_source=str(FIXTURES / "daily" / "valid.json"),
+        allowed_origins=(ORIGIN,),
+        min_free_words=1,
+        submit_min_gap_s=0.0,
+        rl_new_players_per_ip_hour=0,
+        rl_games_per_player_hour=0,
+        rl_events_per_player_s=0,
+        rl_requests_per_ip_min=0,
+    )
+    values.update(overrides)
+    return Settings(**values)
+
+
+@pytest.fixture
+def settings(db_path: Path) -> Settings:
+    return make_settings(db_path.parent)
+
+
+@pytest.fixture
+def app(settings: Settings, clock: FakeClock) -> FastAPI:
+    return create_app(settings, clock, random.Random(0))
+
+
+def make_client(app: FastAPI) -> TestClient:
+    """HTTPS, or the Secure cookie never comes back; an allowed Origin on every request."""
+    return TestClient(app, base_url=ORIGIN, headers={"Origin": ORIGIN})
+
+
+@pytest.fixture
+def client(app: FastAPI) -> Iterator[TestClient]:
+    with make_client(app) as c:  # the context manager runs the lifespan
+        yield c

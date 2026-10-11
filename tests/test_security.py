@@ -1,0 +1,249 @@
+"""Security tests: S7 body size, S9 database file, S12 headers and errors (TS §4)."""
+
+import logging
+import sqlite3
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from tests.conftest import FakeClock, db_snapshot, make_client, make_settings
+from trur import app as app_module
+from trur.app import create_app
+from trur.config import Settings
+from trur.security import CSP, HSTS
+
+MAX = 16_384
+
+
+def add_test_routes(app: FastAPI) -> None:
+    """Test-only routes, put ahead of any static mount at "/"."""
+
+    def boom() -> None:
+        raise RuntimeError("secret detail: sqlite syntax error near users")
+
+    def needs_int(x: int) -> dict:
+        return {"x": x}
+
+    def echo(body: dict) -> dict:
+        return {"keys": len(body)}
+
+    before = len(app.router.routes)
+    app.add_api_route("/api/test/boom", boom, methods=["GET"])
+    app.add_api_route("/api/test/int", needs_int, methods=["GET"])
+    app.add_api_route("/api/test/echo", echo, methods=["POST"])
+    new = app.router.routes[before:]
+    del app.router.routes[before:]
+    app.router.routes[0:0] = new
+
+
+@pytest.fixture
+def web_dir(tmp_path: Path) -> Path:
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text("<!doctype html><title>TRUR</title>", encoding="utf-8")
+    (web / "app.js").write_text("export {};", encoding="utf-8")
+    return web
+
+
+@pytest.fixture
+def web_client(db_path: Path, web_dir: Path, clock: FakeClock) -> Iterator[TestClient]:
+    """The database sits next to web/ in tmp_path, the way a misconfigured root would expose it."""
+    app = create_app(make_settings(db_path.parent, web_dir=web_dir), clock)
+    add_test_routes(app)
+    with make_client(app) as c:
+        yield c
+
+
+@pytest.fixture
+def test_client(app: FastAPI) -> Iterator[TestClient]:
+    add_test_routes(app)
+    with make_client(app) as c:
+        yield c
+
+
+def assert_envelope(response, status: int, code: str) -> None:
+    assert response.status_code == status
+    assert response.headers["content-type"].startswith("application/json")
+    assert set(response.json()) == {"error"}
+    assert response.json()["error"]["code"] == code
+    assert isinstance(response.json()["error"]["message"], str)
+
+
+# --- startup, health, docs ---
+
+def test_healthz_is_ok_sets_no_cookie_and_writes_nothing(client: TestClient, db_path: Path) -> None:
+    before = db_snapshot(db_path)
+    r = client.get("/healthz")
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert "set-cookie" not in r.headers
+    assert db_snapshot(db_path) == before
+
+
+def test_startup_creates_the_data_dir_and_database(tmp_path: Path, clock: FakeClock) -> None:
+    data_dir = tmp_path / "new" / "data"
+    with make_client(create_app(make_settings(data_dir), clock)) as c:
+        assert c.get("/healthz").status_code == 200
+    conn = sqlite3.connect(data_dir / "trur.db")
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM words WHERE is_source = 1").fetchone()[0] == 6
+    finally:
+        conn.close()
+
+
+def test_startup_purges_old_events(db_path: Path, app: FastAPI) -> None:
+    conn = sqlite3.connect(db_path)
+    conn.executemany(
+        "INSERT INTO events (type, created_at) VALUES ('tile_clicked', ?)",
+        [("2026-07-13T12:00:00.000000Z",), ("2026-07-13T12:00:01.000000Z",)],  # T − 90 d and T − 90 d + 1 s
+    )
+    conn.commit()
+    conn.close()
+    with make_client(app):
+        pass
+    conn = sqlite3.connect(db_path)
+    try:
+        assert [r[0] for r in conn.execute("SELECT created_at FROM events")] == ["2026-07-13T12:00:01.000000Z"]
+    finally:
+        conn.close()
+
+
+def test_startup_refuses_an_old_sqlite(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(app_module.sqlite3, "sqlite_version_info", (3, 36, 0))
+    with pytest.raises(RuntimeError, match="STRICT"):
+        with make_client(app):
+            pass
+
+
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+def test_docs_are_off_unless_debug(client: TestClient, settings: Settings, clock: FakeClock, path: str) -> None:
+    assert_envelope(client.get(path), 404, "not_found")
+    debug_app = create_app(make_settings(settings.data_dir, debug=True), clock)
+    with make_client(debug_app) as c:
+        assert c.get(path).status_code == 200
+
+
+# --- S9: the database file ---
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/trur.db",
+        "/var/trur.db",
+        "/../var/trur.db",
+        "/%2e%2e/var/trur.db",
+        "/%2e%2e/trur.db",
+        "/..%2ftrur.db",
+        "/.git/config",
+        "/fly.toml",
+        "/trur/app.py",
+        "/data/words.txt",
+    ],
+)
+def test_database_and_repo_files_are_not_downloadable(web_client: TestClient, path: str) -> None:
+    r = web_client.get(path)
+    assert r.status_code == 404
+    assert b"SQLite format" not in r.content
+
+
+def test_web_dir_is_served(web_client: TestClient) -> None:
+    assert web_client.get("/").text.startswith("<!doctype html>")
+    assert web_client.get("/app.js").status_code == 200
+
+
+def test_nothing_is_mounted_without_a_web_dir(settings: Settings, clock: FakeClock) -> None:
+    app = create_app(make_settings(settings.data_dir, web_dir=settings.data_dir / "missing"), clock)
+    with make_client(app) as c:
+        assert_envelope(c.get("/"), 404, "not_found")
+        assert c.get("/healthz").status_code == 200
+
+
+def test_default_database_location_is_var() -> None:
+    s = Settings()
+    assert s.db_path == Path("var") / "trur.db"
+    assert Path("web") not in s.db_path.parents and Path("data") not in s.db_path.parents
+
+
+# --- S12: headers and errors ---
+
+@pytest.mark.parametrize(
+    "method, path, status",
+    [
+        ("GET", "/", 200),  # HTML
+        ("GET", "/app.js", 200),  # JS
+        ("GET", "/healthz", 200),  # JSON
+        ("GET", "/no-such-file", 404),
+        ("GET", "/api/no-such-route", 404),
+        ("POST", "/healthz", 405),
+        ("GET", "/api/test/int?x=abc", 422),
+        ("GET", "/api/test/boom", 500),
+    ],
+)
+def test_security_headers_on_every_response(web_client: TestClient, method: str, path: str, status: int) -> None:
+    r = web_client.request(method, path)
+    assert r.status_code == status
+    assert r.headers["content-security-policy"] == CSP
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    assert "strict-transport-security" not in r.headers  # off outside production
+    assert (r.headers.get("cache-control") == "no-store") == path.startswith("/api/")
+
+
+def test_hsts_when_enabled(settings: Settings, clock: FakeClock) -> None:
+    with make_client(create_app(make_settings(settings.data_dir, hsts=True), clock)) as c:
+        assert c.get("/healthz").headers["strict-transport-security"] == HSTS
+
+
+def test_error_envelopes(test_client: TestClient) -> None:
+    assert_envelope(test_client.get("/api/nope"), 404, "not_found")
+    assert_envelope(test_client.post("/healthz"), 405, "method_not_allowed")
+    r = test_client.get("/api/test/int?x=<script>")
+    assert_envelope(r, 422, "invalid_request")
+    assert r.json()["error"]["fields"] == ["x"]
+    assert "<script>" not in r.text  # never echoes the input
+
+
+def test_a_raising_route_returns_the_generic_envelope(test_client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.ERROR, logger="trur"):
+        r = test_client.get("/api/test/boom")
+    assert_envelope(r, 500, "internal_error")
+    for leak in ("Traceback", "RuntimeError", "secret", "sqlite", "syntax"):
+        assert leak not in r.text
+    assert "secret detail" in caplog.text  # the details go to the log
+
+
+# --- S7: body size ---
+
+def test_body_at_the_cap_is_accepted(test_client: TestClient) -> None:
+    body = b'{"a":"' + b"x" * (MAX - 8) + b'"}'
+    assert len(body) == MAX
+    assert test_client.post("/api/test/echo", content=body, headers={"Content-Type": "application/json"}).status_code == 200
+
+
+def test_body_over_the_cap_is_413(test_client: TestClient, db_path: Path) -> None:
+    before = db_snapshot(db_path)
+    body = b'{"a":"' + b"x" * (MAX - 7) + b'"}'
+    r = test_client.post("/api/test/echo", content=body, headers={"Content-Type": "application/json"})
+    assert_envelope(r, 413, "payload_too_large")
+    assert r.headers["content-security-policy"] == CSP
+    assert db_snapshot(db_path) == before
+
+
+@pytest.mark.parametrize("chunk", [1024, MAX + 1])
+def test_chunked_body_over_the_cap_is_413(test_client: TestClient, chunk: int) -> None:
+    total = MAX + 1
+
+    def body() -> Iterator[bytes]:
+        sent = 0
+        while sent < total:
+            part = min(chunk, total - sent)
+            sent += part
+            yield b"x" * part
+
+    r = test_client.post("/api/test/echo", content=body(), headers={"Content-Type": "application/json"})
+    assert "content-length" not in r.request.headers
+    assert_envelope(r, 413, "payload_too_large")
+

@@ -66,7 +66,7 @@ TRUR/
 │  ├─ __init__.py
 │  ├─ build_wordlists.py   SCOWL file (in build/, gitignored) + wordfreq → data/words.txt, source_words.txt
 │  ├─ spike_stats.py       step-1 report: words per pair, share of pairs with a 10+-letter word
-│  ├─ pick_daily.py        workflow script; imports only trur.solver (stdlib), so Actions installs nothing
+│  ├─ pick_daily.py        workflow script; imports only trur.solver and trur.clock (stdlib), so Actions installs nothing
 │  └─ admin.py             hide/unhide, flag/unflag (+ ranking recompute), delete-player; via `fly ssh console`
 ├─ tests/                  see docs/test-strategy.md
 │  ├─ conftest.py, fixtures/ (tiny words, source list, blocklist, daily JSON variants)

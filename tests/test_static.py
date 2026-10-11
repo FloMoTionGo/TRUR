@@ -1,10 +1,11 @@
-"""AST guards over trur/ and scripts/ (docs/test-strategy.md §1–§2)."""
+"""AST guards over trur/ and scripts/ (docs/test-strategy.md §1–§2), and the workflow checks (S10)."""
 
 import ast
 import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCES = sorted(p for d in ("trur", "scripts") for p in (ROOT / d).rglob("*.py"))
@@ -167,3 +168,57 @@ def test_js_never_parses_html(path: Path) -> None:
 def test_web_guards_catch_planted_code(tmp_path: Path) -> None:
     assert re.search(r"<script(?![^>]*\bsrc=)[^>]*>", "<script>alert(1)</script>")
     assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", '<script type="module" src="js/main.js"></script>')
+
+
+# --- S10: workflow files ---
+
+WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+
+def _workflow(path: Path) -> dict:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["on"] = data.pop(True, data.get("on"))  # YAML 1.1 reads the key `on` as True
+    return data
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+def test_actions_are_pinned_to_a_sha(path: Path) -> None:
+    uses = re.findall(r"^\s*-?\s*uses:\s*(\S+)", path.read_text(encoding="utf-8"), re.MULTILINE)
+    assert uses and all(re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", u) for u in uses), uses
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+def test_workflow_triggers_and_top_level_permissions(path: Path) -> None:
+    wf = _workflow(path)
+    assert "pull_request_target" not in wf["on"]
+    assert wf["permissions"] == {"contents": "read"}
+
+
+def test_only_the_pick_job_may_write() -> None:
+    writers = {
+        (path.name, name): job["permissions"]
+        for path in WORKFLOWS
+        for name, job in _workflow(path)["jobs"].items()
+        if "write" in (job.get("permissions") or {}).values()
+    }
+    assert writers == {("daily-challenge.yml", "pick"): {"contents": "write"}}
+
+
+def test_daily_challenge_workflow() -> None:
+    wf = _workflow(ROOT / ".github" / "workflows" / "daily-challenge.yml")
+    assert wf["on"]["schedule"] == [{"cron": "17 21 * * *"}]
+    assert wf["on"]["workflow_dispatch"]["inputs"]["dry_run"] == {
+        "description": "Only print the picks, commit nothing", "type": "boolean", "default": False,
+    }
+    assert wf["concurrency"]["group"] and wf["concurrency"]["cancel-in-progress"] is False
+    steps = wf["jobs"]["pick"]["steps"]
+    commit = next(s for s in steps if s.get("name") == "Commit")
+    assert commit["if"] == "${{ !inputs.dry_run }}"  # scheduled runs have no inputs, so they still commit
+    assert commit["run"].index("git pull --rebase") < commit["run"].index("git push")
+    assert any("python -m scripts.pick_daily" in s.get("run", "") for s in steps)
+    assert "${{" not in next(s for s in steps if s.get("name") == "Pick missing pairs")["run"]  # input via env only
+
+
+def test_ci_dry_runs_pick_daily() -> None:
+    steps = _workflow(ROOT / ".github" / "workflows" / "tests.yml")["jobs"]["test"]["steps"]
+    assert any(s.get("run") == "python -m scripts.pick_daily --dry-run" for s in steps)

@@ -148,6 +148,11 @@ All of it fits a fixed **640×640 px** game area. This sketch is the starting br
   - olive headings and active states
   - light olive panels (`#EEF0E6`)
   - Fonts: Space Grotesk for the interface, Space Mono for tiles and numbers, both self-hosted.
+- **Light and dark, with a toggle** (owner, 2026-10-11):
+  - Dark "Olive board": near-black olive ground (`#171A12`), the same olive tiles with white letters, dark olive panels (`#232819`).
+  - In dark mode, tiles, selected tiles and orange buttons keep the 2 px border and the sharp offset shadow, in cream (`#F2EDE0`; shadow at 50 %).
+  - A sun/moon button in the header switches modes. The first visit follows the system setting (`prefers-color-scheme`). After that the choice is remembered in `localStorage`; it's a convenience, not game state.
+- **Logo: the two-tone variant** (owner, 2026-10-11): orange diagonal (TR top left, UR bottom right) and olive off-diagonal tiles, matching the Olive board.
 - **Look:** flat design with a sharp, subtle drop shadow (no blur), e.g. `box-shadow: 3px 3px 0 rgba(0,0,0,.2)`.
 - **Tile states:** default, selected (orange) and rejected (red shake, about 400 ms).
 

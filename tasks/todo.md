@@ -191,8 +191,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T21: Daily game mode
 **Description:** `create_game` daily (one per player per day, 200 or 201), the `won` flag, the midnight close, no `missed_words` in daily, and free play excluding today's daily words (`ensure_daily_pair` before every free pick).
 **Acceptance criteria:**
-- [ ] TS step 5 "Starting", "Winning" and "Midnight" cases, including the parallel daily start
-- [ ] Seeds 0–49: no free game uses today's words, even when only the JSON has today's pair
+- [x] TS step 5 "Starting", "Winning" and "Midnight" cases, including the parallel daily start
+- [x] Seeds 0–49: no free game uses today's words, even when only the JSON has today's pair
 **Dependencies:** T20 · **Files:** trur/games.py, trur/api.py, tests/test_daily.py · **Scope:** M
 
 ### T22: Past answers endpoint and leak sweep

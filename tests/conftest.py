@@ -170,7 +170,15 @@ class LiveServer(NamedTuple):
 
 
 @pytest.fixture
-def live_server(db_path: Path, clock: FakeClock, garden_seed: int) -> Iterator[LiveServer]:
+def live_overrides() -> dict[str, object]:
+    """Extra settings for live_server; a test changes them with @pytest.mark.parametrize("live_overrides", [...])."""
+    return {}
+
+
+@pytest.fixture
+def live_server(
+    db_path: Path, clock: FakeClock, garden_seed: int, live_overrides: dict[str, object],
+) -> Iterator[LiveServer]:
     """uvicorn in a thread of the test process on a random port, sharing the test's FakeClock.
 
     It serves plain http, so the Secure cookie isn't sent back by httpx's jar: tests pass the
@@ -179,7 +187,8 @@ def live_server(db_path: Path, clock: FakeClock, garden_seed: int) -> Iterator[L
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", 0))
     base_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
-    app = create_app(make_settings(db_path.parent, allowed_origins=(base_url,)), clock, random.Random(garden_seed))
+    settings = make_settings(db_path.parent, allowed_origins=(base_url,), **live_overrides)
+    app = create_app(settings, clock, random.Random(garden_seed))
     server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()

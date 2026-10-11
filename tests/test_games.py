@@ -79,18 +79,13 @@ def test_create_needs_a_player(client: TestClient, db_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "body",
-    [{}, {"mode": "x"}, {"mode": "daily"}, {"mode": 1}, {"mode": "free", "score": 50}, {"mode": "free", "won": True},
+    [{}, {"mode": "x"}, {"mode": "Daily"}, {"mode": 1}, {"mode": "free", "score": 50}, {"mode": "free", "won": True},
      {"mode": "free", "date": "2026-10-10"}, {"mode": "free", "user_id": "x"}],
 )
 def test_create_refuses_bad_bodies(alice: TestClient, db_path: Path, body: dict) -> None:
     r = alice.post(GAMES, json=body)
     assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_request"
     assert db_snapshot(db_path)[1]["games"] == 0
-
-
-def test_daily_is_not_built_yet(lex: Lexicon, settings: Settings) -> None:
-    with pytest.raises(NotImplementedError):
-        games.create_game(None, lex, settings, random.Random(0), "u", "daily", None)  # type: ignore[arg-type]
 
 
 def test_no_pair_available_is_503(db_path: Path, clock: FakeClock, garden_seed: int) -> None:
@@ -132,7 +127,7 @@ def test_current_needs_a_player(client: TestClient) -> None:
     assert client.get(CURRENT).status_code == 401
 
 
-@pytest.mark.parametrize("query", ["", "?mode=x", "?mode=daily", "?mode=' OR 1=1--"])
+@pytest.mark.parametrize("query", ["", "?mode=x", "?mode=Daily", "?mode=' OR 1=1--"])
 def test_current_needs_a_valid_mode(alice: TestClient, query: str) -> None:
     r = alice.get("/api/games/current" + query)
     assert r.status_code == 422 and r.json()["error"] == {

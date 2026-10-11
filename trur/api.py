@@ -100,7 +100,7 @@ class NewUser(Strict):
     nickname: str
 
 
-GameMode = Literal["free"]  # "daily" is accepted from T21 on
+GameMode = Literal["free", "daily"]
 
 
 class NewGame(Strict):

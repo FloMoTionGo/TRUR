@@ -1,5 +1,6 @@
-"""Daily challenge: import and fallback (TS §3 step 5; S10)."""
+"""Daily challenge: import and fallback, the daily game, midnight (TS §3 step 5; S10)."""
 
+import asyncio
 import io
 import json
 import logging
@@ -7,14 +8,17 @@ import random
 import shutil
 import sqlite3
 import threading
-from collections.abc import Iterator
-from datetime import date
+from collections.abc import Callable, Iterator
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+import httpx
 import pytest
+from fastapi.testclient import TestClient
 
-from tests.conftest import FIXTURES, FakeClock, make_client, make_settings
-from trur import daily, db
+from tests.conftest import FIXTURES, FakeClock, LiveServer, make_client, make_settings
+from tests.test_games import burst, live_player
+from trur import auth, daily, db, games
 from trur.app import create_app
 from trur.config import Settings
 from trur.errors import ApiError
@@ -255,3 +259,216 @@ def test_startup_skips_the_import_when_both_days_are_stored(
 
 def test_a_broken_source_doesnt_stop_startup(db_path: Path, clock: FakeClock) -> None:
     assert startup_rows(db_path, clock, DAILY / "broken.json") == []
+
+
+# --- the daily game (T21) ---
+
+GAMES = "/api/games"
+DAILY_START = {"mode": "daily"}
+# MEDICAL across (columns), CORRECT down (rows); tile [r, c] = MEDICAL[c] + CORRECT[r]
+DEMOCRATIC = [[4, 2], [1, 0], [2, 4], [6, 5], [0, 3]]  # DE MO CR AT IC
+DEMOCRATICLO = DEMOCRATIC + [[1, 6]]  # + LO
+WRONG = [[[0, 0], [0, 1]], [[0, 0], [1, 0]], [[0, 2], [0, 3]]]  # MCMO, MCEC, DCIC: not words
+Player = Callable[[str], TestClient]
+
+
+@pytest.fixture
+def settings(db_path: Path, source: Path) -> Settings:
+    """The app fixtures read the tmp JSON copy, so tests can change it."""
+    return settings_for(db_path, source)
+
+
+@pytest.fixture
+def live_overrides(request: pytest.FixtureRequest, tmp_path: Path) -> dict[str, object]:
+    """parametrize("live_overrides", ["empty json"], indirect=True) gives the live server a JSON with no pairs."""
+    if getattr(request, "param", None) == "empty json":
+        return {"daily_json_source": str(write_json(tmp_path / "empty.json", []))}
+    return {}
+
+
+def start_daily(c: TestClient, status: int = 201) -> dict:
+    r = c.post(GAMES, json=DAILY_START)
+    assert r.status_code == status, r.text
+    return r.json()
+
+
+def submit(c: TestClient, game: dict, tiles: list) -> httpx.Response:
+    return c.post(f"{GAMES}/{game['game_id']}/submit", json={"tiles": tiles})
+
+
+def game_rows(db_path: Path) -> list[tuple]:
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute("SELECT id, mode, daily_date, ended_at IS NOT NULL, score FROM games").fetchall()
+    finally:
+        conn.close()
+
+
+def test_daily_start_gives_todays_pair(player: Player) -> None:
+    game = start_daily(player("Alice"))
+    assert (game["mode"], game["daily_date"], game["word1"], game["word2"]) == ("daily", "2026-10-11", "MEDICAL", "CORRECT")
+    assert game["missed_words"] is None and game["won"] is False
+
+
+def test_a_second_daily_start_returns_the_same_game(player: Player, db_path: Path) -> None:
+    alice = player("Alice")
+    game = start_daily(alice)
+    assert start_daily(alice, 200)["game_id"] == game["game_id"]
+    assert alice.post(f"{GAMES}/{game['game_id']}/end", json={}).status_code == 200
+    again = start_daily(alice, 200)  # also once it's over
+    assert again["game_id"] == game["game_id"] and again["game_over"] is True and again["missed_words"] is None
+    assert len(game_rows(db_path)) == 1
+
+
+def test_the_client_cant_choose_the_day(player: Player, db_path: Path) -> None:
+    r = player("Alice").post(GAMES, json={"mode": "daily", "daily_date": "2026-10-10"})
+    assert r.status_code == 422 and game_rows(db_path) == []
+
+
+def test_two_players_get_the_same_pair(player: Player) -> None:
+    a, b = start_daily(player("Alice")), start_daily(player("Bob"))
+    assert (a["word1"], a["word2"]) == (b["word1"], b["word2"]) and a["game_id"] != b["game_id"]
+
+
+def test_daily_and_free_games_live_side_by_side(player: Player) -> None:
+    alice = player("Alice")
+    daily_game = start_daily(alice)
+    free = alice.post(GAMES, json={"mode": "free"}).json()
+    assert alice.get(f"{GAMES}/current?mode=daily").json()["game"]["game_id"] == daily_game["game_id"]
+    assert alice.get(f"{GAMES}/current?mode=free").json()["game"]["game_id"] == free["game_id"]
+
+
+def test_a_win_word_sets_won_and_play_continues(player: Player) -> None:
+    alice = player("Alice")
+    result = submit(alice, start_daily(alice), DEMOCRATIC).json()
+    assert (result["status"], result["word"], result["points"]) == ("accepted", "DEMOCRATIC", 25)
+    assert result["won"] is True and result["game_over"] is False
+    bob = player("Bob")
+    result = submit(bob, start_daily(bob), DEMOCRATICLO).json()
+    assert (result["word"], result["points"], result["won"]) == ("DEMOCRATICLO", 36, True)
+
+
+def test_daily_answers_stay_hidden(player: Player, lex: Lexicon) -> None:
+    alice = player("Alice")
+    game = start_daily(alice)
+    bodies = [submit(alice, game, DEMOCRATIC).text]
+    bodies += [submit(alice, game, tiles).text for tiles in WRONG]  # the third ends the game
+    bodies.append(alice.get(f"{GAMES}/current?mode=daily").text)
+    bodies.append(alice.post(GAMES, json=DAILY_START).text)
+    final = json.loads(bodies[-1])
+    assert final["game_over"] is True and final["missed_words"] is None
+    unfound = [w for w in lex.solve("MEDICAL", "CORRECT") if w != "DEMOCRATIC"]
+    assert unfound
+    for body in bodies:
+        assert not [w for w in unfound if w in body.replace("DEMOCRATIC", "")]
+
+
+def test_a_daily_end_carries_no_missed_words(player: Player) -> None:
+    alice = player("Alice")
+    game = start_daily(alice)
+    ended = alice.post(f"{GAMES}/{game['game_id']}/end", json={}).json()
+    assert ended["game_over"] is True and ended["missed_words"] is None
+
+
+# --- midnight ---
+
+def test_a_submit_just_before_midnight_counts(player: Player, clock: FakeClock) -> None:
+    alice = player("Alice")
+    game = start_daily(alice)
+    clock.set(datetime(2026, 10, 11, 23, 59, 59, 999999, tzinfo=timezone.utc))
+    assert submit(alice, game, DEMOCRATIC).json()["status"] == "accepted"
+
+
+def test_a_submit_at_midnight_closes_the_game(player: Player, clock: FakeClock, db_path: Path) -> None:
+    alice = player("Alice")
+    game = start_daily(alice)
+    assert submit(alice, game, DEMOCRATIC).status_code == 200
+    clock.set(datetime(2026, 10, 12, tzinfo=timezone.utc))
+    r = submit(alice, game, WRONG[0])
+    assert r.status_code == 409 and r.json()["error"]["code"] == "day_closed"
+    assert game_rows(db_path) == [(game["game_id"], "daily", "2026-10-11", 1, 25)]  # closed, score kept
+    conn = sqlite3.connect(db_path)
+    try:
+        assert conn.execute("SELECT wrong_count FROM games").fetchone() == (0,)  # no try used
+    finally:
+        conn.close()
+
+
+def test_a_game_started_just_before_midnight_keeps_its_day(player: Player, clock: FakeClock) -> None:
+    alice = player("Alice")
+    clock.set(datetime(2026, 10, 11, 23, 59, 59, tzinfo=timezone.utc))
+    assert start_daily(alice)["daily_date"] == "2026-10-11"
+
+
+def test_the_next_day_brings_a_new_game_with_the_new_pair(player: Player, clock: FakeClock, source: Path) -> None:
+    alice = player("Alice")
+    first = start_daily(alice)
+    entries = json.loads(source.read_text(encoding="utf-8"))
+    write_json(source, entries + [{"date": "2026-10-12", "word1": "STRONG", "word2": "MEANING"}])
+    clock.set(datetime(2026, 10, 12, tzinfo=timezone.utc))
+    second = start_daily(alice)
+    assert second["game_id"] != first["game_id"]
+    assert (second["daily_date"], second["word1"], second["word2"]) == ("2026-10-12", "STRONG", "MEANING")
+
+
+# --- free play keeps away from today's words ---
+
+def new_user(conn: sqlite3.Connection, clock: FakeClock) -> str:
+    auth.create_user(conn, "Alice", clock.now())
+    return conn.execute("SELECT id FROM users").fetchone()[0]
+
+
+@pytest.mark.parametrize("json_only", [False, True])
+def test_free_play_never_uses_todays_daily_words(
+    conn: sqlite3.Connection, lex: Lexicon, db_path: Path, source: Path, clock: FakeClock, json_only: bool,
+) -> None:
+    s = settings_for(db_path, source)
+    user_id = new_user(conn, clock)
+    for seed in range(50):
+        if json_only:
+            conn.execute("DELETE FROM daily_challenges WHERE date = '2026-10-11'")  # only the JSON has today
+        state, _ = games.create_game(conn, lex, s, random.Random(seed), user_id, "free", clock.now())
+        assert not {state["word1"], state["word2"]} & {"MEDICAL", "CORRECT"}, seed
+
+
+def test_free_play_works_without_a_daily_pair(
+    conn: sqlite3.Connection, lex: Lexicon, db_path: Path, source: Path, clock: FakeClock,
+) -> None:
+    conn.execute("INSERT INTO daily_challenges VALUES ('2026-10-01', 'STRONG', 'MEANING', 'workflow')")
+    conn.execute("INSERT INTO daily_challenges VALUES ('2026-10-02', 'MEDICAL', 'CORRECT', 'workflow')")
+    s = settings_for(db_path, write_json(source, []))  # no unused pair left for today
+    user_id = new_user(conn, clock)
+    state, created = games.create_game(conn, lex, s, random.Random(0), user_id, "free", clock.now())
+    assert created and state["mode"] == "free"
+    with pytest.raises(ApiError) as exc:
+        games.create_game(conn, lex, s, random.Random(0), user_id, "daily", clock.now())
+    assert exc.value.status == 503
+
+
+# --- parallel starts on the live server ---
+
+def test_one_players_parallel_daily_starts_make_one_game(live_server: LiveServer, db_path: Path) -> None:
+    headers = live_player(live_server.base_url, "Alice")
+    responses = burst(live_server.base_url, headers, GAMES, DAILY_START, 2)
+    assert sorted(r.status_code for r in responses) == [200, 201]
+    assert len({r.json()["game_id"] for r in responses}) == 1
+    assert len(game_rows(db_path)) == 1
+
+
+@pytest.mark.parametrize("live_overrides", ["empty json"], indirect=True)
+def test_two_players_racing_for_a_fallback_get_one_pair(live_server: LiveServer, db_path: Path) -> None:
+    """No JSON pair for today, two players start at once: one fallback row, the same pair for both."""
+    heads = [live_player(live_server.base_url, nick) for nick in ("Alice", "Bob")]
+
+    async def run() -> list[httpx.Response]:
+        async with httpx.AsyncClient(base_url=live_server.base_url, timeout=30) as c:
+            return await asyncio.gather(*(c.post(GAMES, json=DAILY_START, headers=h) for h in heads))
+
+    responses = asyncio.run(run())
+    assert [r.status_code for r in responses] == [201, 201]
+    assert len({(r.json()["word1"], r.json()["word2"]) for r in responses}) == 1
+    conn = db.connect(db_path)
+    try:
+        assert [r[3] for r in stored(conn)] == ["fallback"]
+    finally:
+        conn.close()

@@ -5,7 +5,6 @@ the score. Answers never leave the server for an open game (S12); `missed_words`
 only once a free game is over.
 
 Seams for later tasks, each marked where it goes:
-- T21: daily games, and keeping today's daily words out of free play
 - T25: the free-games-per-day limit
 - T26: the plausibility flag and the ranking recompute in _end
 """
@@ -17,7 +16,7 @@ import uuid
 from datetime import datetime
 from typing import Literal, TypedDict
 
-from trur import db
+from trur import daily, db
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.solver import MAX_TRIES, Lexicon, Tile, is_win_word, pick_pair, points, word_from_tiles
@@ -63,13 +62,23 @@ class SubmitResult(TypedDict):
 def create_game(
     conn: sqlite3.Connection, lex: Lexicon, s: Settings, rng: random.Random, user_id: str, mode: Mode, now: datetime
 ) -> tuple[GameState, bool]:
-    """Start a new free game, ending the player's open one as `replaced`. The bool is True when a game was created."""
-    if mode != "free":
-        raise NotImplementedError("daily games come with T21")
+    """Start a game. The bool is True when a game was created.
+
+    Free: a new game, ending the player's open one as `replaced`. Daily: today's game, created on the
+    first call and returned (open or over) on every later one, so each player gets one per day.
+    """
     sweep_abandoned(conn, lex, s, now, user_id)
-    # T21: ensure_daily_pair(today), and the accept rule also refuses today's daily words.
+    today = now.date()
+    if mode == "daily":
+        return _daily_game(conn, lex, s, rng, user_id, now)
+    try:
+        todays = daily.ensure_daily_pair(conn, lex, s, rng, today)
+        excluded = {todays.word1, todays.word2}
+    except ApiError:
+        excluded = set()  # no daily pair to protect; free play still works
+    accept = lambda w1, w2, found: w1 not in excluded and w2 not in excluded and len(found) >= s.min_free_words  # noqa: E731
     try:  # the picker runs outside the transaction: it can take a while and needs no lock
-        word1, word2, answers = pick_pair(lex, rng, lambda w1, w2, found: len(found) >= s.min_free_words)
+        word1, word2, answers = pick_pair(lex, rng, accept)
     except LookupError:
         raise ApiError(503, "no_pair_available", "No word pair is available right now. Please try again.") from None
     game_id = str(uuid.uuid4())
@@ -86,6 +95,30 @@ def create_game(
             (game_id, user_id, word1, word2, len(answers), db.iso(now)),
         )
         _log_event(conn, user_id, game_id, "game_started", {"mode": "free"}, now)
+        game = conn.execute("SELECT * FROM games WHERE id = ?", (game_id,)).fetchone()
+        return _state(conn, lex, game), True
+
+
+def _daily_game(
+    conn: sqlite3.Connection, lex: Lexicon, s: Settings, rng: random.Random, user_id: str, now: datetime
+) -> tuple[GameState, bool]:
+    """Today's daily game for this player. The SELECT and INSERT share one IMMEDIATE transaction, so two
+    parallel starts give one row (and UNIQUE (user_id, daily_date) backs that up)."""
+    entry = daily.ensure_daily_pair(conn, lex, s, rng, now.date())
+    with db.tx(conn):
+        game = conn.execute(
+            "SELECT * FROM games WHERE user_id = ? AND daily_date = ?", (user_id, entry.date.isoformat())
+        ).fetchone()
+        if game is not None:
+            return _state(conn, lex, game), False
+        game_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO games (id, user_id, mode, daily_date, word1, word2, total_words, started_at) "
+            "VALUES (?, ?, 'daily', ?, ?, ?, ?, ?)",
+            (game_id, user_id, entry.date.isoformat(), entry.word1, entry.word2,
+             len(lex.solve(entry.word1, entry.word2)), db.iso(now)),
+        )
+        _log_event(conn, user_id, game_id, "game_started", {"mode": "daily"}, now)
         game = conn.execute("SELECT * FROM games WHERE id = ?", (game_id,)).fetchone()
         return _state(conn, lex, game), True
 

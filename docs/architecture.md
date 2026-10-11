@@ -258,7 +258,7 @@ It runs with `uvicorn trur.app:create_app --factory --workers 1`. It has to be o
 
 `day_closed` and `game_over` are raised **after** COMMIT, so the game stays closed.
 
-**Creating a game.** It starts with `sweep_abandoned(user_id)` and `ensure_daily_pair(today)`.
+**Creating a game.** It starts with `sweep_abandoned(user_id)` and `ensure_daily_pair(today)`. If no daily pair can be found (503), free play still starts, just without excluding today's words.
 - **Free:** `pick_pair` runs outside the lock. Then one transaction:
   1. If the player already started 20 free games today, return 429 `limit_reached`.
   2. End any open free game with reason `replaced`.

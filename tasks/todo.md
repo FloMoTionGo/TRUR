@@ -213,7 +213,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T24: Daily UI and past answers screen
 **Description:** The Free | Daily mode switch, the won state, the "answers after midnight UTC" note, no missed words on game over, and the past-answers screen with the player's own finds marked.
 **Acceptance criteria:**
-- [ ] E2E flow 7 passes
+- [x] E2E flow 7 passes
 **Dependencies:** T22 · **Files:** web/js/{main,game,boards}.js, web/css/app.css · **Scope:** M
 
 ### ✅ Checkpoint E

@@ -39,4 +39,5 @@ export const api = {
   submit: (gameId, tiles) => request("POST", `/api/games/${encodeURIComponent(gameId)}/submit`, { tiles }),
   end: (gameId) => request("POST", `/api/games/${encodeURIComponent(gameId)}/end`, {}),
   events: (events) => request("POST", "/api/events", { events }),
+  answers: (day) => request("GET", `/api/daily/${encodeURIComponent(day)}/answers`),
 };

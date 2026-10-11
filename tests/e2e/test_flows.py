@@ -162,3 +162,80 @@ def test_theme_toggle_switches_and_is_remembered(game_page: Page) -> None:
     expect(html).to_have_class("is-dark")
     toggle.click()
     expect(html).not_to_have_class("is-dark")
+
+
+# --- daily (T24): MEDICAL across, CORRECT down on the fake clock's 2026-10-11 ---
+
+DEMOCRATIC = [(4, 2), (1, 0), (2, 4), (6, 5), (0, 3)]  # DE MO CR AT IC
+
+
+def open_daily(page: Page) -> None:
+    page.locator(SEL.format("mode-daily")).click()
+    expect(page.locator(".grid .head-col")).to_have_text(list("MEDICAL"))
+    expect(page.locator('.modes [data-mode="daily"]')).to_have_attribute("aria-current", "page")
+
+
+def test_flow_7_daily_game(game_page: Page) -> None:
+    open_daily(game_page)
+    expect(game_page.locator(".grid .head:not(.head-col)")).to_have_text(list("CORRECT"))
+    expect(game_page.locator(SEL.format("answers-note"))).to_contain_text("after midnight UTC")
+    expect(game_page.locator(SEL.format("won"))).to_be_hidden()
+
+    play(game_page, *DEMOCRATIC)
+    won = game_page.locator(SEL.format("won"))
+    expect(won).to_contain_text("Daily challenge won · Sun 11 Oct")
+    expect(won).to_contain_text("You found DEMOCRATIC (10 letters)")
+    expect(game_page.locator(SEL.format("score"))).to_have_text("25")
+    expect(game_page.locator(".tile").first).to_be_enabled()  # play continues after the win
+
+    game_page.locator(SEL.format("end")).click()
+    expect(game_page.locator(SEL.format("over-score"))).to_have_text("25")
+    expect(game_page.locator(SEL.format("missed"))).to_be_hidden()  # no missed words in daily
+    expect(game_page.locator(SEL.format("over-answers-note"))).to_contain_text("after midnight UTC")
+    expect(game_page.locator(SEL.format("new-game"))).to_have_text("Play free")
+
+
+def test_daily_tab_again_shows_the_finished_game(game_page: Page) -> None:
+    open_daily(game_page)
+    game_page.locator(SEL.format("end")).click()
+    expect(game_page.locator(SEL.format("over-score"))).to_be_visible()
+    game_page.locator('.modes [data-mode="free"]').click()
+    expect(game_page.locator(".grid .head-col")).to_have_text(list("GARDEN"))
+    game_page.locator(SEL.format("mode-daily")).click()
+    expect(game_page.locator(SEL.format("over-answers-note"))).to_be_visible()  # one daily game a day
+
+
+def test_past_answers_before_midnight_show_yesterday(game_page: Page) -> None:
+    open_daily(game_page)
+    game_page.locator(SEL.format("past-answers")).click()
+    expect(game_page.locator(SEL.format("answers-date"))).to_have_text("Sat 10 Oct 2026")
+    expect(game_page.locator(SEL.format("answers-meta"))).to_contain_text("STRONG × MEANING")
+    expect(game_page.locator(SEL.format("answers-list")).locator("li").first).to_have_text("GENERATION25")
+    expect(game_page.locator(SEL.format("answers-next"))).to_be_disabled()  # today's answers aren't out
+    expect(game_page.locator(SEL.format("answers-you"))).to_be_hidden()  # no daily game that day
+    game_page.locator(SEL.format("answers-back")).click()
+    expect(game_page.locator(".grid .head-col")).to_have_text(list("MEDICAL"))
+
+
+def test_past_answers_after_midnight_mark_your_finds(game_page: Page, live_server) -> None:
+    open_daily(game_page)
+    play(game_page, *DEMOCRATIC)
+    game_page.locator(SEL.format("end")).click()
+    expect(game_page.locator(SEL.format("over-score"))).to_have_text("25")
+    live_server.clock.advance(12 * 3600)  # 2026-10-12T00:00Z: yesterday's answers are out
+
+    game_page.locator(SEL.format("past-answers-over")).click()
+    expect(game_page.locator(SEL.format("answers-date"))).to_have_text("Sun 11 Oct 2026")
+    expect(game_page.locator(SEL.format("answers-meta"))).to_contain_text("MEDICAL × CORRECT")
+    expect(game_page.locator(SEL.format("answers-you"))).to_have_text("You: 1 word · 25")
+    mine = game_page.locator(f'{SEL.format("answers-list")} li[data-mine="true"]')
+    expect(mine).to_have_text(["DEMOCRATIC25"])
+    expect(game_page.locator(SEL.format("answers-next"))).to_be_disabled()
+
+    game_page.locator(SEL.format("answers-prev")).click()
+    expect(game_page.locator(SEL.format("answers-date"))).to_have_text("Sat 10 Oct 2026")
+    expect(game_page.locator(SEL.format("answers-you"))).to_be_hidden()
+    game_page.locator(SEL.format("answers-prev")).click()
+    expect(game_page.locator(SEL.format("answers-empty"))).to_have_text("There was no daily challenge on that day.")
+    game_page.locator(SEL.format("answers-back")).click()
+    expect(game_page.locator(SEL.format("over-score"))).to_have_text("25")  # back where it came from

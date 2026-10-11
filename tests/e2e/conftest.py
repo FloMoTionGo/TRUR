@@ -75,8 +75,12 @@ def console_errors(page: Page) -> list[str]:
     errors: list[str] = []
 
     def on_console(msg: ConsoleMessage) -> None:
-        expected_401 = "status of 401" in msg.text and msg.location.get("url", "").endswith("/api/users/me")
-        if msg.type == "error" and not expected_401:  # a first visit has no player yet: that 401 is by design
+        url = msg.location.get("url", "")
+        # By design: a first visit has no player yet (401 on /me); past answers answer 403 before
+        # midnight UTC and 404 for a day without a challenge, and the screen shows that as text.
+        expected_401 = "status of 401" in msg.text and url.endswith("/api/users/me")
+        expected_answers = re.search(r"status of 40[34]\b", msg.text) and re.search(r"/api/daily/[^/]+/answers$", url)
+        if msg.type == "error" and not expected_401 and not expected_answers:
             errors.append(msg.text)
 
     page.on("console", on_console)

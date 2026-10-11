@@ -198,7 +198,27 @@ button:disabled { cursor: default; }
 }
 .found-list li { display: flex; justify-content: space-between; }
 .found-list .pts { color: var(--muted); }
-.found-note { margin: auto 14px 12px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.found-foot { margin-top: auto; padding: 8px 14px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.found-note { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.link-button { padding: 0; border: 0; background: none; font-size: 13px; font-weight: 700; text-decoration: underline; }
+
+/* --- daily: the won banner (it shrinks the grid area by its height, see WON_HEIGHT in game.js) --- */
+.won {
+  flex: none;
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--orange);
+  color: var(--on-orange);
+  border: 2px solid var(--frame);
+  box-shadow: 3px 3px 0 var(--frame-shadow);
+}
+.won svg { width: 22px; height: 22px; flex: none; }
+.won-text { display: flex; flex-direction: column; line-height: 1.25; }
+.won-text strong { font-size: 15px; }
+.won-text span { font-size: 13px; }
 
 .solution {
   height: 88px;
@@ -275,6 +295,61 @@ button:disabled { cursor: default; }
 .over-list li, .over-grid li { display: flex; justify-content: space-between; }
 .over-list .pts, .over-grid .pts { color: var(--muted); }
 .over-note { flex: 1; color: var(--muted); font-size: 13px; }
+.over-hidden { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 2px solid var(--line); }
+.over-hidden .over-head { border-bottom: 2px solid var(--line); }
+.over-hidden-text { margin: 0; padding: 12px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+
+/* --- past answers --- */
+.bar-title { margin: 0; font-size: 18px; font-weight: 500; }
+.bar-back { height: 40px; font-size: 14px; }
+.answers-main { flex: 1; min-height: 0; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.answers-top { display: flex; align-items: center; gap: 10px; }
+.day-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 2px solid var(--line);
+}
+.day-button svg { width: 18px; height: 18px; }
+.day-button:disabled { color: var(--muted); opacity: .5; }
+.answers-day { min-width: 210px; display: flex; flex-direction: column; line-height: 1.2; }
+.answers-date { font-weight: 700; font-size: 18px; }
+.answers-meta { font-family: var(--font-tile); font-size: 13px; color: var(--muted); }
+.answers-you {
+  margin-left: auto;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--orange);
+  color: var(--on-orange);
+  border: 2px solid var(--frame);
+}
+.answers-legend { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.swatch { width: 14px; height: 14px; background: var(--orange); border: 2px solid var(--frame); }
+.answers-sort { margin-left: 12px; }
+.answers-empty { margin: 0; color: var(--muted); }
+.answers-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 2px;
+  background: var(--panel);
+  font-family: var(--font-tile);
+  font-size: 12px;
+}
+.answers-list li { display: flex; justify-content: space-between; padding: 1px 4px; }
+.answers-list li[data-mine="true"] { background: var(--orange); color: var(--on-orange); font-weight: 700; }
 
 /* --- word feedback popup --- */
 .toast {

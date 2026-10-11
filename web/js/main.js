@@ -1,7 +1,7 @@
 // Boot, light/dark mode and screen switching.
 
 import { api, ApiError } from "./api.js";
-import { startGame } from "./game.js";
+import { notify, startGame } from "./game.js";
 import { showScreen, showStatus } from "./screens.js";
 
 const THEME_KEY = "trur-theme";
@@ -64,6 +64,18 @@ function askNickname() {
 
 async function play() {
   await startGame("free");
+}
+
+// --- the Free | Daily switch ---
+
+for (const button of document.querySelectorAll(".modes button")) {
+  button.addEventListener("click", async () => {
+    try {
+      await startGame(button.dataset.mode);
+    } catch (err) {
+      notify(`Couldn’t open ${button.textContent}`, err instanceof ApiError ? err.message : "Something went wrong.");
+    }
+  });
 }
 
 async function boot() {

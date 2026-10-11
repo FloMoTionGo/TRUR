@@ -1,6 +1,8 @@
-// The game screen: grid, selection, submit and feedback. All text goes in with textContent (S8).
+// The game screen: grid, selection, submit and feedback, for free and daily games.
+// All text goes in with textContent (S8).
 
 import { api, ApiError } from "./api.js";
+import { addDays, dayLabel, showAnswers } from "./boards.js";
 import { logEvent } from "./events.js";
 import { showScreen } from "./screens.js";
 
@@ -14,6 +16,7 @@ const clearButton = byTestId("clear");
 
 const GRID_WIDTH = 410;   // px available for the grid beside the found list
 const GRID_HEIGHT = 470;  // px available between the header and the solution area
+const WON_HEIGHT = 70;    // the daily "won" banner, margin included
 const HEAD = 24;          // row-letter column and column-letter row
 const MAX_TILE = 48;
 const REJECT_MS = 420;
@@ -27,17 +30,38 @@ let toastTimer = 0;
 const pair = ([row, col]) => game.word1[col] + game.word2[row];
 const isSelected = (row, col) => selection.findIndex(([r, c]) => r === row && c === col);
 
+// Free resumes the open game or starts one. Daily always asks for today's game, which the
+// server creates once and then returns, open or over.
 export async function startGame(mode) {
-  const current = await api.currentGame(mode);
-  show(current.game || (await api.newGame(mode)));
+  if (mode === "daily") return show(await api.newGame("daily"));
+  const current = await api.currentGame("free");
+  show(current.game || (await api.newGame("free")));
 }
 
 function show(state) {
   game = state;
   selection = [];
+  for (const button of document.querySelectorAll(".modes button")) {
+    if (button.dataset.mode === game.mode) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  }
+  if (game.game_over) return showGameOver();
   buildGrid();
   render();
   showScreen("game");
+}
+
+export function notify(title, body) {
+  showToast("rejected", title, body);
+}
+
+const isWon = () => game.mode === "daily" && game.won;
+
+// "after midnight UTC (8:00 PM your time)": the reader's own clock for the moment the day ends.
+function answersNote() {
+  const end = new Date(`${addDays(game.daily_date, 1)}T00:00:00Z`);
+  const local = end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `The full answer list appears after midnight UTC (${local} your time).`;
 }
 
 // --- rendering ---
@@ -49,7 +73,7 @@ function buildGrid() {
   const size = Math.min(
     MAX_TILE,
     Math.floor((GRID_WIDTH - HEAD - gap * cols) / cols),
-    Math.floor((GRID_HEIGHT - HEAD - gap * rows) / rows),
+    Math.floor((GRID_HEIGHT - (isWon() ? WON_HEIGHT : 0) - HEAD - gap * rows) / rows),
   );
   grid.style.setProperty("--cols", String(cols));
   grid.style.setProperty("--rows", String(rows));
@@ -107,6 +131,17 @@ function render() {
 
   submitButton.disabled = busy || game.game_over || selection.length < 2;
   clearButton.disabled = busy || selection.length === 0;
+
+  const won = byTestId("won");
+  won.hidden = !isWon();
+  if (isWon()) {
+    const word = game.found.map((f) => f.word).find((w) => w.length >= 10);
+    document.getElementById("won-title").textContent = `Daily challenge won · ${dayLabel(game.daily_date)}`;
+    document.getElementById("won-body").textContent =
+      word ? `You found ${word} (${word.length} letters). Keep going for points.` : "Keep going for points.";
+  }
+  document.getElementById("found-foot").hidden = game.mode !== "daily";
+  if (game.mode === "daily") byTestId("answers-note").textContent = answersNote();
 }
 
 // --- feedback popup ---
@@ -156,6 +191,7 @@ submitButton.addEventListener("click", async () => {
   render();
   try {
     const result = await api.submit(game.game_id, tiles);
+    const wasWon = isWon();
     Object.assign(game, {
       score: result.score, tries_left: result.tries_left, found_count: result.found_count,
       total_words: result.total_words, won: result.won, game_over: result.game_over,
@@ -163,6 +199,7 @@ submitButton.addEventListener("click", async () => {
     });
     if (result.status === "accepted") {
       game.found = [...game.found, { word: result.word, points: result.points }];
+      if (!wasWon && isWon()) buildGrid(); // the banner takes room from the grid
     } else if (result.status === "duplicate") {
       showToast("duplicate", `${result.word} is already in your list`, "You found it earlier. No points, and no try used.");
     } else {
@@ -209,11 +246,16 @@ byTestId("end").addEventListener("click", async () => {
 
 byTestId("new-game").addEventListener("click", async () => {
   try {
-    show(await api.newGame(game ? game.mode : "free"));
+    if (game && game.mode === "daily") await startGame("free"); // one daily game a day: offer free play
+    else show(await api.newGame("free"));
   } catch (err) {
     showToast("rejected", "Couldn’t start a game", err instanceof ApiError ? err.message : "Something went wrong.");
   }
 });
+
+const openAnswers = () => showAnswers(game.daily_date, () => show(game)); // back to the screen it came from
+byTestId("past-answers").addEventListener("click", openAnswers);
+byTestId("past-answers-over").addEventListener("click", openAnswers);
 
 // --- game over ---
 
@@ -234,13 +276,21 @@ function showGameOver() {
   document.getElementById("toast").hidden = true;
   const reason = game.tries_left === 0 ? "Three wrong words"
     : game.found_count === game.total_words ? "Every word found" : "You ended the game";
-  byTestId("over-reason").textContent = `${reason} · ${game.word1} × ${game.word2}`;
+  const prefix = isWon() ? "Daily challenge won · " : "";
+  byTestId("over-reason").textContent = `${prefix}${reason} · ${game.word1} × ${game.word2}`;
   byTestId("over-score").textContent = String(game.score);
   byTestId("over-meta").textContent = `points · ${game.found_count} of ${game.total_words} words`;
   byTestId("over-found").replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
+  const daily = game.mode === "daily";
   const missed = game.missed_words || [];
   document.getElementById("over-missed-head").textContent = `Missed words · ${missed.length}`;
   byTestId("missed").replaceChildren(...missed.map((w) => wordItem(w, wordPoints(w))));
+  document.getElementById("over-missed-section").hidden = daily; // daily answers stay hidden until midnight UTC
+  document.getElementById("over-hidden").hidden = !daily;
+  if (daily) byTestId("over-answers-note").textContent = answersNote();
+  byTestId("over-note").textContent = daily ? "A new pair comes at midnight UTC." : "";
+  byTestId("past-answers-over").hidden = !daily;
+  byTestId("new-game").textContent = daily ? "Play free" : "New game";
   showScreen("over");
 }
 

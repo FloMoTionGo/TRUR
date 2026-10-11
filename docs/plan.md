@@ -136,6 +136,11 @@ All of it fits a fixed **640×640 px** game area. This sketch is the starting br
 ```
 
 - **Palette** (matte, starting values): warm orange `#D9853B`, olive green `#6B7B3A`, near-black `#1E1E1E`, white `#FFFFFF`. Red `#C0392B` is used only for the reject animation.
+- **Text colour per background** (decided 2026-10-11, for WCAG AA contrast of at least 4.5:1):
+  - near-black on white (about 17:1) and on orange (about 5.9:1)
+  - white on olive (about 4.6:1) and on red (about 5.4:1)
+  - never white on orange (about 2.9:1) or near-black on olive (about 3.6:1)
+  - The logo is exempt, so it keeps its black lettering.
 - **Look:** flat design with a sharp, subtle drop shadow (no blur), e.g. `box-shadow: 3px 3px 0 rgba(0,0,0,.2)`.
 - **Tile states:** default, selected (orange) and rejected (red shake, about 400 ms).
 

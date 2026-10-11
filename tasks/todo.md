@@ -120,7 +120,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T13: Submit transaction
 **Description:** `submit()` as in Arch §2 "Submit transaction": `BEGIN IMMEDIATE`, ownership check (→ 404), day-closed check, `word_from_tiles`, accepted / duplicate / rejected, 3 tries, `all_found`. Pydantic tile model, and the `live_server` fixture.
 **Acceptance criteria:**
-- [x] All TS step 3 "Submitting", "Ending" and "Invalid tiles" cases pass (the two `POST /end` cases come with `end_by_player` in T14)
+- [x] All TS step 3 "Submitting", "Ending" and "Invalid tiles" cases pass (the two `POST /end` cases were added with T14)
 - [x] S5: 20 parallel identical submits → 1 accepted and 19 duplicate; 10 parallel wrong submits → `wrong_count` 3; no 5xx
 - [x] A body with `score`, `points`, `won` or `date` → 422
 **Dependencies:** T12 · **Files:** trur/games.py, trur/api.py, tests/test_games.py, tests/conftest.py (live_server) · **Scope:** M
@@ -128,19 +128,19 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T14: End game, sweep, frontend wired to the real API
 **Description:** `end_by_player`, `_end` (missed words for free play, sorted by points then A–Z), `sweep_abandoned` (at startup and on any touch). Replace the step-2 mocks in `api.js` and `game.js` with real calls, and add the game-over screen.
 **Acceptance criteria:**
-- [ ] E2E flows 2–6 pass on `live_server`; flow 9 keeps its mock
-- [ ] A free game open at 23:59:59 → a submit at 00:00 returns 409 `day_closed` and closes the game with its score
+- [x] E2E flows 2–6 pass on `live_server`; flow 9 keeps its mock
+- [x] A free game open at 23:59:59 → a submit at 00:00 returns 409 `day_closed` and closes the game with its score
 **Dependencies:** T13, T8 · **Files:** trur/games.py, trur/api.py, web/js/{api,game,main}.js · **Scope:** M
 
 ### T15: S1 injection suite
 **Description:** The payload × input matrix from TS §4 S1, `PRAGMA integrity_check`, and an AST guard against SQL built by string formatting (`executescript` only in `db.migrate`).
 **Acceptance criteria:**
-- [ ] Every payload → no 500, `db_snapshot()` unchanged
-- [ ] The nickname `a-- DROP users` is stored verbatim
+- [x] Every payload → no 500, `db_snapshot()` unchanged
+- [x] The nickname `a-- DROP users` is stored verbatim
 **Dependencies:** T14 · **Files:** tests/test_security.py, tests/test_static.py · **Scope:** S
 
 ### ✅ Checkpoint C
-- [ ] A full free game runs in the browser against the real backend; the S1 and S5 tests are green; review with the owner
+- [x] A full free game runs in the browser against the real backend; the S1 and S5 tests are green; review with the owner
 
 ---
 

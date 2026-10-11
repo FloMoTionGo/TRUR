@@ -78,6 +78,41 @@ def test_framework_only_in_web_layer(path: Path) -> None:
     assert framework_imports(path.read_text(encoding="utf-8")) == []
 
 
+EXECUTE = {"execute", "executemany", "executescript"}
+
+
+def built_sql(source: str) -> list[str]:
+    """execute*() calls whose SQL is built with an f-string, %, + or .format() (S1).
+
+    db.migrate is the one exception: it runs constant migration SQL with executescript.
+    """
+    found = []
+    tree = ast.parse(source)
+    allowed = {
+        id(node)
+        for fn in ast.walk(tree)
+        if isinstance(fn, ast.FunctionDef) and fn.name == "migrate"
+        for node in ast.walk(fn)
+    }
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in EXECUTE):
+            continue
+        if node.func.attr == "executescript" and id(node) not in allowed:
+            found.append(f"line {node.lineno}: executescript outside db.migrate")
+        if not node.args or id(node) in allowed:
+            continue
+        sql = node.args[0]
+        formatted = isinstance(sql, ast.Call) and isinstance(sql.func, ast.Attribute) and sql.func.attr == "format"
+        if isinstance(sql, (ast.JoinedStr, ast.BinOp)) or formatted:
+            found.append(f"line {node.lineno}: SQL built from strings")
+    return found
+
+
+@pytest.mark.parametrize("path", SOURCES, ids=lambda p: str(_rel(p)))
+def test_sql_is_never_built_from_strings(path: Path) -> None:
+    assert built_sql(path.read_text(encoding="utf-8")) == []
+
+
 def test_guards_catch_planted_code() -> None:
     planted = (
         "import datetime, time, random\n"
@@ -93,6 +128,16 @@ def test_guards_catch_planted_code() -> None:
     assert len(time_reads(planted)) == 4
     assert len(global_random(planted)) == 2  # random.choice and `from random import choice`; Random(1) is fine
     assert len(framework_imports(planted)) == 1
+    sql = (
+        "conn.execute(f'SELECT * FROM users WHERE nickname = {nick}')\n"
+        "conn.execute('SELECT * FROM games WHERE id = ' + game_id)\n"
+        "conn.execute('SELECT %s' % x)\n"
+        "conn.execute('SELECT {}'.format(x))\n"
+        "conn.executescript(user_sql)\n"
+        "conn.execute('SELECT * FROM games WHERE id = ?', (game_id,))\n"
+        "def migrate(conn):\n    conn.executescript(f'BEGIN;{SQL}COMMIT;')\n"
+    )
+    assert len(built_sql(sql)) == 5  # the placeholder query and db.migrate's constant SQL are fine
 
 
 # --- the frontend in web/ (CSP: default-src 'self'; S8: text only through textContent) ---

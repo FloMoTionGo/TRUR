@@ -88,9 +88,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T9: Database layer
 **Description:** `trur/db.py`: `MIGRATIONS[0]` (the Arch §4 schema), `migrate`, `connect` / `connect_ro` (`check_same_thread=False`, `busy_timeout`, `foreign_keys`, then the authorizer), `tx()`, `iso()`, `sync_words`, `purge_events`. Add the template-DB fixture and `db_snapshot()`.
 **Acceptance criteria:**
-- [ ] The authorizer refuses DROP, ALTER, CREATE, ATTACH and PRAGMA writes, while a game's statements still work (TS S1)
-- [ ] The read-only connection refuses INSERT
-- [ ] `sync_words` is a no-op when the hash is unchanged
+- [x] The authorizer refuses DROP, ALTER, CREATE, ATTACH and PRAGMA writes, while a game's statements still work (TS S1)
+- [x] The read-only connection refuses INSERT
+- [x] `sync_words` is a no-op when the hash is unchanged
 **Dependencies:** T3 · **Files:** trur/db.py, tests/conftest.py, tests/test_db.py · **Scope:** M
 
 ### T10: App factory and security middleware

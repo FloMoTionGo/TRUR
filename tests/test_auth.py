@@ -114,6 +114,7 @@ def test_fold_nickname(nick: str, key: str) -> None:
         "porn", "PORN", "p0rn", "Fuck", "f_u_c_k", "fu-ck",  # short words: the whole nickname
         "ass_king", "Big ass", "tit-man", "x p0rn x",  # short words: one part between separators
         "asshole", "MrAsshole99", "assh0le", "ass_hole", "Bullsh1t", "Bullshlt",  # long words: anywhere
+        "FuckYou", "xXp0rnXx", "Pornelius",  # ANYWHERE words: anywhere too
     ],
 )
 def test_blocked_nickname_is_422(client: TestClient, db_path: Path, nickname: str) -> None:
@@ -123,21 +124,21 @@ def test_blocked_nickname_is_422(client: TestClient, db_path: Path, nickname: st
     assert _users(db_path) == []
 
 
-# Short words inside a longer part are allowed (owner, 2026-10-11): that keeps real names, and lets
-# a few compounds like "bigass" through.
-@pytest.mark.parametrize("nickname", ["Cassandra", "Titus", "Glass_Bass", "Pornelius", "Titanic 1912", "bigass"])
+# Other short words inside a longer part are allowed (owner, 2026-10-11): that keeps real names, and
+# lets a few compounds like "bigass" through.
+@pytest.mark.parametrize("nickname", ["Cassandra", "Titus", "Glass_Bass", "Titanic 1912", "bigass"])
 def test_short_blocklist_word_inside_a_part_is_allowed(client: TestClient, nickname: str) -> None:
     assert client.post(USERS, json={"nickname": nickname}).status_code == 201
 
 
 @pytest.mark.parametrize(
-    "nickname", ["Cassandra", "Titus", "Cucumber", "Scunthorpe", "Dickens", "Grape", "Spicy", "Raccoon", "Massimo"],
+    "nickname", ["Cassandra", "Titus", "Cucumber", "Grape", "Spicy", "Raccoon", "Massimo", "Hancock"],
 )
 def test_real_names_pass_the_real_blocklist(nickname: str) -> None:
     assert check_nickname(nickname, load_blocklist(ROOT / "data")) == nickname
 
 
-@pytest.mark.parametrize("nickname", ["fuck", "motherfucker99", "Cunt", "big_dick", "bullsh1t"])
+@pytest.mark.parametrize("nickname", ["fuck", "motherfucker99", "Cunt", "big_dick", "bullsh1t", "FuckYou", "ShitHead", "BigDick", "Scunthorpe"])
 def test_the_real_blocklist_blocks(nickname: str) -> None:
     with pytest.raises(ApiError) as exc:
         check_nickname(nickname, load_blocklist(ROOT / "data"))

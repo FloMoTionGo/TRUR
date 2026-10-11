@@ -28,11 +28,17 @@ _FOLD = str.maketrans("i10", "llo")
 # Blocklist words this short match only a whole part of the nickname, never inside one: substring
 # matching would refuse Cassandra, Titus and Cucumber (owner, 2026-10-11).
 SHORT_WORD = 4
+# Except these, which hide in few real words: FuckYou and BigDick are refused, at the cost of
+# Dickens and Scunthorpe (owner, 2026-10-11). They only apply while they are on the blocklist.
+ANYWHERE = frozenset({"fuck", "shit", "cunt", "porn", "slut", "twat", "wank", "jizz", "dick"})
 
 
 def fold_nickname(nick: str) -> str:
     """lower(); 'i', '1' → 'l'; '0' → 'o'. FIoMo, F1oMo, Fl0M0 and FLOMO all fold to "flomo"."""
     return nick.lower().translate(_FOLD)
+
+
+_ANYWHERE_FOLDED = frozenset(fold_nickname(w) for w in ANYWHERE)
 
 
 def load_blocklist(data_dir: Path) -> frozenset[str]:
@@ -43,13 +49,14 @@ def load_blocklist(data_dir: Path) -> frozenset[str]:
 
 
 def _blocked(nick: str, blocklist: frozenset[str]) -> bool:
-    """Long words match anywhere in the folded nickname with separators removed. Short words match the
-    whole of it, or one part between separators: a_s_s and ass_king are blocked, Cassandra isn't."""
+    """Long words and ANYWHERE words match anywhere in the folded nickname with separators removed. Other
+    short words match the whole of it, or one part between separators: a_s_s and ass_king are blocked,
+    Cassandra isn't."""
     parts = re.split(r"[ _-]+", fold_nickname(nick))
     squashed = "".join(parts)
     if blocklist & {squashed, *parts}:
         return True
-    return any(word in squashed for word in blocklist if len(word) > SHORT_WORD)
+    return any(word in squashed for word in blocklist if len(word) > SHORT_WORD or word in _ANYWHERE_FOLDED)
 
 
 def check_nickname(nick: str, blocklist: frozenset[str]) -> str:

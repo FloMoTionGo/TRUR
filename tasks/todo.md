@@ -22,9 +22,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T2: Word lists
 **Description:** Check the SCOWL `en_CA` licence and size first. Then write `scripts/build_wordlists.py`: SCOWL in `build/` + `wordfreq` → `data/words.txt` (UPPERCASE A–Z, no proper nouns or abbreviations, blocklist filtered, inflections kept) and `data/source_words.txt` (the top 500 of 5–10 letters, in frequency order). Hand-curate `data/blocklist.txt`. Record provenance and licence in `data/README.md`.
 **Acceptance criteria:**
-- [ ] `realdata` tests: exactly 500 source words, 5–10 letters, A–Z, all in the dictionary, no duplicates
-- [ ] A rerun of the script produces byte-identical output
-- [ ] The licence notice is in `data/README.md`
+- [x] `realdata` tests: exactly 500 source words, 5–10 letters, A–Z, all in the dictionary, no duplicates
+- [x] A rerun of the script produces byte-identical output
+- [x] The licence notice is in `data/README.md`
 **Dependencies:** T1 · **Files:** scripts/{__init__,build_wordlists}.py, data/{words.txt,source_words.txt,blocklist.txt,README.md}, tests/test_wordlists.py · **Scope:** M
 
 ### T3: Solver core
@@ -148,6 +148,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 
 ### T16: Nickname rules and prompt
 **Description:** `fold_nickname`, `check_nickname` (regex, blocklist substring on the folded form), `nickname_key` uniqueness → 409, and the nickname-prompt screen driven by `/api/users/me`.
+**Watch out:** substring matching with short blocklist words (`ass`, `tit`, `cum`) would also reject Cassandra, Titus and Cucumber. Decide on a minimum length for substring matches, with exact matching for shorter words, and agree it with the owner.
 **Acceptance criteria:**
 - [ ] All TS S8 cases pass (length, characters, lookalikes, blocklist)
 - [ ] E2E flow 1 passes

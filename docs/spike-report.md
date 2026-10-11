@@ -2,7 +2,7 @@
 
 Step 1 of the [build order](plan.md#build-order), run on 2026-10-11. It checks whether the alternating-letter rule leaves enough words per grid, before any UI work.
 
-- **Data:** the committed `data/` lists (79,227 words, 500 source words; see [data/README.md](../data/README.md)).
+- **Data:** the committed `data/` lists at the time (79,227 words, 500 source words; see [data/README.md](../data/README.md)). Removing 196 abbreviations afterwards (mostly 2–4 letters; the source words are unchanged) doesn't change the conclusions.
 - **Sample:** 20,000 random ordered pairs (`--seed 1`) out of all 249,500. A 3,000-pair sample gave the same picture, to within a percentage point.
 - **Reproduce:** `python -m scripts.spike_stats --sample 20000 --seed 1`.
 

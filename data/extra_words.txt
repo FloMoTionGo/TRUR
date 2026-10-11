@@ -1,0 +1,3 @@
+# Words added to the dictionary by hand, for valid words SCOWL en_CA is missing.
+# One lowercase word per line, a-z only. The blocklist still applies.
+# After editing, rebuild: python -m scripts.build_wordlists --scowl ... --scowl-db ...

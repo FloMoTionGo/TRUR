@@ -1,19 +1,26 @@
-"""Security tests: S7 body size and rate limits, S4 submit gap, S9 database file, S12 headers and errors (TS §4)."""
+"""Security tests: S2 acting as another player, S4 submit gap, S7 body size and rate limits, S9 database file,
+S12 headers and errors (TS §4)."""
 
+import base64
+import json
 import logging
 import random
 import sqlite3
+import uuid
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from httpx import Response
 
-from tests.conftest import FakeClock, db_snapshot, make_client, make_settings
+from tests.conftest import ORIGIN, FakeClock, db_snapshot, make_client, make_settings
 from trur import app as app_module
+from trur.api import router as api_router
 from trur.app import create_app
+from trur.auth import COOKIE
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.security import CSP, HSTS, RateLimiter
@@ -415,3 +422,123 @@ def test_second_events_request_within_a_second_is_429(limited: Limited, clock: F
     assert db_snapshot(db_path) == before
     clock.advance(1)
     assert c.post("/api/events", json=body).status_code == 204
+
+
+# --- S2: acting as another player (T19) ---
+
+Player = Callable[[str], TestClient]
+
+
+def status_and_body(response: Response) -> tuple[int, dict]:
+    return response.status_code, response.json()
+
+
+def test_another_players_game_looks_like_a_missing_one(player: Player, db_path: Path) -> None:
+    alice, bob = player("Alice"), player("Bob")
+    game_id = alice.post("/api/games", json={"mode": "free"}).json()["game_id"]
+    before = db_snapshot(db_path)
+    games_before = sqlite3.connect(db_path).execute("SELECT * FROM games").fetchall()
+    random_id = "7b0c5a0e-3d2f-4c1e-9a77-1f6e2b9d8c40"
+    for gid in (game_id, random_id):
+        responses = [
+            bob.post(f"/api/games/{gid}/submit", json={"tiles": GEAR}),
+            bob.post(f"/api/games/{gid}/end", json={}),
+            bob.post("/api/events", json={"events": [{"type": "selection_cleared", "game_id": gid, "client_ms": 0}]}),
+        ]
+        for r in responses:
+            assert_envelope(r, 404, "not_found")
+        if gid == game_id:
+            mine = [status_and_body(r) for r in responses]
+        else:
+            assert [status_and_body(r) for r in responses] == mine  # the same answer either way
+    assert db_snapshot(db_path) == before
+    assert sqlite3.connect(db_path).execute("SELECT * FROM games").fetchall() == games_before
+    assert bob.get("/api/games/current?mode=free").json() == {"game": None}
+
+
+@pytest.mark.parametrize(
+    "path, body",
+    [
+        (USERS, {"nickname": "Mallory"}),
+        ("/api/games", {"mode": "free"}),
+        ("/api/games/{gid}/submit", {"tiles": GEAR}),
+        ("/api/games/{gid}/end", {}),
+        ("/api/events", {"events": [{"type": "selection_cleared", "game_id": "{gid}", "client_ms": 0}]}),
+    ],
+)
+def test_user_id_in_any_body_is_422(app: FastAPI, player: Player, db_path: Path, path: str, body: dict) -> None:
+    alice = player("Alice")
+    gid = alice.post("/api/games", json={"mode": "free"}).json()["game_id"]
+    body = json.loads(json.dumps(body).replace("{gid}", gid))
+    with make_client(app) as stranger:
+        c = stranger if path == USERS else alice
+        before = db_snapshot(db_path)
+        r = c.post(path.replace("{gid}", gid), json={**body, "user_id": str(uuid.uuid4())})
+        assert_envelope(r, 422, "invalid_request")
+        assert db_snapshot(db_path) == before
+
+
+def request_params(dependant) -> list:
+    """Every client-supplied parameter of a route, through all its dependencies."""
+    own = dependant.path_params + dependant.query_params + dependant.header_params
+    own += dependant.cookie_params + dependant.body_params
+    return own + [p for dep in dependant.dependencies for p in request_params(dep)]
+
+
+def test_no_route_takes_a_user_id() -> None:
+    names = set()
+    for route in api_router.routes:  # every API route; app.routes wraps included routers
+        if isinstance(route, APIRoute):
+            names |= {name.lower() for p in request_params(route.dependant) for name in (p.name, p.alias)}
+    assert {"game_id", "mode", "body"} <= names
+    assert not {n for n in names if "user" in n}
+
+
+def test_game_ids_are_uuid4(player: Player) -> None:
+    alice = player("Alice")
+    ids = [alice.post("/api/games", json={"mode": "free"}).json()["game_id"] for _ in range(100)]
+    assert len(set(ids)) == 100
+    assert all(uuid.UUID(i).version == 4 and str(uuid.UUID(i)) == i for i in ids)
+
+
+def test_responses_never_carry_ids_hashes_or_the_token(client: TestClient, db_path: Path) -> None:
+    seen: list[str] = []
+
+    def record(r: Response) -> Response:
+        headers = {k: v for k, v in r.headers.items() if k.lower() != "set-cookie"}
+        seen.append(r.text + json.dumps(headers))
+        return r
+
+    c = client
+    record(c.post(USERS, json={"nickname": "Alice"}))
+    token = c.cookies[COOKIE]
+    assert len(base64.urlsafe_b64decode(token + "=")) == 32  # 256 random bits
+    game = record(c.post("/api/games", json={"mode": "free"})).json()
+    gid = game["game_id"]
+    record(c.get("/api/users/me"))
+    record(c.get("/api/games/current?mode=free"))
+    record(c.post(f"/api/games/{gid}/submit", json={"tiles": GEAR}))
+    record(c.post("/api/events", json={"events": [{"type": "selection_cleared", "game_id": gid, "client_ms": 0}]}))
+    record(c.post(f"/api/games/{gid}/end", json={}))
+    record(c.post(f"/api/games/{gid}/end", json={}))  # 409 game_over
+    record(c.post(USERS, json={"nickname": "Bob"}))  # 409 already_registered
+    record(c.post("/api/games/nope/submit", json={"tiles": GEAR}))  # 404
+
+    conn = sqlite3.connect(db_path)
+    user_id, token_hash = conn.execute("SELECT id, token_hash FROM users").fetchone()
+    conn.close()
+    for text in seen:
+        assert user_id not in text and token_hash not in text and token not in text
+    raw = b"".join(p.read_bytes() for p in db_path.parent.glob("trur.db*"))
+    assert token.encode() not in raw
+
+
+@pytest.mark.parametrize("origin", ["https://evil.example", ORIGIN])
+def test_no_cors_headers(client: TestClient, origin: str) -> None:
+    preflight = client.options(
+        "/api/games", headers={"Origin": origin, "Access-Control-Request-Method": "POST",
+                               "Access-Control-Request-Headers": "content-type"},
+    )
+    plain = client.get("/api/users/me", headers={"Origin": origin})
+    for r in (preflight, plain):
+        assert not [h for h in r.headers if h.lower().startswith("access-control-")]

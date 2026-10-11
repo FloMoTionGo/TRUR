@@ -171,11 +171,11 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T19: S2 test suite
 **Description:** Ownership 404s, no `user_id` input, 100 UUID4 ids, the raw token absent from the DB file, no ID or hash in any response, and no CORS headers.
 **Acceptance criteria:**
-- [ ] All TS S2 cases pass
+- [x] All TS S2 cases pass
 **Dependencies:** T18 · **Files:** tests/test_security.py · **Scope:** S
 
 ### ✅ Checkpoint D
-- [ ] Another player's game ID → 404; `<script>` as a nickname → 422; all tests green
+- [x] Another player's game ID → 404; `<script>` as a nickname → 422; all tests green
 
 ---
 

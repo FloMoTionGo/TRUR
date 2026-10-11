@@ -1,7 +1,7 @@
 import random
 import shutil
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -125,3 +125,20 @@ def make_client(app: FastAPI) -> TestClient:
 def client(app: FastAPI) -> Iterator[TestClient]:
     with make_client(app) as c:  # the context manager runs the lifespan
         yield c
+
+
+@pytest.fixture
+def player(app: FastAPI, client: TestClient) -> Iterator[Callable[[str], TestClient]]:
+    """player("Alice") registers a player with their own cookie jar (the app's lifespan already runs)."""
+    made: list[TestClient] = []
+
+    def make(nickname: str) -> TestClient:
+        c = make_client(app)
+        made.append(c)
+        r = c.post("/api/users", json={"nickname": nickname})
+        assert r.status_code == 201, r.text
+        return c
+
+    yield make
+    for c in made:
+        c.close()

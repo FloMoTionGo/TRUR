@@ -1,4 +1,4 @@
-"""Web hardening: body cap, security headers and generic 500s (S7, S12).
+"""Web hardening: body cap, security headers, generic 500s, the JSON/Origin check (S7, S12, S2).
 
 The middleware is pure ASGI rather than BaseHTTPMiddleware, which would wrap streaming responses
 in an extra task and memory stream (docs/architecture.md §8 item 22).
@@ -7,7 +7,11 @@ in an extra task and memory stream (docs/architecture.md §8 item 22).
 import json
 import logging
 
+from fastapi import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from trur.config import Settings
+from trur.errors import ApiError
 
 log = logging.getLogger("trur")
 
@@ -135,3 +139,11 @@ class SecurityHeaders:
 
         await self.app(scope, receive, send_with_headers)
 
+
+def check_post(request: Request, s: Settings) -> None:
+    """Every POST: a JSON body (415) from an allowed Origin (403, also when Origin is missing). CSRF defence (S2)."""
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if media_type != "application/json":
+        raise ApiError(415, "unsupported_media_type", "Send the request body as application/json.")
+    if request.headers.get("origin") not in s.allowed_origins:
+        raise ApiError(403, "bad_origin", "This request must come from the game's own page.")

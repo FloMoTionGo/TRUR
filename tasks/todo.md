@@ -104,9 +104,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T11: Minimal player cookie (pulled forward from step 4; see plan.md)
 **Description:** `trur/auth.py` token and hash, `create_user`, `user_for_token`. In `api.py`: `POST /api/users` (regex only for now), `GET /api/users/me`, the `get_player` dependency (→ 401), and `check_post` (JSON → 415, Origin → 403).
 **Acceptance criteria:**
-- [ ] The cookie is HttpOnly, Secure and SameSite=Lax; the DB stores only the SHA-256
-- [ ] `/me` without a cookie → 401; a second registration → 409 `already_registered`
-- [ ] A POST with a foreign or missing Origin → 403; `text/plain` → 415
+- [x] The cookie is HttpOnly, Secure and SameSite=Lax; the DB stores only the SHA-256
+- [x] `/me` without a cookie → 401; a second registration → 409 `already_registered`
+- [x] A POST with a foreign or missing Origin → 403; `text/plain` → 415
 **Dependencies:** T10 · **Files:** trur/auth.py, trur/api.py, tests/test_auth.py · **Scope:** S
 
 ### T12: Create and resume a free game

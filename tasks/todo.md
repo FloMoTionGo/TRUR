@@ -72,7 +72,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T6 · **Files:** web/index.html, web/css/app.css, web/js/{main,api}.js, web/img/*, web/fonts/* · **Scope:** M
 
 ### T8: Game screen against a mocked API
-**Description:** `web/js/game.js`: grid render (`data-row`, `data-col`, `data-state`), click to select, click again to undo, Clear, solution area, Submit against `page.route` mocks, the reject animation, the found list and the counter, all with `textContent` only. Set up the Playwright harness.
+**Description:** `web/js/game.js`: grid render (`data-row`, `data-col`, `data-state`), click to select, click again to undo, Clear, solution area, Submit against `page.route` mocks, the reject animation, the found list and the counter, all with `textContent` only. Add the feedback popup from the mocks (owner request): a rejected word shows a red popup naming the word, "not in the dictionary", the tries left, and the even-length rule; a duplicate shows an olive popup (no points, no try used). It fades after about 3 s and needs no API change. Set up the Playwright harness.
 **Acceptance criteria:**
 - [ ] E2E flows 2, 3, 4 and 9 (TS §5) pass against the mocks
 - [ ] No console errors and no CSP violations

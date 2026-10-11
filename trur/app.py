@@ -14,7 +14,7 @@ from datetime import timedelta
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from trur import db, games
+from trur import auth, db, games
 from trur.api import install_error_handlers, router
 from trur.clock import Clock, SystemClock
 from trur.config import Settings, load_settings
@@ -31,7 +31,8 @@ def _startup(app: FastAPI) -> None:
     if sqlite3.sqlite_version_info < MIN_SQLITE:
         raise RuntimeError(f"SQLite {sqlite3.sqlite_version} is too old; STRICT tables need 3.37+")
     s.data_dir.mkdir(parents=True, exist_ok=True)
-    lex = load_lexicon(s.lexicon_dir)  # the nickname blocklist is loaded here from T16 on
+    lex = load_lexicon(s.lexicon_dir)
+    blocklist = auth.load_blocklist(s.lexicon_dir)
     db.migrate(s.db_path)
     conn = db.connect(s.db_path)
     try:
@@ -46,6 +47,7 @@ def _startup(app: FastAPI) -> None:
     finally:
         conn.close()
     app.state.lexicon = lex
+    app.state.blocklist = blocklist
 
 
 def create_app(settings: Settings | None = None, clock: Clock | None = None, rng: random.Random | None = None) -> FastAPI:

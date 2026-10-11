@@ -140,7 +140,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T14 · **Files:** tests/test_security.py, tests/test_static.py · **Scope:** S
 
 ### ✅ Checkpoint C
-- [ ] A full free game runs in the browser against the real backend; the S1 and S5 tests are green; review with the owner
+- [x] A full free game runs in the browser against the real backend; the S1 and S5 tests are green; review with the owner
 
 ---
 
@@ -148,10 +148,10 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 
 ### T16: Nickname rules and prompt
 **Description:** `fold_nickname`, `check_nickname` (regex, blocklist substring on the folded form), `nickname_key` uniqueness → 409, and the nickname-prompt screen driven by `/api/users/me`.
-**Watch out:** substring matching with short blocklist words (`ass`, `tit`, `cum`) would also reject Cassandra, Titus and Cucumber. Decide on a minimum length for substring matches, with exact matching for shorter words, and agree it with the owner.
+**Watch out:** substring matching with short blocklist words (`ass`, `tit`, `cum`) would also reject Cassandra, Titus and Cucumber. Decide on a minimum length for substring matches, with exact matching for shorter words, and agree it with the owner. **Decided (owner, 2026-10-11):** 5+ letters by substring, 4 or fewer only as a whole part; see architecture.md §8 item 11.
 **Acceptance criteria:**
-- [ ] All TS S8 cases pass (length, characters, lookalikes, blocklist)
-- [ ] E2E flow 1 passes
+- [x] All TS S8 cases pass (length, characters, lookalikes, blocklist)
+- [x] E2E flow 1 passes
 **Dependencies:** T14 · **Files:** trur/auth.py, data/blocklist.txt, web/js/main.js, tests/test_auth.py · **Scope:** M
 
 ### T17: Rate limits

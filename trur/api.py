@@ -49,6 +49,10 @@ def get_lexicon(request: Request) -> Lexicon:
     return request.app.state.lexicon
 
 
+def get_blocklist(request: Request) -> frozenset[str]:
+    return request.app.state.blocklist
+
+
 def get_rng(request: Request) -> random.Random:
     return request.app.state.rng
 
@@ -123,10 +127,13 @@ def healthz(conn: Conn) -> dict:
 
 
 @router.post("/api/users", status_code=201, dependencies=POST)
-def register(body: NewUser, request: Request, response: Response, conn: Conn, s: Cfg, now: Now) -> dict:
+def register(
+    body: NewUser, request: Request, response: Response, conn: Conn, s: Cfg, now: Now,
+    blocklist: Annotated[frozenset[str], Depends(get_blocklist)],
+) -> dict:
     if auth.user_for_token(conn, request.cookies.get(auth.COOKIE)) is not None:
         raise ApiError(409, "already_registered", "This browser already has a player.")
-    nickname = auth.check_nickname(body.nickname)
+    nickname = auth.check_nickname(body.nickname, blocklist)
     token = auth.create_user(conn, nickname, now)
     response.set_cookie(
         auth.COOKIE, token, max_age=auth.COOKIE_MAX_AGE, path="/",

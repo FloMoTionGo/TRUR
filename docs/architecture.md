@@ -585,7 +585,9 @@ These close gaps the review found in the plan. Items 1, 2 and 18 were decided by
 10. **Late workflow runs:** `pick_daily` fills every missing date from today to tomorrow, so a run delayed past midnight doesn't skip a day. If the backend already made a fallback pair, the workflow's entry for that date is ignored.
 11. **Blocklist:** `data/blocklist.txt` is curated by hand.
     - Dictionary words are filtered against it by exact match.
-    - Nicknames are checked by substring, on the folded form with spaces, `_` and `-` removed.
+    - Nicknames are checked on the folded form, with the blocklist folded the same way (owner, 2026-10-11):
+      - words of 5+ letters match anywhere in the nickname with spaces, `_` and `-` removed
+      - words of 4 letters or fewer match only the whole nickname (separators removed) or one part between separators, so `a_s_s` and `ass_king` are blocked but Cassandra, Titus and Cucumber are not. Compounds like `bigass` get through; add them to the blocklist if they show up.
 12. **Boards:** ties use `RANK()` (1, 1, 3) and are ordered by nickname. A board shows the top 100. `month` defaults to the current UTC month and `date` to today.
 13. **Limits:** reaching the 20-game limit leaves the open game untouched. The 30-per-hour limit is per player and counts every `POST /api/games`.
 14. **Read-only connection:** the sweep runs on the read-write connection, then the board query runs on the read-only one.

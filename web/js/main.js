@@ -41,7 +41,7 @@ function toggleTheme() {
   applyTheme();
 }
 
-// --- nickname prompt (full rules and lookalike checks arrive with T16) ---
+// --- nickname prompt: shown when /api/users/me says 401; the server checks the rules ---
 
 function askNickname() {
   const form = document.getElementById("nick-form");

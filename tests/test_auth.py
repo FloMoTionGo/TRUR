@@ -1,4 +1,4 @@
-"""The minimal player cookie: registration, /me, and the JSON/Origin check (T11; TS step 4 "Players", S2)."""
+"""The player cookie, nickname rules and the JSON/Origin check (T11, T16; TS step 4 "Players", S2, S8)."""
 
 import hashlib
 import sqlite3
@@ -9,8 +9,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.conftest import ORIGIN, db_snapshot
-from trur.auth import COOKIE, COOKIE_MAX_AGE
+from tests.conftest import FIXTURES, ORIGIN, ROOT, db_snapshot
+from trur.auth import COOKIE, COOKIE_MAX_AGE, check_nickname, fold_nickname, load_blocklist
+from trur.errors import ApiError
 
 ME = "/api/users/me"
 USERS = "/api/users"
@@ -36,7 +37,7 @@ def test_registration_sets_a_hardened_cookie(client: TestClient, db_path: Path) 
     token = client.cookies[COOKIE]
     assert len(token) == 43  # token_urlsafe(32): 256 random bits
 
-    assert _users(db_path) == [("Alice", "Alice", hashlib.sha256(token.encode()).hexdigest())]
+    assert _users(db_path) == [("Alice", "allce", hashlib.sha256(token.encode()).hexdigest())]
     raw = b"".join(p.read_bytes() for p in db_path.parent.glob("trur.db*"))
     assert token.encode() not in raw  # the database stores only the hash
 
@@ -88,6 +89,63 @@ def test_nickname_refused(client: TestClient, db_path: Path, nickname: str) -> N
     assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_nickname"
     assert "<script>" not in r.text  # never echoed back
     assert _users(db_path) == []
+
+
+# --- S8: lookalikes and the blocklist (T16) ---
+
+@pytest.mark.parametrize("lookalike", ["FIoMo", "F1oMo", "Fl0M0", "FLOMO", "flomo"])
+def test_a_lookalike_of_a_taken_nickname_is_409(
+    player: Callable[[str], TestClient], client: TestClient, db_path: Path, lookalike: str,
+) -> None:
+    player("FloMo")
+    r = client.post(USERS, json={"nickname": lookalike})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "nickname_taken"
+    assert [(nick, key) for nick, key, _ in _users(db_path)] == [("FloMo", "flomo")]
+
+
+@pytest.mark.parametrize("nick, key", [("FloMo", "flomo"), ("Fl0 M1_x-I", "flo ml_x-l"), ("ABC", "abc")])
+def test_fold_nickname(nick: str, key: str) -> None:
+    assert fold_nickname(nick) == key
+
+
+@pytest.mark.parametrize(
+    "nickname",
+    [
+        "porn", "PORN", "p0rn", "Fuck", "f_u_c_k", "fu-ck",  # short words: the whole nickname
+        "ass_king", "Big ass", "tit-man", "x p0rn x",  # short words: one part between separators
+        "asshole", "MrAsshole99", "assh0le", "ass_hole", "Bullsh1t", "Bullshlt",  # long words: anywhere
+    ],
+)
+def test_blocked_nickname_is_422(client: TestClient, db_path: Path, nickname: str) -> None:
+    r = client.post(USERS, json={"nickname": nickname})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "nickname_not_allowed"
+    assert nickname not in r.text  # never echoed back
+    assert _users(db_path) == []
+
+
+# Short words inside a longer part are allowed (owner, 2026-10-11): that keeps real names, and lets
+# a few compounds like "bigass" through.
+@pytest.mark.parametrize("nickname", ["Cassandra", "Titus", "Glass_Bass", "Pornelius", "Titanic 1912", "bigass"])
+def test_short_blocklist_word_inside_a_part_is_allowed(client: TestClient, nickname: str) -> None:
+    assert client.post(USERS, json={"nickname": nickname}).status_code == 201
+
+
+@pytest.mark.parametrize(
+    "nickname", ["Cassandra", "Titus", "Cucumber", "Scunthorpe", "Dickens", "Grape", "Spicy", "Raccoon", "Massimo"],
+)
+def test_real_names_pass_the_real_blocklist(nickname: str) -> None:
+    assert check_nickname(nickname, load_blocklist(ROOT / "data")) == nickname
+
+
+@pytest.mark.parametrize("nickname", ["fuck", "motherfucker99", "Cunt", "big_dick", "bullsh1t"])
+def test_the_real_blocklist_blocks(nickname: str) -> None:
+    with pytest.raises(ApiError) as exc:
+        check_nickname(nickname, load_blocklist(ROOT / "data"))
+    assert exc.value.code == "nickname_not_allowed"
+
+
+def test_load_blocklist_folds_and_skips_comments() -> None:
+    assert load_blocklist(FIXTURES) == {"ass", "tlt", "porn", "fuck", "asshole", "bullshlt"}
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,7 @@
+# Test blocklist: short words (≤ 4 letters) match whole nickname parts, longer ones match anywhere.
+ass
+tit
+porn
+fuck
+asshole
+bullshit

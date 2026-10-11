@@ -1,0 +1,11 @@
+# Dev and test dependencies (docs/architecture.md §6). Lock: pip-compile --generate-hashes requirements-dev.in
+-r requirements.in
+-c requirements.txt
+pytest
+pytest-cov
+httpx
+pytest-playwright
+PyYAML
+pip-tools
+pip-audit
+wordfreq

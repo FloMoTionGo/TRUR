@@ -1,0 +1,19 @@
+[project]
+name = "trur"
+version = "0.1.0"
+description = "A browser word game built from a grid of letter pairs"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+    "e2e: Playwright flows against a live server",
+    "realdata: tests over the committed word lists in data/",
+    "smoke: read-only checks against a deployed instance",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["trur", "scripts"]

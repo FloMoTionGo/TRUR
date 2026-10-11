@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="TRUR logo">
+  <title>TRUR</title>
+  <rect width="240" height="240" fill="#FFFFFF"/>
+  <g font-family="Space Mono, ui-monospace, monospace" font-weight="700" text-anchor="middle" dominant-baseline="central">
+    <g font-size="20" fill="#5C5C5C" font-weight="400">
+      <text x="100" y="28">T</text><text x="180" y="28">U</text>
+      <text x="28" y="100">R</text><text x="28" y="180">R</text>
+    </g>
+    <g fill="#000" fill-opacity=".25">
+      <rect x="68" y="68" width="68" height="68"/><rect x="148" y="68" width="68" height="68"/>
+      <rect x="68" y="148" width="68" height="68"/><rect x="148" y="148" width="68" height="68"/>
+    </g>
+    <g stroke="#1E1E1E" stroke-width="2">
+      <rect x="65" y="65" width="70" height="70" fill="#D9853B"/>
+      <rect x="145" y="65" width="70" height="70" fill="#6B7B3A"/>
+      <rect x="65" y="145" width="70" height="70" fill="#6B7B3A"/>
+      <rect x="145" y="145" width="70" height="70" fill="#D9853B"/>
+    </g>
+    <g font-size="26">
+      <text x="100" y="100" fill="#1E1E1E">TR</text><text x="180" y="100" fill="#FFFFFF">UR</text>
+      <text x="100" y="180" fill="#FFFFFF">TR</text><text x="180" y="180" fill="#1E1E1E">UR</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,308 @@
+/* TRUR – styles from the approved Claude Design ("Olive board", light and dark).
+   No inline styles anywhere (CSP); JS only sets custom properties and data-* attributes. */
+
+@font-face { font-family: "Space Grotesk"; font-weight: 400; font-display: swap; src: url("../fonts/space-grotesk-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 500; font-display: swap; src: url("../fonts/space-grotesk-latin-500.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 700; font-display: swap; src: url("../fonts/space-grotesk-latin-700.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 400; font-display: swap; src: url("../fonts/space-mono-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 700; font-display: swap; src: url("../fonts/space-mono-latin-700.woff2") format("woff2"); }
+
+/* --- tokens: light is the default --- */
+:root {
+  --ground: #FFFFFF;
+  --ink: #1E1E1E;
+  --muted: #5C5C5C;
+  --line: #E2E2DC;
+  --panel: #EEF0E6;
+  --tile: #6B7B3A;
+  --tile-ink: #FFFFFF;
+  --tile-edge: #4D5829;
+  --tile-shadow: rgba(0, 0, 0, .25);
+  --accent: #6B7B3A;
+  --accent-ink: #FFFFFF;
+  --orange: #D9853B;
+  --on-orange: #1E1E1E;
+  --red: #C0392B;
+  --on-red: #FFFFFF;
+  --frame: #1E1E1E;
+  --frame-shadow: rgba(0, 0, 0, .2);
+  --page: #F6F6F3;
+  --font-ui: "Space Grotesk", system-ui, sans-serif;
+  --font-tile: "Space Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+
+/* dark: follows the system until the player picks a mode with the toggle */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #171A12; --ink: #FFFFFF; --muted: #B9BDAE; --line: #2F3524; --panel: #232819;
+    --tile-edge: #F2EDE0; --tile-shadow: rgba(242, 237, 224, .5);
+    --frame: #F2EDE0; --frame-shadow: rgba(242, 237, 224, .5); --page: #0F110B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #171A12; --ink: #FFFFFF; --muted: #B9BDAE; --line: #2F3524; --panel: #232819;
+  --tile-edge: #F2EDE0; --tile-shadow: rgba(242, 237, 224, .5);
+  --frame: #F2EDE0; --frame-shadow: rgba(242, 237, 224, .5); --page: #0F110B;
+  color-scheme: dark;
+}
+
+/* --- page and the fixed 640×640 game area --- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: default; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+
+.app {
+  position: relative;
+  width: 640px;
+  height: 640px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+/* --- header --- */
+.bar {
+  height: 64px;
+  flex: none;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 2px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { width: 27px; height: 27px; display: block; }
+.wordmark { font-weight: 700; font-size: 22px; letter-spacing: 2px; }
+.stat { display: flex; flex-direction: column; line-height: 1.1; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.stat-value { font-family: var(--font-tile); font-size: 20px; }
+.tries { display: flex; gap: 5px; padding-top: 5px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ink); }
+.dot[data-full="true"] { background: var(--ink); }
+.bar-end { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+.icon-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 2px solid var(--ink);
+}
+.icon-button svg { width: 20px; height: 20px; }
+.theme-sun { display: none; }
+.is-dark .theme-sun { display: block; }
+.is-dark .theme-moon { display: none; }
+
+.modes { display: flex; border: 2px solid var(--ink); }
+.modes button {
+  padding: 6px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+}
+.modes button[aria-current="page"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+/* --- screens --- */
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.screen-center { align-items: center; justify-content: center; gap: 24px; padding: 24px; }
+.status-text { color: var(--muted); }
+
+/* --- game screen --- */
+.game-main { flex: 1; min-height: 0; display: flex; }
+.grid-area { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.grid {
+  --tile-size: 48px;
+  --gap: 6px;
+  display: grid;
+  grid-template-columns: 24px repeat(var(--cols, 6), var(--tile-size));
+  grid-template-rows: 24px repeat(var(--rows, 6), var(--tile-size));
+  gap: var(--gap);
+  align-items: center;
+  justify-items: center;
+}
+.grid .head { font-family: var(--font-tile); font-size: 14px; color: var(--muted); }
+.grid .head-col { align-self: end; }
+
+.tile {
+  width: var(--tile-size);
+  height: var(--tile-size);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: calc(var(--tile-size) * .35);
+  letter-spacing: 1px;
+  background: var(--tile);
+  color: var(--tile-ink);
+  border: 2px solid var(--tile-edge);
+  box-shadow: 3px 3px 0 var(--tile-shadow);
+}
+.tile[data-state="selected"] { background: var(--orange); color: var(--on-orange); border-color: var(--frame); }
+.tile[data-state="rejected"] {
+  background: var(--red);
+  color: var(--on-red);
+  border-color: var(--frame);
+  animation: shake 400ms ease-in-out;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) { .tile[data-state="rejected"] { animation: none; } }
+
+.found {
+  width: 190px;
+  flex: none;
+  margin: 16px 16px 16px 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  min-height: 0;
+}
+.found-head { padding: 10px 14px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 14px; }
+.found-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  font-family: var(--font-tile);
+  font-size: 15px;
+}
+.found-list li { display: flex; justify-content: space-between; }
+.found-list .pts { color: var(--muted); }
+.found-note { margin: auto 14px 12px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+
+.solution {
+  height: 88px;
+  flex: none;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 2px solid var(--line);
+}
+.solution-word { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; }
+#chips { display: flex; gap: 6px; }
+.chip {
+  padding: 4px 6px;
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--orange);
+  color: var(--on-orange);
+  border: 2px solid var(--frame);
+}
+.preview { margin-left: 6px; font-family: var(--font-tile); font-size: 18px; white-space: nowrap; }
+.preview[data-empty="true"] { color: var(--muted); font-size: 16px; }
+
+.button {
+  height: 44px;
+  padding: 0 14px;
+  background: transparent;
+  border: 2px solid var(--ink);
+  font-weight: 500;
+}
+.button-primary {
+  padding: 0 18px;
+  background: var(--orange);
+  color: var(--on-orange);
+  border-color: var(--frame);
+  font-weight: 700;
+  box-shadow: 3px 3px 0 var(--frame-shadow);
+}
+.button:disabled { opacity: .5; }
+
+/* --- word feedback popup --- */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  width: 380px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 2px solid var(--frame);
+  box-shadow: 4px 4px 0 var(--frame-shadow);
+}
+.toast-head { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--accent); color: var(--accent-ink); }
+.toast[data-kind="rejected"] .toast-head { background: var(--red); color: var(--on-red); }
+.toast-head svg { width: 18px; height: 18px; flex: none; }
+.toast-title { font-size: 15px; }
+.toast-body { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.4; }
+.toast-hint { color: var(--muted); font-size: 13px; }
+
+/* --- nickname screen --- */
+.logo-full {
+  display: grid;
+  grid-template-columns: 28px 64px 64px;
+  grid-template-rows: 28px 64px 64px;
+  gap: 8px;
+  padding: 0 36px 36px 0; /* centres the four tiles, not the headers */
+  align-items: center;
+  justify-items: center;
+}
+.logo-full .head { font-family: var(--font-tile); font-size: 18px; color: var(--muted); }
+.logo-tile {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: 22px;
+  border: 2px solid var(--frame);
+  box-shadow: 4px 4px 0 var(--frame-shadow);
+  background: var(--tile);
+  color: var(--tile-ink);
+}
+.logo-tile.on { background: var(--orange); color: var(--on-orange); }
+.nick-title { margin: 0; font-size: 30px; text-align: center; }
+.nick-sub { margin: 8px 0 0; color: var(--muted); font-size: 15px; text-align: center; }
+.nick-form { width: 360px; display: flex; flex-direction: column; gap: 8px; }
+.nick-form label { font-weight: 500; font-size: 14px; }
+.nick-row { display: flex; gap: 10px; }
+.nick-row input {
+  flex: 1;
+  height: 48px;
+  padding: 0 12px;
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  box-shadow: 3px 3px 0 var(--frame-shadow);
+}
+.nick-row .button-primary { height: 48px; }
+.nick-help { margin: 0; font-size: 13px; color: var(--muted); }
+.nick-error { margin: 0; font-size: 13px; color: var(--red); font-weight: 700; }
+.is-dark .nick-error { color: #F0A59C; }
+.privacy { margin: 0; width: 420px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--muted); }

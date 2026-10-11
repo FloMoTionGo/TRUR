@@ -5,7 +5,6 @@ the score. Answers never leave the server for an open game (S12); `missed_words`
 only once a free game is over.
 
 Seams for later tasks, each marked where it goes:
-- T17: the 1-second submit gap (S4), checked in memory before the submit transaction
 - T18: the server-side event log (game_started, word_*, game_ended)
 - T21: daily games, and keeping today's daily words out of free play
 - T25: the free-games-per-day limit

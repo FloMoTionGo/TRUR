@@ -1,19 +1,22 @@
-"""Security tests: S7 body size, S9 database file, S12 headers and errors (TS §4)."""
+"""Security tests: S7 body size and rate limits, S4 submit gap, S9 database file, S12 headers and errors (TS §4)."""
 
 import logging
+import random
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from httpx import Response
 
 from tests.conftest import FakeClock, db_snapshot, make_client, make_settings
 from trur import app as app_module
 from trur.app import create_app
 from trur.config import Settings
-from trur.security import CSP, HSTS
+from trur.errors import ApiError
+from trur.security import CSP, HSTS, RateLimiter
 
 MAX = 16_384
 
@@ -247,3 +250,153 @@ def test_chunked_body_over_the_cap_is_413(test_client: TestClient, chunk: int) -
     assert "content-length" not in r.request.headers
     assert_envelope(r, 413, "payload_too_large")
 
+
+
+# --- S7 and S4: rate limits (T17) ---
+
+USERS = "/api/users"
+IP_A, IP_B = "203.0.113.7", "198.51.100.9"
+Limited = Callable[..., TestClient]
+
+
+@pytest.fixture
+def limited(db_path: Path, clock: FakeClock, garden_seed: int) -> Iterator[Limited]:
+    """limited(rl_...=n) gives a client on an app with those limits switched on (conftest turns them all off)."""
+    made: list[TestClient] = []
+
+    def make(**overrides: object) -> TestClient:
+        app = create_app(make_settings(db_path.parent, **overrides), clock, random.Random(garden_seed))
+        c = make_client(app).__enter__()
+        made.append(c)
+        return c
+
+    yield make
+    for c in made:
+        c.__exit__(None, None, None)
+
+
+def register(c: TestClient, nickname: str, ip: str = IP_A) -> Response:
+    c.cookies.clear()  # a new browser each time
+    return c.post(USERS, json={"nickname": nickname}, headers={"Fly-Client-IP": ip})
+
+
+def test_sixth_new_player_from_one_ip_is_429(limited: Limited, clock: FakeClock, db_path: Path) -> None:
+    c = limited(trust_fly_client_ip=True, rl_new_players_per_ip_hour=5)
+    for nick in ["Anna", "Bert", "Cleo", "Dora", "Emma"]:
+        assert register(c, nick).status_code == 201
+    before = db_snapshot(db_path)
+    r = register(c, "Finn")
+    assert_envelope(r, 429, "rate_limited")
+    assert r.headers["retry-after"] == "3600"
+    assert db_snapshot(db_path) == before
+    assert register(c, "Finn", IP_B).status_code == 201  # a different IP
+    clock.advance(3600)
+    assert register(c, "Gwen").status_code == 201  # the hour has passed
+
+
+def test_fly_client_ip_is_ignored_unless_trusted(limited: Limited) -> None:
+    c = limited(rl_new_players_per_ip_hour=2)
+    assert register(c, "Anna", "10.0.0.1").status_code == 201
+    assert register(c, "Bert", "10.0.0.2").status_code == 201
+    assert register(c, "Cleo", "10.0.0.3").status_code == 429  # same socket peer, whatever the header says
+
+
+def test_invalid_nicknames_dont_use_up_the_limit(limited: Limited) -> None:
+    c = limited(trust_fly_client_ip=True, rl_new_players_per_ip_hour=1)
+    assert register(c, "<script>").status_code == 422
+    assert register(c, "ab").status_code == 422
+    assert register(c, "Anna").status_code == 201
+    assert register(c, "Bert").status_code == 429
+
+
+def test_the_ip_is_never_stored(limited: Limited, db_path: Path) -> None:
+    c = limited(trust_fly_client_ip=True, rl_new_players_per_ip_hour=5)
+    assert register(c, "Anna").status_code == 201
+    raw = b"".join(p.read_bytes() for p in db_path.parent.glob("trur.db*"))
+    assert IP_A.encode() not in raw
+
+
+def test_thirty_first_game_call_in_an_hour_is_429(limited: Limited, clock: FakeClock, db_path: Path) -> None:
+    c = limited(rl_games_per_player_hour=30)
+    assert register(c, "Anna").status_code == 201
+    for _ in range(30):
+        assert c.post("/api/games", json={"mode": "free"}).status_code == 201
+    before = db_snapshot(db_path)
+    r = c.post("/api/games", json={"mode": "free"})
+    assert_envelope(r, 429, "rate_limited")
+    assert r.headers["retry-after"] == "3600"
+    assert db_snapshot(db_path) == before
+    clock.advance(3600)
+    assert c.post("/api/games", json={"mode": "free"}).status_code == 201
+
+
+GEAR, DEER = [[4, 0], [5, 1]], [[4, 3], [5, 4]]  # GARDEN × SUMMER
+
+
+def test_submits_under_the_gap_are_429_and_cost_nothing(limited: Limited, clock: FakeClock, db_path: Path) -> None:
+    c = limited(submit_min_gap_s=1.0)
+    assert register(c, "Anna").status_code == 201
+    game = c.post("/api/games", json={"mode": "free"}).json()
+    path = f"/api/games/{game['game_id']}/submit"
+    assert c.post(path, json={"tiles": GEAR}).status_code == 200
+    clock.advance(0.5)
+    before = db_snapshot(db_path)
+    r = c.post(path, json={"tiles": DEER})
+    assert_envelope(r, 429, "rate_limited")
+    assert r.headers["retry-after"] == "1"
+    assert db_snapshot(db_path) == before
+    clock.advance(0.5)  # 1.0 s after the first submit
+    result = c.post(path, json={"tiles": DEER}).json()
+    assert result["status"] == "accepted" and result["tries_left"] == 3 and result["found_count"] == 2
+
+
+def test_the_gap_is_per_game(limited: Limited) -> None:
+    c = limited(submit_min_gap_s=1.0)
+    games = []
+    for nick in ["Anna", "Bert"]:
+        assert register(c, nick).status_code == 201
+        games.append((dict(c.cookies), c.post("/api/games", json={"mode": "free"}).json()))
+    for cookies, game in games:  # the same moment on the FakeClock
+        c.cookies.clear()
+        c.cookies.update(cookies)
+        assert c.post(f"/api/games/{game['game_id']}/submit", json={"tiles": GEAR}).status_code == 200
+
+
+def test_per_ip_backstop_covers_every_endpoint(limited: Limited) -> None:
+    c = limited(trust_fly_client_ip=True, rl_requests_per_ip_min=3)
+    for _ in range(3):
+        assert c.get("/healthz", headers={"Fly-Client-IP": IP_A}).status_code == 200
+    r = c.get("/api/users/me", headers={"Fly-Client-IP": IP_A})
+    assert_envelope(r, 429, "rate_limited")
+    assert r.headers["retry-after"] == "60"
+    assert c.get("/healthz", headers={"Fly-Client-IP": IP_B}).status_code == 200
+
+
+def test_rate_limiter_sliding_window(clock: FakeClock) -> None:
+    limiter = RateLimiter(clock)
+    limiter.check("k", 2, 10)
+    clock.advance(5)
+    limiter.check("k", 2, 10)
+    clock.advance(4)  # t = 9
+    with pytest.raises(ApiError) as exc:
+        limiter.check("k", 2, 10)
+    assert exc.value.status == 429 and exc.value.extra["retry_after"] == 1
+    clock.advance(1)  # t = 10: the first hit leaves the window
+    limiter.check("k", 2, 10)
+    limiter.check("other", 2, 10)  # keys are separate
+
+
+def test_rate_limiter_zero_is_off(clock: FakeClock) -> None:
+    limiter = RateLimiter(clock)
+    for _ in range(100):
+        limiter.check("k", 0, 60)
+        limiter.check("k", 1, 0)
+
+
+def test_rate_limiter_drops_idle_keys(clock: FakeClock) -> None:
+    limiter = RateLimiter(clock)
+    limiter.SWEEP_EVERY = 2
+    limiter.check("old", 1, 60)
+    clock.advance(60)
+    limiter.check("new", 1, 60)
+    assert list(limiter._hits) == ["new"]

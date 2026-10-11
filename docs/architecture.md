@@ -589,7 +589,7 @@ These close gaps the review found in the plan. Items 1, 2 and 18 were decided by
       - words of 5+ letters match anywhere in the nickname with spaces, `_` and `-` removed
       - words of 4 letters or fewer match only the whole nickname (separators removed) or one part between separators, so `a_s_s` and `ass_king` are blocked but Cassandra, Titus and Cucumber are not. Compounds like `bigass` get through; add them to the blocklist if they show up.
 12. **Boards:** ties use `RANK()` (1, 1, 3) and are ordered by nickname. A board shows the top 100. `month` defaults to the current UTC month and `date` to today.
-13. **Limits:** reaching the 20-game limit leaves the open game untouched. The 30-per-hour limit is per player and counts every `POST /api/games`.
+13. **Limits:** reaching the 20-game limit leaves the open game untouched. The 30-per-hour limit is per player and counts every `POST /api/games`. Only allowed requests count toward a rate limit, so a client that keeps getting 429 isn't locked out for longer. The new-player limit counts a registration only once the nickname passes the rules: typos don't use up the hour, but a taken nickname does.
 14. **Read-only connection:** the sweep runs on the read-write connection, then the board query runs on the read-only one.
 15. **Daily JSON format:** a top-level array of `{"date","word1","word2"}`, uppercase, sorted by date, written with `indent=2` and a trailing newline.
 16. **Month of a submission:** `submissions.month` is the game's month, which also decides which monthly board the game lands on.

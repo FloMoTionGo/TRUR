@@ -18,7 +18,7 @@ from trur import auth, db, games
 from trur.api import install_error_handlers, router
 from trur.clock import Clock, SystemClock
 from trur.config import Settings, load_settings
-from trur.security import BodySizeLimit, InternalErrors, SecurityHeaders
+from trur.security import BodySizeLimit, InternalErrors, RateLimiter, SecurityHeaders
 from trur.solver import load_lexicon
 
 log = logging.getLogger("trur")
@@ -68,6 +68,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None, rng
     app.state.settings = settings
     app.state.clock = clock or SystemClock()
     app.state.rng = rng or random.Random()
+    app.state.limiter = RateLimiter(app.state.clock)
     install_error_handlers(app)
     app.include_router(router)
     # Starlette runs the last-added middleware outermost: headers wrap everything, including the 413 and 500.

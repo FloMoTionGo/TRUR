@@ -20,11 +20,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from trur import auth, db, games
 from trur.config import Settings
 from trur.errors import ApiError
-from trur.security import check_post
+from trur.security import RateLimiter, check_post, client_ip
 from trur.solver import Lexicon
-
-router = APIRouter()
-
 
 # --- dependencies ---
 
@@ -57,8 +54,18 @@ def get_rng(request: Request) -> random.Random:
     return request.app.state.rng
 
 
+def get_limiter(request: Request) -> RateLimiter:
+    return request.app.state.limiter
+
+
 def post_checks(request: Request) -> None:
     check_post(request, request.app.state.settings)
+
+
+def ip_backstop(request: Request) -> None:
+    """Every API request: at most RL_REQUESTS_PER_IP_MIN per IP and minute (S7)."""
+    s: Settings = request.app.state.settings
+    get_limiter(request).check(f"ip:{client_ip(request, s.trust_fly_client_ip)}", s.rl_requests_per_ip_min, 60)
 
 
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
@@ -66,7 +73,10 @@ Cfg = Annotated[Settings, Depends(get_settings)]
 Now = Annotated[datetime, Depends(get_now)]
 Lex = Annotated[Lexicon, Depends(get_lexicon)]
 Rng = Annotated[random.Random, Depends(get_rng)]
+Limiter = Annotated[RateLimiter, Depends(get_limiter)]
 POST = [Depends(post_checks)]  # route-level, so it runs before the body is validated
+
+router = APIRouter(dependencies=[Depends(ip_backstop)])
 
 
 def get_player(request: Request, conn: Conn) -> sqlite3.Row:
@@ -129,11 +139,13 @@ def healthz(conn: Conn) -> dict:
 @router.post("/api/users", status_code=201, dependencies=POST)
 def register(
     body: NewUser, request: Request, response: Response, conn: Conn, s: Cfg, now: Now,
-    blocklist: Annotated[frozenset[str], Depends(get_blocklist)],
+    blocklist: Annotated[frozenset[str], Depends(get_blocklist)], limiter: Limiter,
 ) -> dict:
     if auth.user_for_token(conn, request.cookies.get(auth.COOKIE)) is not None:
         raise ApiError(409, "already_registered", "This browser already has a player.")
     nickname = auth.check_nickname(body.nickname, blocklist)
+    # Counted only for valid nicknames, so typos don't use up the hour; a taken nickname still counts.
+    limiter.check(f"players:{client_ip(request, s.trust_fly_client_ip)}", s.rl_new_players_per_ip_hour, 3600)
     token = auth.create_user(conn, nickname, now)
     response.set_cookie(
         auth.COOKIE, token, max_age=auth.COOKIE_MAX_AGE, path="/",
@@ -148,15 +160,21 @@ def me(player: Player) -> dict:
 
 
 @router.post("/api/games", status_code=201, dependencies=POST)
-def new_game(body: NewGame, response: Response, conn: Conn, s: Cfg, lex: Lex, rng: Rng, player: Player, now: Now) -> dict:
+def new_game(
+    body: NewGame, response: Response, conn: Conn, s: Cfg, lex: Lex, rng: Rng, player: Player, now: Now, limiter: Limiter,
+) -> dict:
+    limiter.check(f"games:{player['id']}", s.rl_games_per_player_hour, 3600)
     state, created = games.create_game(conn, lex, s, rng, player["id"], body.mode, now)
     response.status_code = 201 if created else 200
     return state
 
 
 @router.post("/api/games/{game_id}/submit", dependencies=POST)
-def submit(game_id: str, body: Submission, conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now) -> dict:
-    # T17: the 1-second submit gap (S4) is checked here, before the transaction.
+def submit(
+    game_id: str, body: Submission, conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now, limiter: Limiter,
+) -> dict:
+    # The submit gap (S4), in memory before the transaction, so a submit that comes too fast costs no try.
+    limiter.check(f"submit:{player['id']}:{game_id}", 1, s.submit_min_gap_s)
     tiles = [(row, col) for row, col in body.tiles]
     return games.submit(conn, lex, s, player["id"], game_id, tiles, now)
 
@@ -178,7 +196,9 @@ def error_response(status: int, code: str, message: str, headers: dict[str, str]
 
 
 async def _api_error(request: Request, exc: ApiError) -> JSONResponse:
-    return error_response(exc.status, exc.code, exc.message)
+    retry_after = exc.extra.get("retry_after")
+    headers = {"Retry-After": str(retry_after)} if retry_after is not None else None
+    return error_response(exc.status, exc.code, exc.message, headers=headers)
 
 
 async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:

@@ -157,8 +157,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T17: Rate limits
 **Description:** `RateLimiter` (sliding window, Clock-driven, limit 0 = off), `client_ip` (trusts `Fly-Client-IP` only when configured, never stores it), wired for new players per IP, games per hour, the submit gap (S4), events per second, and the per-IP backstop.
 **Acceptance criteria:**
-- [ ] TS S7 "New players" and "Other limits", and the S4 gap cases
-- [ ] A 429 never changes the DB, and the response has `Retry-After`
+- [x] TS S7 "New players" and "Other limits", and the S4 gap cases (the events-per-second limit is wired with its endpoint in T18)
+- [x] A 429 never changes the DB, and the response has `Retry-After`
 **Dependencies:** T16 · **Files:** trur/security.py, trur/api.py, trur/games.py, tests/test_security.py · **Scope:** M
 
 ### T18: Gameplay event log

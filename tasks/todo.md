@@ -30,9 +30,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T3: Solver core
 **Description:** `trur/solver.py`: `Lexicon`, `load_lexicon`, `word_from_tiles`, `points`, `is_win_word`, and `solve` with the mask prefilter and pair counts (LRU cache). Add the TS §2 word fixture (GARDEN × SUMMER = 9 words worth 56 points, MEDICAL × CORRECT, STRONG × MEANING, synthetic words marked).
 **Acceptance criteria:**
-- [ ] All TS step-1 tile-mapping, solver and scoring cases pass, including the backtracking oracle over 200 seeded pairs
-- [ ] 100 % branch coverage on `solver.py`
-- [ ] `realdata`: the largest 10×10 pair solves in under 100 ms
+- [x] All TS step-1 tile-mapping, solver and scoring cases pass, including the backtracking oracle over 200 seeded pairs
+- [x] 100 % branch coverage on `solver.py`
+- [x] `realdata`: the largest 10×10 pair solves in under 100 ms
 **Dependencies:** T1 (T2 for the realdata timing) · **Files:** trur/solver.py, tests/fixtures/*, tests/test_solver.py · **Scope:** M
 
 ### T4: Pair picking and daily-JSON validation

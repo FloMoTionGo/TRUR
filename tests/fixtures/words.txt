@@ -1,0 +1,28 @@
+# Test dictionary (docs/test-strategy.md §2). Tile [r,c] = word1[c] + word2[r].
+# Source words
+GARDEN
+SUMMER
+MEDICAL
+CORRECT
+STRONG
+MEANING
+# GARDEN x SUMMER: exactly these 9 words, 56 points
+GEAR
+DEER
+NEAR
+RUNE
+AMAM  # synthetic: two separate AM tiles
+NEARER
+DEARER
+GENRES
+RERUNS
+# Must not be found in GARDEN x SUMMER
+URGE
+SAGE
+NENE
+RANGE
+AS
+# Win words (10+ letters): only MEDICAL x CORRECT and STRONG x MEANING qualify
+DEMOCRATIC
+DEMOCRATICLO  # synthetic: 12 letters
+GENERATION

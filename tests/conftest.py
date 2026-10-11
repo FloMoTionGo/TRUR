@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
+from trur.solver import Lexicon, load_lexicon
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 DEFAULT_NOW = datetime(2026, 10, 11, 12, 0, 0, tzinfo=timezone.utc)
 
 
@@ -26,3 +30,9 @@ class FakeClock:
 @pytest.fixture
 def clock() -> FakeClock:
     return FakeClock()
+
+
+@pytest.fixture(scope="session")
+def lex() -> Lexicon:
+    """The fixture dictionary (docs/test-strategy.md §2)."""
+    return load_lexicon(FIXTURES)

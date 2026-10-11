@@ -87,8 +87,8 @@ def test_tiles(alice: TestClient, game_id: str, db_path: Path, payload: str) -> 
 
 @pytest.mark.parametrize("payload", [p for p in PAYLOADS if "\x00" not in p])  # a NUL can't go in a header
 def test_cookie(app, db_path: Path, payload: str) -> None:
-    before = db_snapshot(db_path)
     with make_client(app) as c:
+        before = db_snapshot(db_path)  # after startup, which imports the daily pairs
         c.cookies.set("trur_token", payload)
         for r in (c.get("/api/users/me"), c.post("/api/games", json={"mode": "free"})):
             assert r.status_code == 401, r.text

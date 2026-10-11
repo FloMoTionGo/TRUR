@@ -184,8 +184,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T20: Daily import and fallback
 **Description:** `daily.py` `import_daily` (path or https via urllib, timeout, size cap, validation, never raises, logs skips), `ensure_daily_pair` (process lock, SELECT → import → fallback avoiding pairs in the DB and the JSON → `INSERT OR IGNORE` → re-SELECT, 503 when no pair can be picked), and the lifespan import when today or tomorrow is missing.
 **Acceptance criteria:**
-- [ ] TS step 5 "Import and fallback" cases, including the two-thread fallback race
-- [ ] An `http://` source makes startup fail (S10)
+- [x] TS step 5 "Import and fallback" cases, including the two-thread fallback race (the HTTP repeat needs daily mode: T21)
+- [x] An `http://` source makes startup fail (S10)
 **Dependencies:** T19 · **Files:** trur/daily.py, trur/app.py, tests/test_daily.py · **Scope:** M
 
 ### T21: Daily game mode

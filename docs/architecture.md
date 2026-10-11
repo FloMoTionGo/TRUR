@@ -178,9 +178,9 @@ def create_user(conn, nickname: str, now: datetime) -> str  # returns token (sec
 def user_for_token(conn, token: str | None) -> sqlite3.Row | None
 
 # trur/daily.py
-def import_daily(conn, lex, s: Settings) -> int   # read source (https URL via urllib, timeout, read(max+1) cap;
+def import_daily(conn, lex, s: Settings) -> list[DailyEntry]   # read source (https URL via urllib, timeout, read(max+1) cap;
                                                    # or local path), validate each entry, INSERT OR IGNORE 'workflow';
-                                                   # never raises; logs skipped entries; caches parsed pairs for fallback
+                                                   # never raises; logs skipped entries; returns the valid entries, which the fallback avoids
 def ensure_daily_pair(conn, lex, s, rng, day: date) -> DailyEntry  # process Lock: SELECT → import → fallback
                                                    # (pick_pair avoiding DB ∪ JSON pairs) INSERT OR IGNORE 'fallback'
                                                    # + warning → re-SELECT; 503 no_pair_available if pick fails

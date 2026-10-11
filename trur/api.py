@@ -4,22 +4,24 @@ All routes are plain `def`: sqlite3 blocks, so they run in the threadpool. Time 
 app.state.clock and randomness from app.state.rng, never from the system directly.
 """
 
+import random
 import sqlite3
 from collections.abc import Iterator
 from datetime import datetime
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from trur import auth, db
+from trur import auth, db, games
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.security import check_post
+from trur.solver import Lexicon
 
 router = APIRouter()
 
@@ -43,6 +45,14 @@ def get_now(request: Request) -> datetime:
     return request.app.state.clock.now()
 
 
+def get_lexicon(request: Request) -> Lexicon:
+    return request.app.state.lexicon
+
+
+def get_rng(request: Request) -> random.Random:
+    return request.app.state.rng
+
+
 def post_checks(request: Request) -> None:
     check_post(request, request.app.state.settings)
 
@@ -50,6 +60,8 @@ def post_checks(request: Request) -> None:
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 Cfg = Annotated[Settings, Depends(get_settings)]
 Now = Annotated[datetime, Depends(get_now)]
+Lex = Annotated[Lexicon, Depends(get_lexicon)]
+Rng = Annotated[random.Random, Depends(get_rng)]
 POST = [Depends(post_checks)]  # route-level, so it runs before the body is validated
 
 
@@ -72,6 +84,13 @@ class Strict(BaseModel):
 
 class NewUser(Strict):
     nickname: str
+
+
+GameMode = Literal["free"]  # "daily" is accepted from T21 on
+
+
+class NewGame(Strict):
+    mode: GameMode
 
 
 # --- routes ---
@@ -98,6 +117,18 @@ def register(body: NewUser, request: Request, response: Response, conn: Conn, s:
 @router.get("/api/users/me")
 def me(player: Player) -> dict:
     return {"nickname": player["nickname"]}
+
+
+@router.post("/api/games", status_code=201, dependencies=POST)
+def new_game(body: NewGame, response: Response, conn: Conn, s: Cfg, lex: Lex, rng: Rng, player: Player, now: Now) -> dict:
+    state, created = games.create_game(conn, lex, s, rng, player["id"], body.mode, now)
+    response.status_code = 201 if created else 200
+    return state
+
+
+@router.get("/api/games/current")
+def current(mode: Annotated[GameMode, Query()], conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now) -> dict:
+    return {"game": games.current_game(conn, lex, s, player["id"], mode, now)}
 
 
 # --- the error envelope ---

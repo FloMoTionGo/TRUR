@@ -112,9 +112,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T12: Create and resume a free game
 **Description:** `games.py` `create_game` (free: `pick_pair` with `MIN_FREE_WORDS`; the open game is ended as `replaced`), `current_game`, `GameState`, plus `POST /api/games` and `GET /api/games/current`. Today's daily words are excluded later, in T21.
 **Acceptance criteria:**
-- [ ] TS step 3 "Creating a game": UUID4 id, 3 tries, `total_words` 9, no answers in the body
-- [ ] A reload resumes the game; with none open → `{"game": null}`
-- [ ] Starting B ends A as `replaced`
+- [x] TS step 3 "Creating a game": UUID4 id, 3 tries, `total_words` 9, no answers in the body
+- [x] A reload resumes the game; with none open → `{"game": null}`
+- [x] Starting B ends A as `replaced`
 **Dependencies:** T11 · **Files:** trur/games.py, trur/api.py, tests/test_games.py · **Scope:** M
 
 ### T13: Submit transaction

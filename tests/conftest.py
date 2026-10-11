@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from trur import db
 from trur.app import create_app
 from trur.config import Settings
-from trur.solver import Lexicon, load_lexicon
+from trur.solver import Lexicon, load_lexicon, pick_pair
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 ROOT = FIXTURES.parent.parent
@@ -111,9 +111,21 @@ def settings(db_path: Path) -> Settings:
     return make_settings(db_path.parent)
 
 
+def seed_for(lex: Lexicon, word1: str, word2: str, min_words: int = 1) -> int:
+    """A seed whose first free-play pick is word1 × word2."""
+    accept = lambda w1, w2, answers: len(answers) >= min_words  # noqa: E731
+    return next(s for s in range(10_000) if pick_pair(lex, random.Random(s), accept)[:2] == (word1, word2))
+
+
+@pytest.fixture(scope="session")
+def garden_seed(lex: Lexicon) -> int:
+    return seed_for(lex, "GARDEN", "SUMMER")
+
+
 @pytest.fixture
-def app(settings: Settings, clock: FakeClock) -> FastAPI:
-    return create_app(settings, clock, random.Random(0))
+def app(settings: Settings, clock: FakeClock, garden_seed: int) -> FastAPI:
+    """The first free game this app picks is GARDEN × SUMMER (docs/test-strategy.md §5 setup)."""
+    return create_app(settings, clock, random.Random(garden_seed))
 
 
 def make_client(app: FastAPI) -> TestClient:

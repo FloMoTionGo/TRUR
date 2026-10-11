@@ -24,7 +24,7 @@ class Settings:
     debug: bool = False
     max_body_bytes: int = 16_384
     free_games_per_day: int = 20
-    min_free_words: int = 8  # placeholder until the step-1 spike (tasks/todo.md T5)
+    min_free_words: int = 12  # from the step-1 spike (docs/spike-report.md)
     submit_min_gap_s: float = 1.0
     rl_new_players_per_ip_hour: int = 5  # rate limits: 0 = off
     rl_games_per_player_hour: int = 30
@@ -32,7 +32,7 @@ class Settings:
     rl_requests_per_ip_min: int = 300
     event_retention_days: int = 90
     board_limit: int = 100
-    plaus_max_wpm: float = 20.0  # plausibility thresholds: placeholders until the spike
+    plaus_max_wpm: float = 20.0  # plausibility: provisional until real play data (docs/spike-report.md)
     plaus_soft_wpm: float = 8.0
     plaus_min_cells: int = 49
     plaus_min_words: int = 5

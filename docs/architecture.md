@@ -473,12 +473,12 @@ All values come from environment variables through `config.load_settings()`. Tes
 | `HSTS` / `TRUST_FLY_CLIENT_IP` / `DEBUG` | 0 / 0 / 0 | 0 / 0 / 0 | 1 / 1 / 0 |
 | `MAX_BODY_BYTES` | 16384 | same | same |
 | `FREE_GAMES_PER_DAY` | 20 | 20 | 20 |
-| `MIN_FREE_WORDS` (N) | set after the spike (placeholder 8) | 1 | spike value |
+| `MIN_FREE_WORDS` (N) | 12 (from the [spike](spike-report.md)) | 1 | 12 |
 | `SUBMIT_MIN_GAP_S` | 1.0 | 0, except in the gap test | 1.0 |
 | `RL_NEW_PLAYERS_PER_IP_HOUR` / `RL_GAMES_PER_PLAYER_HOUR` / `RL_EVENTS_PER_PLAYER_S` | 5 / 30 / 1 | 0 (off), except in the rate-limit tests | same as local |
 | `RL_REQUESTS_PER_IP_MIN` (backstop) | 300 | 0 | 300 |
 | `EVENT_RETENTION_DAYS` / `BOARD_LIMIT` | 90 / 100 | same | same |
-| `PLAUS_MAX_WPM`, `PLAUS_SOFT_WPM`, `PLAUS_MIN_CELLS`, `PLAUS_MIN_WORDS`, `PLAUS_FOUND_RATIO` | spike / spike / spike / 5 / 0.9 | small values | spike |
+| `PLAUS_MAX_WPM`, `PLAUS_SOFT_WPM`, `PLAUS_MIN_CELLS`, `PLAUS_MIN_WORDS`, `PLAUS_FOUND_RATIO` | 20 / 8 / 49 / 5 / 0.9 (the first three provisional until real play data; see the [spike](spike-report.md)) | small values | same as local |
 
 **Multiplayer settings** (`MATCH_*`, `MIN_MATCH_WORDS`, `RL_QUEUE_JOINS_PER_PLAYER_HOUR`, `SSE_KEEPALIVE_S`) are listed in [multiplayer.md §6.7](multiplayer.md#67-configuration).
 

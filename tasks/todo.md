@@ -46,8 +46,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T5: Feasibility spike
 **Description:** `scripts/spike_stats.py`: words per ordered source pair (distribution), the share of pairs with a 10+-letter word, solve time, and the lexicon's RAM use. Write a short report (e.g. `docs/spike-report.md`) and set `MIN_FREE_WORDS` and the `PLAUS_*` defaults from it.
 **Acceptance criteria:**
-- [ ] On the fixture data, the script reports 2 qualifying ordered pairs out of 30
-- [ ] The report is committed, and the thresholds are written into `config.py` defaults and Arch §5
+- [x] On the fixture data, the script reports 2 qualifying ordered pairs out of 30
+- [x] The report is committed, and the thresholds are written into `config.py` defaults and Arch §5
 **Dependencies:** T2, T4 · **Files:** scripts/spike_stats.py, docs/spike-report.md, trur/config.py, docs/architecture.md, tests/test_spike.py · **Scope:** S
 
 ### ✅ Checkpoint A: go/no-go

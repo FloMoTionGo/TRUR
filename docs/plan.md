@@ -141,6 +141,13 @@ All of it fits a fixed **640×640 px** game area. This sketch is the starting br
   - white on olive (about 4.6:1) and on red (about 5.4:1)
   - never white on orange (about 2.9:1) or near-black on olive (about 3.6:1)
   - The logo is exempt, so it keeps its black lettering.
+- **Chosen direction: "Olive board"** (owner, 2026-10-11, from the [screen mocks](https://claude.ai/artifact/4cJYXZSdvg5hD8mLkxaQSU)):
+  - white ground
+  - olive tiles (`#6B7B3A`, edge `#4D5829`) with white letters
+  - orange selected tiles with near-black letters
+  - olive headings and active states
+  - light olive panels (`#EEF0E6`)
+  - Fonts: Space Grotesk for the interface, Space Mono for tiles and numbers, both self-hosted.
 - **Look:** flat design with a sharp, subtle drop shadow (no blur), e.g. `box-shadow: 3px 3px 0 rgba(0,0,0,.2)`.
 - **Tile states:** default, selected (orange) and rejected (red shake, about 400 ms).
 

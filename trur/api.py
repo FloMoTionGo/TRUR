@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from trur import auth, db, games
@@ -93,6 +93,23 @@ class NewGame(Strict):
     mode: GameMode
 
 
+Coord = Annotated[int, Field(ge=0, le=9)]
+TilePair = Annotated[list[Coord], Field(min_length=2, max_length=2)]  # [row, col]
+
+
+class Submission(Strict):
+    """Tile coordinates only, never a word or a score: the server rebuilds the word (S5)."""
+
+    tiles: Annotated[list[TilePair], Field(min_length=2, max_length=50)]
+
+    @field_validator("tiles")
+    @classmethod
+    def no_repeats(cls, tiles: list[list[int]]) -> list[list[int]]:
+        if len({tuple(t) for t in tiles}) != len(tiles):
+            raise ValueError("a tile is used twice")
+        return tiles
+
+
 # --- routes ---
 
 @router.get("/healthz")
@@ -124,6 +141,13 @@ def new_game(body: NewGame, response: Response, conn: Conn, s: Cfg, lex: Lex, rn
     state, created = games.create_game(conn, lex, s, rng, player["id"], body.mode, now)
     response.status_code = 201 if created else 200
     return state
+
+
+@router.post("/api/games/{game_id}/submit", dependencies=POST)
+def submit(game_id: str, body: Submission, conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now) -> dict:
+    # T17: the 1-second submit gap (S4) is checked here, before the transaction.
+    tiles = [(row, col) for row, col in body.tiles]
+    return games.submit(conn, lex, s, player["id"], game_id, tiles, now)
 
 
 @router.get("/api/games/current")

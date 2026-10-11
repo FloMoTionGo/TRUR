@@ -1,11 +1,16 @@
 import random
 import shutil
+import socket
 import sqlite3
+import threading
+import time
 from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
+import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -154,3 +159,38 @@ def player(app: FastAPI, client: TestClient) -> Iterator[Callable[[str], TestCli
     yield make
     for c in made:
         c.close()
+
+
+# --- a real server, for requests that truly overlap (docs/test-strategy.md §1) ---
+
+class LiveServer(NamedTuple):
+    base_url: str
+    app: FastAPI
+    clock: FakeClock
+
+
+@pytest.fixture
+def live_server(db_path: Path, clock: FakeClock, garden_seed: int) -> Iterator[LiveServer]:
+    """uvicorn in a thread of the test process on a random port, sharing the test's FakeClock.
+
+    It serves plain http, so the Secure cookie isn't sent back by httpx's jar: tests pass the
+    token in a Cookie header themselves (see live_player in test_games.py).
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    base_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
+    app = create_app(make_settings(db_path.parent, allowed_origins=(base_url,)), clock, random.Random(garden_seed))
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        if not thread.is_alive() or time.monotonic() > deadline:
+            raise RuntimeError("live server did not start")
+        time.sleep(0.01)
+    try:
+        yield LiveServer(base_url, app, clock)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+        sock.close()

@@ -6,6 +6,7 @@ only once a free game is over.
 
 Seams for later tasks, each marked where it goes:
 - T14: sweep_abandoned before create/current, end_by_player
+- T17: the 1-second submit gap (S4), checked in memory before the submit transaction
 - T18: the server-side event log (game_started, word_*, game_ended)
 - T21: daily games, and keeping today's daily words out of free play
 - T25: the free-games-per-day limit
@@ -21,7 +22,7 @@ from typing import Literal, TypedDict
 from trur import db
 from trur.config import Settings
 from trur.errors import ApiError
-from trur.solver import MAX_TRIES, Lexicon, pick_pair, points
+from trur.solver import MAX_TRIES, Lexicon, Tile, is_win_word, pick_pair, points, word_from_tiles
 
 Mode = Literal["free", "daily"]
 EndReason = Literal["player", "tries", "all_found", "replaced", "day_closed"]
@@ -46,6 +47,19 @@ class GameState(TypedDict):
     won: bool
     game_over: bool
     missed_words: list[str] | None  # free play only, once the game is over
+
+
+class SubmitResult(TypedDict):
+    status: Literal["accepted", "duplicate", "rejected"]
+    word: str
+    points: int  # 0 unless accepted
+    score: int
+    tries_left: int
+    found_count: int
+    total_words: int
+    won: bool
+    game_over: bool
+    missed_words: list[str] | None
 
 
 def create_game(
@@ -89,7 +103,94 @@ def current_game(
     return None if game is None else _state(conn, lex, game)
 
 
+def submit(
+    conn: sqlite3.Connection, lex: Lexicon, s: Settings, user_id: str, game_id: str, tiles: list[Tile], now: datetime
+) -> SubmitResult:
+    """Check one word, all in one IMMEDIATE transaction, so parallel submits can't score twice or beat the 3 tries (S5).
+
+    `day_closed` and `game_over` are raised after COMMIT, so a game closed by the day check stays closed.
+    """
+    closed = None
+    with db.tx(conn):
+        game = _load_owned(conn, user_id, game_id)
+        if _day_over(game, now):
+            _end(conn, lex, s, game, "day_closed", now)
+            closed = ApiError(409, "day_closed", "This game's day is over, so the game has been closed.")
+        elif game["ended_at"] is not None:
+            closed = ApiError(409, "game_over", "This game is over.")
+        else:
+            result = _check_word(conn, lex, s, game, tiles, now)
+    if closed is not None:
+        raise closed
+    return result
+
+
 # --- private helpers ---
+
+def _load_owned(conn: sqlite3.Connection, user_id: str, game_id: str) -> sqlite3.Row:
+    """The game, if it belongs to this player. Someone else's game looks exactly like a missing one (S2)."""
+    game = conn.execute("SELECT * FROM games WHERE id = ? AND user_id = ?", (game_id, user_id)).fetchone()
+    if game is None:
+        raise ApiError(404, "not_found", "There is no such game.")
+    return game
+
+
+def _day_over(game: sqlite3.Row, now: datetime) -> bool:
+    """A game belongs to its UTC day (daily: daily_date; free: the started_at date) and closes at midnight."""
+    return (game["daily_date"] or game["started_at"][:10]) < now.date().isoformat()
+
+
+def _check_word(
+    conn: sqlite3.Connection, lex: Lexicon, s: Settings, game: sqlite3.Row, tiles: list[Tile], now: datetime
+) -> SubmitResult:
+    try:
+        word = word_from_tiles(game["word1"], game["word2"], tiles, lex.max_tiles)
+    except ValueError:
+        raise ApiError(422, "invalid_tiles", "Those tiles aren't a valid selection on this grid.") from None
+    month = (game["daily_date"] or game["started_at"])[:7]  # the game's month decides its board
+    found_before = conn.execute(
+        "SELECT 1 FROM submissions WHERE game_id = ? AND word = ? AND is_valid = 1", (game["id"], word)
+    ).fetchone()
+    gained = 0
+    if found_before is not None:
+        status = "duplicate"  # no row, no try used
+    elif word in lex.words:
+        status, gained = "accepted", points(word)
+        conn.execute(
+            "INSERT INTO submissions (user_id, game_id, game_mode, word, is_valid, points, submitted_at, month) "
+            "VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
+            (game["user_id"], game["id"], game["mode"], word, gained, db.iso(now), month),
+        )
+        won = game["mode"] == "daily" and is_win_word(word)
+        conn.execute("UPDATE games SET score = score + ?, won = MAX(won, ?) WHERE id = ?", (gained, int(won), game["id"]))
+        found = conn.execute("SELECT COUNT(*) FROM submissions WHERE game_id = ? AND is_valid = 1", (game["id"],)).fetchone()[0]
+        if found >= game["total_words"]:
+            _end(conn, lex, s, game, "all_found", now)
+    else:
+        status = "rejected"
+        conn.execute(
+            "INSERT INTO submissions (user_id, game_id, game_mode, word, is_valid, points, submitted_at, month) "
+            "VALUES (?, ?, ?, ?, 0, 0, ?, ?)",
+            (game["user_id"], game["id"], game["mode"], word, db.iso(now), month),
+        )
+        conn.execute("UPDATE games SET wrong_count = wrong_count + 1 WHERE id = ?", (game["id"],))
+        if game["wrong_count"] + 1 >= MAX_TRIES:
+            _end(conn, lex, s, game, "tries", now)
+    # T18: log word_accepted / word_duplicate / word_rejected.
+    state = _state(conn, lex, conn.execute("SELECT * FROM games WHERE id = ?", (game["id"],)).fetchone())
+    return {
+        "status": status,
+        "word": word,
+        "points": gained,
+        "score": state["score"],
+        "tries_left": state["tries_left"],
+        "found_count": state["found_count"],
+        "total_words": state["total_words"],
+        "won": state["won"],
+        "game_over": state["game_over"],
+        "missed_words": state["missed_words"],
+    }
+
 
 def _end(conn: sqlite3.Connection, lex: Lexicon, s: Settings, game: sqlite3.Row, reason: EndReason, now: datetime) -> None:
     """Close a game with its current score. Runs inside the caller's transaction."""

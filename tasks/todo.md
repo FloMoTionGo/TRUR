@@ -120,9 +120,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T13: Submit transaction
 **Description:** `submit()` as in Arch §2 "Submit transaction": `BEGIN IMMEDIATE`, ownership check (→ 404), day-closed check, `word_from_tiles`, accepted / duplicate / rejected, 3 tries, `all_found`. Pydantic tile model, and the `live_server` fixture.
 **Acceptance criteria:**
-- [ ] All TS step 3 "Submitting", "Ending" and "Invalid tiles" cases pass
-- [ ] S5: 20 parallel identical submits → 1 accepted and 19 duplicate; 10 parallel wrong submits → `wrong_count` 3; no 5xx
-- [ ] A body with `score`, `points`, `won` or `date` → 422
+- [x] All TS step 3 "Submitting", "Ending" and "Invalid tiles" cases pass (the two `POST /end` cases come with `end_by_player` in T14)
+- [x] S5: 20 parallel identical submits → 1 accepted and 19 duplicate; 10 parallel wrong submits → `wrong_count` 3; no 5xx
+- [x] A body with `score`, `points`, `won` or `date` → 422
 **Dependencies:** T12 · **Files:** trur/games.py, trur/api.py, tests/test_games.py, tests/conftest.py (live_server) · **Scope:** M
 
 ### T14: End game, sweep, frontend wired to the real API

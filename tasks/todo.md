@@ -140,7 +140,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T14 · **Files:** tests/test_security.py, tests/test_static.py · **Scope:** S
 
 ### ✅ Checkpoint C
-- [x] A full free game runs in the browser against the real backend; the S1 and S5 tests are green; review with the owner
+- [ ] A full free game runs in the browser against the real backend; the S1 and S5 tests are green; review with the owner
 
 ---
 

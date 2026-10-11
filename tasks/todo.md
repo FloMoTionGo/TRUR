@@ -198,8 +198,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T22: Past answers endpoint and leak sweep
 **Description:** `daily_answers` and `GET /api/daily/{date}/answers` (403 `day_not_over`, 404, 422, the caller's own `found`).
 **Acceptance criteria:**
-- [ ] The TS answers-endpoint table passes
-- [ ] Leak sweep: no route's response contains an unfound word from today
+- [x] The TS answers-endpoint table passes
+- [x] Leak sweep: no route's response contains an unfound word from today
 **Dependencies:** T21 · **Files:** trur/daily.py, trur/api.py, tests/test_daily.py · **Scope:** S
 
 ### T23: `pick_daily` and the workflow (can start after T4)

@@ -3,8 +3,7 @@
 Each payload goes into each input. Nothing may return a 500 or mention SQL, and the schema,
 the row counts and PRAGMA integrity_check must be unchanged afterwards.
 
-Inputs added by later tasks join this matrix there: the answers date (T22), and the board
-month and date (T26).
+Inputs added by later tasks join this matrix there: the board month and date (T26).
 """
 
 import sqlite3
@@ -102,6 +101,14 @@ def test_event_type_and_fields(alice: TestClient, game_id: str, db_path: Path, p
     for field in ("type", "game_id", "row", "selected", "client_ms"):
         assert_harmless(alice.post("/api/events", json={"events": [{**tile, field: payload}]}), db_path, before)
     assert_harmless(alice.post("/api/events", json={"events": payload}), db_path, before)
+
+
+@pytest.mark.parametrize("payload", PAYLOADS)
+def test_answers_date_in_the_path(alice: TestClient, db_path: Path, payload: str) -> None:
+    before = db_snapshot(db_path)
+    r = alice.get(f"/api/daily/{quote(payload, safe='')}/answers")
+    assert r.status_code in (404, 422), r.text
+    assert_harmless(r, db_path, before)
 
 
 def test_sql_lookalike_nickname_is_stored_verbatim(client: TestClient, db_path: Path) -> None:

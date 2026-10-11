@@ -1,10 +1,11 @@
-"""Daily challenge: import and fallback, the daily game, midnight (TS §3 step 5; S10)."""
+"""Daily challenge: import and fallback, the daily game, midnight, past answers (TS §3 step 5; S3, S10)."""
 
 import asyncio
 import io
 import json
 import logging
 import random
+import re
 import shutil
 import sqlite3
 import threading
@@ -14,15 +15,17 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from tests.conftest import FIXTURES, FakeClock, LiveServer, make_client, make_settings
 from tests.test_games import burst, live_player
 from trur import auth, daily, db, games
+from trur.api import router as api_router
 from trur.app import create_app
 from trur.config import Settings
 from trur.errors import ApiError
-from trur.solver import DailyEntry, Lexicon, pair_key
+from trur.solver import DailyEntry, Lexicon, pair_key, points
 
 DAILY = FIXTURES / "daily"
 OCT10, OCT11, OCT12 = date(2026, 10, 10), date(2026, 10, 11), date(2026, 10, 12)
@@ -472,3 +475,77 @@ def test_two_players_racing_for_a_fallback_get_one_pair(live_server: LiveServer,
         assert [r[3] for r in stored(conn)] == ["fallback"]
     finally:
         conn.close()
+
+
+# --- past answers (T22) ---
+
+def answers_url(day: str) -> str:
+    return f"/api/daily/{day}/answers"
+
+
+@pytest.mark.parametrize("day", ["2026-10-11", "2026-10-12", "2027-01-01"])
+def test_answers_for_today_or_later_are_403(client: TestClient, day: str) -> None:
+    r = client.get(answers_url(day))
+    assert r.status_code == 403 and r.json()["error"]["code"] == "day_not_over"
+
+
+def test_answers_for_a_past_day_list_every_word(client: TestClient, lex: Lexicon) -> None:
+    r = client.get(answers_url("2026-10-10"))
+    assert r.status_code == 200
+    body = r.json()
+    assert (body["date"], body["word1"], body["word2"]) == ("2026-10-10", "STRONG", "MEANING")
+    expected = sorted(lex.solve("STRONG", "MEANING"), key=lambda w: (-points(w), w))
+    assert [w["word"] for w in body["words"]] == expected and body["total_words"] == len(expected)
+    assert body["words"][0] == {"word": "GENERATION", "points": 25}
+    assert body["found"] is None  # no cookie
+
+
+def test_answers_add_the_callers_own_finds(player: Player, clock: FakeClock) -> None:
+    alice, bob = player("Alice"), player("Bob")
+    game = start_daily(alice)
+    submit(alice, game, DEMOCRATIC)
+    submit(alice, game, WRONG[0])
+    clock.set(datetime(2026, 10, 12, tzinfo=timezone.utc))  # the day is over
+    assert alice.get(answers_url("2026-10-11")).json()["found"] == ["DEMOCRATIC"]
+    assert bob.get(answers_url("2026-10-11")).json()["found"] is None  # Bob didn't play
+
+
+@pytest.mark.parametrize("day", ["2026-02-30", "x", "20261010", "2026-10-1", "1700000000", "2026-10-10T00:00"])
+def test_a_bad_date_is_422(client: TestClient, day: str) -> None:
+    r = client.get(answers_url(day))
+    assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_request"
+
+
+def test_a_past_day_without_a_pair_is_404(client: TestClient) -> None:
+    r = client.get(answers_url("2026-09-01"))
+    assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
+
+
+def test_no_route_leaks_todays_unfound_words(player: Player, client: TestClient, lex: Lexicon) -> None:
+    """With today's daily game open, call every API route; no body may hold a word not yet found."""
+    alice = player("Alice")
+    game = start_daily(alice)
+    gid = game["game_id"]
+    event = {"events": [{"type": "selection_cleared", "game_id": gid, "client_ms": 0}]}
+    yesterday = set(lex.solve("STRONG", "MEANING"))  # yesterday's answers are public
+    calls: dict[tuple[str, str], list[httpx.Response]] = {
+        ("GET", "/healthz"): [alice.get("/healthz")],
+        ("POST", "/api/users"): [client.post("/api/users", json={"nickname": "Bob"}), alice.post("/api/users", json={"nickname": "Eve"})],
+        ("GET", "/api/users/me"): [alice.get("/api/users/me")],
+        ("POST", "/api/games"): [alice.post(GAMES, json=DAILY_START)],
+        ("GET", "/api/games/current"): [alice.get(f"{GAMES}/current?mode=daily"), alice.get(f"{GAMES}/current?mode=free")],
+        ("POST", "/api/games/{game_id}/submit"): [submit(alice, game, DEMOCRATIC), submit(alice, game, WRONG[0])],
+        ("POST", "/api/events"): [alice.post("/api/events", json=event)],
+        ("GET", "/api/daily/{day}/answers"): [alice.get(answers_url("2026-10-11")), alice.get(answers_url("2026-10-10"))],
+        ("POST", "/api/games/{game_id}/end"): [alice.post(f"{GAMES}/{gid}/end", json={})],  # last: it ends the game
+    }
+    routes = {(m, r.path) for r in api_router.routes if isinstance(r, APIRoute) for m in r.methods}
+    assert set(calls) == routes  # a new route must join this sweep
+
+    unfound = set(lex.solve("MEDICAL", "CORRECT")) - {"DEMOCRATIC"}
+    for (method, path), responses in calls.items():
+        for r in responses:
+            assert r.status_code < 500
+            public = yesterday if "2026-10-10" in str(r.url) else set()
+            words = set(re.findall(r"[A-Z]{4,}", r.text))
+            assert not (words & unfound) - public, (method, path)

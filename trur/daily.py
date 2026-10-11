@@ -15,7 +15,9 @@ from pathlib import Path
 
 from trur.config import Settings
 from trur.errors import ApiError
-from trur.solver import DailyEntry, Lexicon, is_win_word, pair_key, parse_daily_json, pick_pair, validate_daily_entry
+from trur.solver import (
+    DailyEntry, Lexicon, is_win_word, pair_key, parse_daily_json, pick_pair, points, validate_daily_entry,
+)
 
 log = logging.getLogger("trur")
 
@@ -98,3 +100,30 @@ def ensure_daily_pair(conn: sqlite3.Connection, lex: Lexicon, s: Settings, rng: 
         )
         log.warning("no daily pair for %s; picked a fallback pair", day.isoformat())
     return get_daily_pair(conn, day)
+
+
+def daily_answers(conn: sqlite3.Connection, lex: Lexicon, user_id: str | None, day: date, today: date) -> dict:
+    """A past day's full answer list, plus the caller's own finds. Today and later stay hidden (S3)."""
+    if day >= today:
+        raise ApiError(403, "day_not_over", "Answers are published after midnight UTC.")
+    entry = get_daily_pair(conn, day)
+    if entry is None:
+        raise ApiError(404, "not_found", "There was no daily challenge on that day.")
+    answers = lex.solve(entry.word1, entry.word2)
+    found = None
+    if user_id is not None:
+        game = conn.execute(
+            "SELECT id FROM games WHERE user_id = ? AND daily_date = ?", (user_id, day.isoformat())
+        ).fetchone()
+        if game is not None:
+            found = [r["word"] for r in conn.execute(
+                "SELECT word FROM submissions WHERE game_id = ? AND is_valid = 1 ORDER BY id", (game["id"],)
+            )]
+    return {
+        "date": day.isoformat(),
+        "word1": entry.word1,
+        "word2": entry.word2,
+        "total_words": len(answers),
+        "words": [{"word": w, "points": points(w)} for w in sorted(answers, key=lambda w: (-points(w), w))],
+        "found": found,
+    }

@@ -5,9 +5,10 @@ app.state.clock and randomness from app.state.rng, never from the system directl
 """
 
 import random
+import re
 import sqlite3
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated, Literal
 
@@ -17,7 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from trur import auth, db, games
+from trur import auth, daily, db, games
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.security import RateLimiter, check_post, client_ip
@@ -217,6 +218,25 @@ def end(game_id: str, body: EndGame, conn: Conn, s: Cfg, lex: Lex, player: Playe
 @router.get("/api/games/current")
 def current(mode: Annotated[GameMode, Query()], conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now) -> dict:
     return {"game": games.current_game(conn, lex, s, player["id"], mode, now)}
+
+
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def parse_day(raw: str) -> date:
+    """Exactly YYYY-MM-DD and a real date, else 422. Stricter than Pydantic's date, which also takes timestamps."""
+    try:
+        if _ISO_DATE.fullmatch(raw):
+            return date.fromisoformat(raw)
+    except ValueError:
+        pass
+    raise ApiError(422, "invalid_request", "The date is not valid.")
+
+
+@router.get("/api/daily/{day}/answers")
+def answers(day: str, request: Request, conn: Conn, lex: Lex, now: Now) -> dict:
+    player = auth.user_for_token(conn, request.cookies.get(auth.COOKIE))  # optional: adds the caller's finds
+    return daily.daily_answers(conn, lex, player["id"] if player else None, parse_day(day), now.date())
 
 
 @router.post("/api/events", status_code=204, dependencies=POST)

@@ -106,4 +106,8 @@ pytest -q -m "not e2e and not smoke"                         # fast suite; -m e2
 
 ## Design
 
-The layout and logo are designed in Claude Design before the frontend is built. *The design link goes here once the design is approved.*
+The approved design is the **[TRUR screen mocks](https://claude.ai/artifact/4cJYXZSdvg5hD8mLkxaQSU)** canvas in Claude Design. It's private: ask the owner for access.
+
+- **Direction:** "Olive board": olive tiles with white letters, orange for selected tiles, in light and dark with a toggle.
+- **Screens:** free play, the daily challenge, game over, leaderboards, the nickname prompt, past answers, and the logo with the tile states.
+- **Built from it:** `web/` copies its colours, sizes and fonts. The full list of decisions is in [docs/plan.md: Layout & style](docs/plan.md#layout--style).

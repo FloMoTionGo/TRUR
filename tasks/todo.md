@@ -60,26 +60,26 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T6: Accessible palette, then the Claude Design pass
 **Description:** The palette keeps its colours and pairs each one with a text colour that passes WCAG AA (decided: near-black on white and orange, white on olive and red; see docs/plan.md, Layout & style). Don't encode tile state by colour alone (colour-blind players). Then design screens 1–6, grid sizes 5×5 and 10×10, the tile states, and the full and compact logo in Claude Design. Put the link in the README.
 **Acceptance criteria:**
-- [ ] Every text/background pair is at least 4.5:1 (large text at least 3:1)
-- [ ] The design is approved by the owner, and the link is in the README
+- [x] Every text/background pair is at least 4.5:1 (large text at least 3:1)
+- [x] The design is approved by the owner, and the link is in the README
 **Dependencies:** none · **Files:** docs/plan.md (palette), README.md · **Scope:** S (mostly design work, not code)
 
 ### T7: Static shell
 **Description:** `web/index.html` (no inline script or style), `css/app.css` with the design tokens, self-hosted fonts, `img/logo.svg`, `logo-compact.svg`, `favicon.svg`, `js/main.js` (screen switching), and `js/api.js` (fetch wrapper that parses the error envelope).
 **Acceptance criteria:**
-- [ ] The page renders at 640×640 and matches the design by eye
-- [ ] There are no inline scripts or styles (checked by a static test)
+- [x] The page renders at 640×640 and matches the design by eye
+- [x] There are no inline scripts or styles (checked by a static test)
 **Dependencies:** T6 · **Files:** web/index.html, web/css/app.css, web/js/{main,api}.js, web/img/*, web/fonts/* · **Scope:** M
 
 ### T8: Game screen against a mocked API
 **Description:** `web/js/game.js`: grid render (`data-row`, `data-col`, `data-state`), click to select, click again to undo, Clear, solution area, Submit against `page.route` mocks, the reject animation, the found list and the counter, all with `textContent` only. Add the feedback popup from the mocks (owner request): a rejected word shows a red popup naming the word, "not in the dictionary", the tries left, and the even-length rule; a duplicate shows an olive popup (no points, no try used). It fades after about 3 s and needs no API change. Set up the Playwright harness.
 **Acceptance criteria:**
-- [ ] E2E flows 2, 3, 4 and 9 (TS §5) pass against the mocks
-- [ ] No console errors and no CSP violations
+- [x] E2E flows 2, 3, 4 and 9 (TS §5) pass against the mocks
+- [x] No console errors and no CSP violations
 **Dependencies:** T7 · **Files:** web/js/game.js, web/css/app.css, tests/e2e/{conftest,test_flows}.py · **Scope:** M
 
 ### ✅ Checkpoint B
-- [ ] The browser version matches the approved design at 640×640 and plays with mocks
+- [x] The browser version matches the approved design at 640×640 and plays with mocks
 
 ---
 

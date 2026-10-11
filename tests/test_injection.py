@@ -3,8 +3,8 @@
 Each payload goes into each input. Nothing may return a 500 or mention SQL, and the schema,
 the row counts and PRAGMA integrity_check must be unchanged afterwards.
 
-Inputs added by later tasks join this matrix there: event type and payload (T18),
-the answers date (T22), and the board month and date (T26).
+Inputs added by later tasks join this matrix there: the answers date (T22), and the board
+month and date (T26).
 """
 
 import sqlite3
@@ -93,6 +93,15 @@ def test_cookie(app, db_path: Path, payload: str) -> None:
         for r in (c.get("/api/users/me"), c.post("/api/games", json={"mode": "free"})):
             assert r.status_code == 401, r.text
             assert_harmless(r, db_path, before)
+
+
+@pytest.mark.parametrize("payload", PAYLOADS)
+def test_event_type_and_fields(alice: TestClient, game_id: str, db_path: Path, payload: str) -> None:
+    before = db_snapshot(db_path)
+    tile = {"type": "tile_clicked", "game_id": game_id, "row": 0, "col": 0, "selected": True, "client_ms": 0}
+    for field in ("type", "game_id", "row", "selected", "client_ms"):
+        assert_harmless(alice.post("/api/events", json={"events": [{**tile, field: payload}]}), db_path, before)
+    assert_harmless(alice.post("/api/events", json={"events": payload}), db_path, before)
 
 
 def test_sql_lookalike_nickname_is_stored_verbatim(client: TestClient, db_path: Path) -> None:

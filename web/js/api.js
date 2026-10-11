@@ -38,4 +38,5 @@ export const api = {
   newGame: (mode) => request("POST", "/api/games", { mode }),
   submit: (gameId, tiles) => request("POST", `/api/games/${encodeURIComponent(gameId)}/submit`, { tiles }),
   end: (gameId) => request("POST", `/api/games/${encodeURIComponent(gameId)}/end`, {}),
+  events: (events) => request("POST", "/api/events", { events }),
 };

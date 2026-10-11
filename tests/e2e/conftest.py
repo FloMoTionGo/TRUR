@@ -64,6 +64,8 @@ class FakeApi:
             return route.fulfill(status=201, json=self.state())
         if request.method == "POST" and path.endswith("/submit"):
             return route.fulfill(json=self.submit(json.loads(request.post_data)["tiles"]))
+        if request.method == "POST" and path == "/api/events":
+            return route.fulfill(status=204)
         route.fulfill(status=404, json={"error": {"code": "not_found", "message": "Not found."}})
 
 

@@ -128,6 +128,36 @@ class Submission(Strict):
         return tiles
 
 
+# Client event types only: a server-only type such as word_accepted matches no member, so it's a 422.
+ClientMs = Annotated[int, Field(ge=0, le=2**53)]
+GameId = Annotated[str, Field(max_length=36)]
+
+
+class TileClicked(Strict):
+    type: Literal["tile_clicked"]
+    game_id: GameId
+    row: Coord
+    col: Coord
+    selected: bool
+    client_ms: ClientMs
+
+
+class SelectionCleared(Strict):
+    type: Literal["selection_cleared"]
+    game_id: GameId
+    client_ms: ClientMs
+
+
+MAX_EVENTS = 50
+
+
+class EventBatch(Strict):
+    events: Annotated[
+        list[Annotated[TileClicked | SelectionCleared, Field(discriminator="type")]],
+        Field(min_length=1, max_length=MAX_EVENTS),
+    ]
+
+
 # --- routes ---
 
 @router.get("/healthz")
@@ -187,6 +217,13 @@ def end(game_id: str, body: EndGame, conn: Conn, s: Cfg, lex: Lex, player: Playe
 @router.get("/api/games/current")
 def current(mode: Annotated[GameMode, Query()], conn: Conn, s: Cfg, lex: Lex, player: Player, now: Now) -> dict:
     return {"game": games.current_game(conn, lex, s, player["id"], mode, now)}
+
+
+@router.post("/api/events", status_code=204, dependencies=POST)
+def events(body: EventBatch, conn: Conn, s: Cfg, player: Player, now: Now, limiter: Limiter) -> Response:
+    limiter.check(f"events:{player['id']}", s.rl_events_per_player_s, 1)
+    games.log_client_events(conn, player["id"], [e.model_dump() for e in body.events], now)
+    return Response(status_code=204)
 
 
 # --- the error envelope ---

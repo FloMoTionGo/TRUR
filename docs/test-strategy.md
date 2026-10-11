@@ -398,7 +398,7 @@ Base fixture: the JSON has 10-10 = STRONG × MEANING and 10-11 = MEDICAL × CORR
 
 1. **First visit:** the nickname prompt appears. After entering `Tester`, a 6×6 grid shows GARDEN across and SUMMER down, score 0, three tries and `0 of 9 found`.
 2. **Play a word:** click GE, AR → both tiles are selected and the solution area shows GEAR. Submit → `GEAR 4` appears in the list, score 4, `1 of 9 found`, and no tile stays selected.
-3. **Undo and Clear:** click GE, AR, NE, then AR again → the solution area shows GENE. Clear → empty. No request is sent to the API.
+3. **Undo and Clear:** click GE, AR, NE, then AR again → the solution area shows GENE. Clear → empty. No request is sent to the API apart from the batched event log (`/api/events`), which a separate check sees arrive with 204.
 4. **Rejected word:** submit GS, AS → the tiles show the rejected state and then return to default. Two tries are left and the selection is empty.
 5. **Game over:** after GEAR and three rejected words, the game-over screen lists the 8 missed words, and tiles can no longer be clicked.
 6. **Reload:** after GEAR, reload the page → same grid, GEAR in the list, score 4, tries unchanged.

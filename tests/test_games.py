@@ -515,3 +515,97 @@ def test_parallel_wrong_submits_stop_at_three(live_server: LiveServer, db_path: 
     assert all(r.json()["error"]["code"] == "game_over" for r in responses if r.status_code == 409)
     assert rows(db_path, "SELECT wrong_count, ended_at IS NOT NULL FROM games") == [(3, 1)]
     assert rows(db_path, "SELECT COUNT(*) FROM submissions WHERE is_valid = 0") == [(3,)]
+    assert rows(db_path, "SELECT COUNT(*) FROM events WHERE type = 'game_ended'") == [(1,)]
+
+
+# --- the gameplay event log (T18; TS step 4 "Logging") ---
+
+EVENTS = "/api/events"
+
+
+def events(db_path: Path) -> list[tuple]:
+    return rows(db_path, "SELECT type, game_id, payload FROM events ORDER BY id")
+
+
+def tile_event(game_id: str, **overrides: object) -> dict:
+    return {"type": "tile_clicked", "game_id": game_id, "row": 4, "col": 0, "selected": True, "client_ms": 1200, **overrides}
+
+
+def test_the_server_logs_each_game_step(alice: TestClient, game: dict, db_path: Path) -> None:
+    send(alice, game, TILES["GEAR"])
+    send(alice, game, TILES["GEAR"])
+    send(alice, game, WRONG["GSAS"])
+    assert alice.post(f"{GAMES}/{game['game_id']}/end", json={}).status_code == 200
+    gid = game["game_id"]
+    assert events(db_path) == [
+        ("game_started", gid, '{"mode":"free"}'),
+        ("word_accepted", gid, '{"word":"GEAR","points":4}'),
+        ("word_duplicate", gid, '{"word":"GEAR","points":0}'),
+        ("word_rejected", gid, '{"word":"GSAS","points":0}'),
+        ("game_ended", gid, '{"reason":"player","score":4,"flagged":false}'),
+    ]
+    user_ids = rows(db_path, "SELECT DISTINCT e.user_id = u.id FROM events e, users u")
+    assert user_ids == [(1,)] and rows(db_path, "SELECT created_at FROM events LIMIT 1") == [("2026-10-11T12:00:00.000000Z",)]
+
+
+@pytest.mark.parametrize(
+    "finish, reason",
+    [
+        (lambda c, g: [send(c, g, WRONG[w]) for w in WRONG], "tries"),
+        (lambda c, g: [send(c, g, TILES[w]) for w in TILES], "all_found"),
+        (lambda c, g: start(c), "replaced"),
+    ],
+)
+def test_game_ended_is_logged_once_with_its_reason(alice: TestClient, game: dict, db_path: Path, finish, reason: str) -> None:
+    finish(alice, game)
+    ended = rows(db_path, "SELECT game_id, json_extract(payload, '$.reason') FROM events WHERE type = 'game_ended'")
+    assert ended == [(game["game_id"], reason)]
+
+
+def test_client_events_are_stored_with_player_and_game(alice: TestClient, game: dict, db_path: Path) -> None:
+    batch = [tile_event(game["game_id"], client_ms=i) for i in range(49)]
+    batch.append({"type": "selection_cleared", "game_id": game["game_id"], "client_ms": 49})
+    r = alice.post(EVENTS, json={"events": batch})
+    assert r.status_code == 204 and r.content == b""
+    stored = rows(db_path, "SELECT type, game_id, payload FROM events WHERE type IN ('tile_clicked', 'selection_cleared')")
+    assert len(stored) == 50
+    assert stored[0] == ("tile_clicked", game["game_id"], '{"row":4,"col":0,"selected":true,"client_ms":0}')
+    assert stored[-1] == ("selection_cleared", game["game_id"], '{"client_ms":49}')
+    assert rows(db_path, "SELECT COUNT(*) FROM events WHERE user_id IS NULL") == [(0,)]
+
+
+@pytest.mark.parametrize(
+    "make_batch",
+    [
+        lambda g: [tile_event(g)] * 51,
+        lambda g: [],
+        lambda g: [tile_event(g, type="word_accepted")],  # server-only
+        lambda g: [tile_event(g, type="game_ended")],
+        lambda g: [tile_event(g, type="nope")],
+        lambda g: [tile_event(g, extra=1)],
+        lambda g: [tile_event(g, row=10)],
+        lambda g: [tile_event(g, client_ms=-1)],
+        lambda g: [tile_event(g, selected="yes")],
+        lambda g: [{"type": "selection_cleared", "game_id": g, "client_ms": 1, "row": 0}],
+    ],
+)
+def test_bad_event_batches_are_422(alice: TestClient, game: dict, db_path: Path, make_batch) -> None:
+    before = db_snapshot(db_path)
+    r = alice.post(EVENTS, json={"events": make_batch(game["game_id"])})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_request"
+    assert db_snapshot(db_path) == before
+
+
+def test_a_batch_with_someone_elses_game_is_dropped(alice: TestClient, game: dict, player: Player, db_path: Path) -> None:
+    bob_game = start(player("Bob"))
+    before = db_snapshot(db_path)
+    for other in (bob_game["game_id"], str(uuid.uuid4())):
+        r = alice.post(EVENTS, json={"events": [tile_event(game["game_id"]), tile_event(other)]})
+        assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
+    assert db_snapshot(db_path) == before
+
+
+def test_events_need_a_player(client: TestClient, game: dict, db_path: Path) -> None:
+    before = db_snapshot(db_path)
+    assert client.post(EVENTS, json={"events": [tile_event(game["game_id"])]}).status_code == 401
+    assert db_snapshot(db_path) == before

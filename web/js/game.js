@@ -1,6 +1,7 @@
 // The game screen: grid, selection, submit and feedback. All text goes in with textContent (S8).
 
 import { api, ApiError } from "./api.js";
+import { logEvent } from "./events.js";
 import { showScreen } from "./screens.js";
 
 const grid = document.getElementById("grid");
@@ -139,11 +140,13 @@ grid.addEventListener("click", (event) => {
   const i = isSelected(row, col);
   selection = i >= 0 ? selection.filter((_, j) => j !== i) : [...selection, [row, col]];
   render();
+  logEvent({ type: "tile_clicked", game_id: game.game_id, row, col, selected: i < 0 });
 });
 
 clearButton.addEventListener("click", () => {
   selection = [];
   render();
+  if (game) logEvent({ type: "selection_cleared", game_id: game.game_id });
 });
 
 submitButton.addEventListener("click", async () => {

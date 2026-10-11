@@ -5,12 +5,12 @@ the score. Answers never leave the server for an open game (S12); `missed_words`
 only once a free game is over.
 
 Seams for later tasks, each marked where it goes:
-- T18: the server-side event log (game_started, word_*, game_ended)
 - T21: daily games, and keeping today's daily words out of free play
 - T25: the free-games-per-day limit
 - T26: the plausibility flag and the ranking recompute in _end
 """
 
+import json
 import random
 import sqlite3
 import uuid
@@ -85,7 +85,7 @@ def create_game(
             "VALUES (?, ?, 'free', ?, ?, ?, ?)",
             (game_id, user_id, word1, word2, len(answers), db.iso(now)),
         )
-        # T18: log game_started.
+        _log_event(conn, user_id, game_id, "game_started", {"mode": "free"}, now)
         game = conn.execute("SELECT * FROM games WHERE id = ?", (game_id,)).fetchone()
         return _state(conn, lex, game), True
 
@@ -167,6 +167,16 @@ def sweep_abandoned(
     return len(stale)
 
 
+def log_client_events(conn: sqlite3.Connection, user_id: str, events: list[dict], now: datetime) -> None:
+    """Store a batch of client events (tile clicks). 404 and nothing stored if any game isn't the player's (S2)."""
+    with db.tx(conn):
+        for game_id in {e["game_id"] for e in events}:
+            _load_owned(conn, user_id, game_id)
+        for e in events:
+            payload = {k: v for k, v in e.items() if k not in ("type", "game_id")}
+            _log_event(conn, user_id, e["game_id"], e["type"], payload, now)
+
+
 # --- private helpers ---
 
 def _load_owned(conn: sqlite3.Connection, user_id: str, game_id: str) -> sqlite3.Row:
@@ -218,7 +228,7 @@ def _check_word(
         conn.execute("UPDATE games SET wrong_count = wrong_count + 1 WHERE id = ?", (game["id"],))
         if game["wrong_count"] + 1 >= MAX_TRIES:
             _end(conn, lex, s, game, "tries", now)
-    # T18: log word_accepted / word_duplicate / word_rejected.
+    _log_event(conn, game["user_id"], game["id"], f"word_{status}", {"word": word, "points": gained}, now)
     state = _state(conn, lex, conn.execute("SELECT * FROM games WHERE id = ?", (game["id"],)).fetchone())
     return {
         "status": status,
@@ -236,9 +246,23 @@ def _check_word(
 
 def _end(conn: sqlite3.Connection, lex: Lexicon, s: Settings, game: sqlite3.Row, reason: EndReason, now: datetime) -> None:
     """Close a game with its current score. Runs inside the caller's transaction."""
-    conn.execute("UPDATE games SET ended_at = ? WHERE id = ? AND ended_at IS NULL", (db.iso(now), game["id"]))
+    cur = conn.execute("UPDATE games SET ended_at = ? WHERE id = ? AND ended_at IS NULL", (db.iso(now), game["id"]))
+    if cur.rowcount == 0:
+        return  # already closed by a request that got there first
     # T26: set `flagged` with is_implausible, then recompute_ranking for each of the game's periods.
-    # T18: log game_ended with {reason, score, flagged}.
+    ended = conn.execute("SELECT score, flagged FROM games WHERE id = ?", (game["id"],)).fetchone()
+    payload = {"reason": reason, "score": ended["score"], "flagged": bool(ended["flagged"])}
+    _log_event(conn, game["user_id"], game["id"], "game_ended", payload, now)
+
+
+def _log_event(
+    conn: sqlite3.Connection, user_id: str, game_id: str, type_: str, payload: dict, now: datetime
+) -> None:
+    """One row in the gameplay log. Runs inside the caller's transaction; the payload never holds an IP."""
+    conn.execute(
+        "INSERT INTO events (user_id, game_id, type, payload, created_at) VALUES (?, ?, ?, ?, ?)",
+        (user_id, game_id, type_, json.dumps(payload, separators=(",", ":")), db.iso(now)),
+    )
 
 
 def _state(conn: sqlite3.Connection, lex: Lexicon, game: sqlite3.Row) -> GameState:

@@ -164,8 +164,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T18: Gameplay event log
 **Description:** Server-side events (`game_started`, `word_*`, `game_ended`), `POST /api/events` with a discriminated Pydantic union (at most 50, client types only), `web/js/events.js` batching, and the 90-day purge at startup.
 **Acceptance criteria:**
-- [ ] TS step 4 "Logging" cases pass; a server-only type from the client → 422
-- [ ] Retention boundary: T − 90 d deleted, T − 90 d + 1 s kept
+- [x] TS step 4 "Logging" cases pass; a server-only type from the client → 422
+- [x] Retention boundary: T − 90 d deleted, T − 90 d + 1 s kept
 **Dependencies:** T17 · **Files:** trur/games.py, trur/api.py, web/js/events.js, tests/test_games.py · **Scope:** M
 
 ### T19: S2 test suite

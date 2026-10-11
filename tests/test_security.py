@@ -400,3 +400,18 @@ def test_rate_limiter_drops_idle_keys(clock: FakeClock) -> None:
     clock.advance(60)
     limiter.check("new", 1, 60)
     assert list(limiter._hits) == ["new"]
+
+
+def test_second_events_request_within_a_second_is_429(limited: Limited, clock: FakeClock, db_path: Path) -> None:
+    c = limited(rl_events_per_player_s=1)
+    assert register(c, "Anna").status_code == 201
+    game_id = c.post("/api/games", json={"mode": "free"}).json()["game_id"]
+    body = {"events": [{"type": "selection_cleared", "game_id": game_id, "client_ms": 0}]}
+    assert c.post("/api/events", json=body).status_code == 204
+    before = db_snapshot(db_path)
+    r = c.post("/api/events", json=body)
+    assert_envelope(r, 429, "rate_limited")
+    assert r.headers["retry-after"] == "1"
+    assert db_snapshot(db_path) == before
+    clock.advance(1)
+    assert c.post("/api/events", json=body).status_code == 204

@@ -52,8 +52,9 @@ def test_flow_2_play_a_word(game_page: Page) -> None:
 
 
 def test_flow_3_undo_and_clear_send_nothing(game_page: Page) -> None:
+    """Undo and Clear are client-side: no game request. The batched event log is the only API traffic."""
     api_calls: list[str] = []
-    game_page.on("request", lambda r: api_calls.append(r.url) if "/api/" in r.url else None)
+    game_page.on("request", lambda r: api_calls.append(r.url) if "/api/" in r.url and "/api/events" not in r.url else None)
     for rc in (GE, AR, NE, AR):  # GE, AR, NE, then AR again
         tile(game_page, rc).click()
     expect(game_page.locator("#preview")).to_have_text("→ GENE")
@@ -61,6 +62,17 @@ def test_flow_3_undo_and_clear_send_nothing(game_page: Page) -> None:
     expect(game_page.locator("#preview")).to_have_text("Click tiles to build a word")
     expect(game_page.locator('.tile[data-state="selected"]')).to_have_count(0)
     assert api_calls == []
+
+
+def test_tile_clicks_reach_the_event_log(game_page: Page, live_server) -> None:
+    with game_page.expect_response("**/api/events") as info:
+        tile(game_page, GE).click()
+        tile(game_page, AR).click()
+        game_page.locator(SEL.format("clear")).click()
+    assert info.value.status == 204
+    batch = info.value.request.post_data_json["events"]
+    assert [e["type"] for e in batch] == ["tile_clicked", "tile_clicked", "selection_cleared"]
+    assert batch[0]["selected"] is True and {"row", "col", "game_id", "client_ms"} <= set(batch[0])
 
 
 def test_flow_4_rejected_word(game_page: Page) -> None:

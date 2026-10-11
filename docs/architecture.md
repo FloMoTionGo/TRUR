@@ -352,7 +352,7 @@ It runs with `uvicorn trur.app:create_app --factory --workers 1`. It has to be o
 | `POST /api/match/{id}/submit` | `{"tiles":[[row,col],…]}` | 200 `{status, word, changes}`, no points |
 | `GET /api/match/{id}/results` | – | 200 Results (players of that match only) |
 
-**Server-only event types.** The server logs these itself and refuses them from clients: `game_started`, `word_accepted`, `word_rejected`, `word_duplicate` and `game_ended` (payload `{reason, score, flagged}`). Multiplayer adds `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate` and `match_ended`, written when a match is saved.
+**Server-only event types.** The server logs these itself and refuses them from clients: `game_started`, `word_accepted`, `word_rejected`, `word_duplicate` and `game_ended`. Payloads: `game_started` `{mode}`, `word_*` `{word, points}`, `game_ended` `{reason, score, flagged}`, logged once per game even when requests race. Client events store their fields minus `type` and `game_id`, with the server's time in `created_at`. Multiplayer adds `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate` and `match_ended`, written when a match is saved.
 
 **Boards.** The board endpoints first run `sweep_abandoned` on a read-write connection, then run the query on `connect_ro`.
 

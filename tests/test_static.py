@@ -1,6 +1,7 @@
 """AST guards over trur/ and scripts/ (docs/test-strategy.md §1–§2)."""
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -92,3 +93,32 @@ def test_guards_catch_planted_code() -> None:
     assert len(time_reads(planted)) == 4
     assert len(global_random(planted)) == 2  # random.choice and `from random import choice`; Random(1) is fine
     assert len(framework_imports(planted)) == 1
+
+
+# --- the frontend in web/ (CSP: default-src 'self'; S8: text only through textContent) ---
+
+WEB = ROOT / "web"
+HTML_FILES = sorted(WEB.rglob("*.html"))
+JS_FILES = sorted(WEB.rglob("*.js"))
+
+
+@pytest.mark.parametrize("path", HTML_FILES, ids=lambda p: str(p.relative_to(ROOT)))
+def test_html_has_no_inline_script_or_style(path: Path) -> None:
+    html = path.read_text(encoding="utf-8")
+    assert re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html) is None, "inline <script>"
+    assert re.search(r"<style\b", html) is None, "<style> element"
+    assert re.search(r"\sstyle=", html) is None, "style attribute"
+    assert re.search(r"\son[a-z]+=", html) is None, "inline event handler"
+    assert re.search(r"(src|href)=\"(https?:)?//", html) is None, "external resource"
+
+
+@pytest.mark.parametrize("path", JS_FILES, ids=lambda p: str(p.relative_to(ROOT)))
+def test_js_never_parses_html(path: Path) -> None:
+    js = path.read_text(encoding="utf-8")
+    for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"):
+        assert sink not in js, sink
+
+
+def test_web_guards_catch_planted_code(tmp_path: Path) -> None:
+    assert re.search(r"<script(?![^>]*\bsrc=)[^>]*>", "<script>alert(1)</script>")
+    assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", '<script type="module" src="js/main.js"></script>')

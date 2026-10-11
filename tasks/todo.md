@@ -38,9 +38,9 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T4: Pair picking and daily-JSON validation
 **Description:** Add `pair_key`, `pick_pair` (orientation drawn before `accept`, `max_attempts` → LookupError), `DailyEntry`, `parse_daily_json` and `validate_daily_entry` to the solver. The daily-JSON fixtures are `valid`, `mixed` and `broken`.
 **Acceptance criteria:**
-- [ ] CORRECT × MEDICAL is rejected by the daily `accept`; MEDICAL × CORRECT is accepted
-- [ ] Each `mixed.json` rejection reason returns `None`
-- [ ] The same seed always gives the same pick
+- [x] CORRECT × MEDICAL is rejected by the daily `accept`; MEDICAL × CORRECT is accepted
+- [x] Each `mixed.json` rejection reason returns `None`
+- [x] The same seed always gives the same pick
 **Dependencies:** T3 · **Files:** trur/solver.py, tests/test_solver.py, tests/fixtures/daily/* · **Scope:** S
 
 ### T5: Feasibility spike

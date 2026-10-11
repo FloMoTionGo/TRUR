@@ -7,10 +7,15 @@ word1[col] + word2[row]. A built word therefore has even length, with word1's le
 indexes (0, 2, …) and word2's letters at odd indexes.
 """
 
+import datetime
+import json
+import random
+import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
 
 MIN_TILES = 2
 MAX_TRIES = 3
@@ -97,3 +102,68 @@ def points(word: str) -> int:
 def is_win_word(word: str) -> bool:
     """A daily challenge is won by a word of WIN_LETTERS or more letters."""
     return len(word) >= WIN_LETTERS
+
+
+# --- picking pairs ---
+
+def pair_key(a: str, b: str) -> frozenset[str]:
+    """The same two words in either order count as the same pair (no-repeat rule)."""
+    return frozenset((a, b))
+
+
+def pick_pair(
+    lex: Lexicon,
+    rng: random.Random,
+    accept: Callable[[str, str, tuple[str, ...]], bool],
+    max_attempts: int = 5000,
+) -> tuple[str, str, tuple[str, ...]]:
+    """Draw two distinct source words in a random orientation until `accept` takes one.
+
+    The orientation is drawn before the check, because the grid isn't symmetric
+    (docs/architecture.md §8 item 19). LookupError after max_attempts.
+    """
+    for _ in range(max_attempts):
+        word1, word2 = rng.sample(lex.source, 2)
+        answers = lex.solve(word1, word2)
+        if accept(word1, word2, answers):
+            return word1, word2, answers
+    raise LookupError(f"no acceptable pair in {max_attempts} attempts")
+
+
+# --- the daily-pairs JSON (untrusted input, S10) ---
+
+class DailyEntry(NamedTuple):
+    date: datetime.date
+    word1: str
+    word2: str
+
+
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_ENTRY_KEYS = {"date", "word1", "word2"}
+
+
+def parse_daily_json(raw: bytes) -> list[object]:
+    """The file must be a JSON array. ValueError otherwise, including for undecodable bytes."""
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        raise ValueError("daily JSON must be a top-level array")
+    return data
+
+
+def validate_daily_entry(lex: Lexicon, item: object) -> DailyEntry | None:
+    """A usable entry, or None: valid ISO date, two distinct source words, and a win word in that orientation."""
+    if not isinstance(item, dict) or set(item) != _ENTRY_KEYS:
+        return None
+    date, word1, word2 = item["date"], item["word1"], item["word2"]
+    if not all(isinstance(v, str) for v in (date, word1, word2)) or not _ISO_DATE.fullmatch(date):
+        return None
+    try:
+        day = datetime.date.fromisoformat(date)
+    except ValueError:
+        return None
+    source = set(lex.source)
+    if word1 == word2 or word1 not in source or word2 not in source:
+        return None
+    if not any(is_win_word(w) for w in lex.solve(word1, word2)):
+        return None
+    return DailyEntry(day, word1, word2)

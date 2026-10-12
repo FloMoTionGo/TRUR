@@ -207,7 +207,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Acceptance criteria:**
 - [x] TS step 5 `pick_daily` cases pass; the S10 static workflow checks pass
 - [x] CI dry-runs it on the real data, and the realdata check of `daily_challenges.json` passes
-- [ ] Owner: set the repo's default workflow permissions to read-only (Settings → Actions → General); the CLI token can't
+- [x] Owner: set the repo's default workflow permissions to read-only (Settings → Actions → General); the CLI token can't
 **Dependencies:** T4 · **Files:** scripts/pick_daily.py, .github/workflows/{daily-challenge,tests}.yml, data/daily_challenges.json, tests/test_pick_daily.py · **Scope:** M
 
 ### T24: Daily UI and past answers screen

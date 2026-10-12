@@ -369,7 +369,7 @@ Base fixture: the JSON has 10-10 = STRONG × MEANING and 10-11 = MEDICAL × CORR
   - top-level permissions are read-only, and `contents: write` appears only on the pick job
 
 **S11, admin access (step 7):**
-- **Route inventory:** the routes must equal the API tables plus static files and `/healthz`, so any new route fails the test. Once multiplayer exists, that includes its six routes.
+- **Route inventory:** the routes must equal the API tables plus static files and `/healthz`, so any new route fails the test. Once multiplayer exists, that includes its eight routes.
 - **Manual checklist:** 2FA, snapshot retention and the restore drill.
 
 **S12, web hardening (steps 3 and 7):**
@@ -419,12 +419,13 @@ Base fixture: the JSON has 10-10 = STRONG × MEANING and 10-11 = MEDICAL × CORR
 
 ## 6. Multiplayer (after go-live)
 
-How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Drafted on 2026-10-11 from the multiplayer test review. Multiplayer is built after go-live, so none of this runs before step 8 of the plan.
+How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Drafted on 2026-10-11 from the multiplayer test review; the display word and creativity vote cases were added on 2026-10-12. Multiplayer is built after go-live, so none of this runs before step 8 of the plan.
 
 ### Fixtures and helpers
 
 - **Words:** the GARDEN × SUMMER fixture and the worked example in [multiplayer.md §3.3](multiplayer.md#33-scoring). A case that needs repeated same-text tiles builds a `Match` directly with its own answer set: GARAGE × SUMMER with `{"AMAM"}` has four AM tiles, at [2,1], [3,1], [2,3] and [3,3].
 - **`make_match(word1, word2, answers, players, starts_at)`** builds a running `Match` without the lobby.
+- **`rng = random.Random(0)`** is passed to `close_play` and `ballot_for`, so candidate ids and ballot order are fixed.
 - **`tile("GE")`** returns a tile's coordinates in the current grid. It raises if the text occurs more than once; pass coordinates then.
 - **`drive(lobby, clock, picks=…, saves=…)`** calls `lobby.tick(clock.now())` and resolves the jobs it returns, synchronously:
   - a `PickJob` with a given pair, or with `LookupError`
@@ -445,6 +446,7 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - `SSE_KEEPALIVE_S = 0.2` and `MIN_MATCH_WORDS = 1`.
 - `MATCH_MAX_ACTIVE` and `MATCH_MAX_QUEUE` small, so the caps are cheap to reach.
 - `MATCH_SUBMIT_MIN_GAP_S = 0` and `RL_QUEUE_JOINS_PER_PLAYER_HOUR = 0`, except in their own tests.
+- The 60-s vote limit is a rule, not a setting: tests advance the `FakeClock` past it.
 
 **No sleeps:** a static check fails if `test_match.py` or `test_lobby.py` contains `sleep`.
 
@@ -468,22 +470,40 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 **Time boundaries:**
 - Before `starts_at` → not running. At `starts_at` → accepted.
 - At `ends_at + 300 ms` → accepted. At `+301 ms` → not running.
-- After `close()` → not running, whatever the time.
+- After `close_play()` → not running, whatever the time.
 - `ends_in_ms` is never negative.
+
+**Display word:**
+- It locks the tiles for the sender, adds 1 to each tile's `uses`, and scores 0 points, whether or not the word is in `answers`.
+- A second display word replaces the first. The first one's tiles stay locked and halved.
+- A display word on a locked tile → `TileLocked`. Before `starts_at` or after `ends_at + 300 ms` → not running.
+- A display word equal to a word you found is allowed, and changes nothing about that word.
+- `close_play` returns False with zero or one display words, and True with two.
+
+**Vote** (every ballot from `ballot_for` with `Random(0)`):
+- A ballot never contains the voter's own word, and contains every other display word.
+- `vote` refuses your own id, an unknown id, a repeated id and four entries (`ValueError`), a second ballot (`AlreadyVoted`), and anything before `close_play` or after `vote_ends_at + 300 ms` (`NotVoting`). At `+300 ms` it's accepted.
+- With two candidates, a ballot of two gives 5 and 3; a ballot of one gives 5.
+- `bonus(0, 0) == 0`; `bonus(15, 3) == 10` (the maximum); `bonus(5, 4) == 3` (2.5, rounded half up); `bonus(13, 3) == 9`.
+- A player without a display word gets bonus 0 and can still vote.
+- **The worked results example:** three players; C sets no display word; B and C each rank only A's word (5 + 5), A ranks B's (5) → two ballots count for A and two for B: A's bonus (4 × 10 + 2) // 4 = 10, B's (4 × 5 + 2) // 4 = 5; the scores and places include the bonus.
 
 ### Step M2: spike
 
 - `spike_stats --match` on the fixture data with a fixed seed gives the same report twice. That report includes the acceptance rate and the time per pick.
 - The simulated players obey the lock and duplicate rules: every simulated word passes `match.submit`.
+- The vote simulation is seeded too: the same seed gives the same "winner changed by votes" rate.
 
 ### Step M3: schema and saving (integration)
 
 - **Migration 2** applies on a fixture DB at `user_version` 1. Never use a copy of production, which holds personal data (S13).
 - **The snapshot:** DB results deep-equal the in-memory results.
-- **Rows:** only accepted and rejected submits become `match_submissions` rows. Duplicates store none.
-- **The events** `match_started`, `match_word_*` and `match_ended` are written with their real timestamps.
-- **A player deleted during the match:** the save succeeds without their rows, and they show as "deleted player".
-- **After `delete-player`:** their `match_players`, `match_submissions` and events rows are gone, and no stored results contain their nickname.
+- **Rows:** only accepted and rejected submits become `match_submissions` rows with `kind = 'word'`. Duplicates store none.
+- **Display words:** every one a player set becomes a `kind = 'display'` row with `is_valid = 0`, and `match_players.display_word` holds the last one.
+- **Votes:** one `match_votes` row per ranked candidate; `match_players.score` = `word_score` + `vote_bonus`. Inserting a self-vote or a second row for the same voter and target fails.
+- **The events** `match_started`, `match_word_*`, `match_display_word`, `match_vote_cast` and `match_ended` are written with their real timestamps.
+- **A player deleted during the match:** the save succeeds without their rows, and they show as "deleted player". Votes they cast or received are left out of `match_votes`; the snapshot keeps the bonuses as computed.
+- **After `delete-player`:** their `match_players`, `match_submissions`, `match_votes` and events rows are gone, and no stored results contain their nickname.
 - **A failed save** is logged (`caplog`). The results are still served from memory for 10 minutes, and the lobby keeps forming matches.
 - **S1:** the injection strings sent to the new routes leave `db_snapshot()` unchanged.
 
@@ -507,7 +527,20 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - `pick_failed` → `match_cancelled`, and the players are idle.
 - A player who leaves during the countdown is still in the results.
 - `warning` is published once, even with two ticks at the same `now`.
-- **Catch-up:** one tick jumping from the countdown past the end publishes `start`, `warning` and `end` in that order, and returns exactly one `SaveJob`.
+- **Catch-up:** one tick jumping from the countdown past the end, with no display words, publishes `start`, `warning` and `end` in that order, and returns exactly one `SaveJob`. With two display words it publishes `start`, `warning` and `voting`, and no `end` until the vote is over.
+
+**Vote:**
+- running → voting when two display words exist; running → idle (`end`) when fewer do.
+- Each player's `voting` event carries their own ballot, without their own word and without nicknames.
+- `voted` is published after each ballot with counts only.
+- The vote ends at once on the ballot that leaves every player done, and the `SaveJob` follows in the same step.
+- **Absent players:** with P3 not voting and P3's stream gone since `closed_at` + 5 s, a tick at + 15.0 s keeps the vote open and a tick at + 15.001 s ends it (10 s gone).
+- A non-voter who reconnects within 10 s keeps the vote open, and can still vote.
+- A player who never opened a stream during the vote counts as gone from `closed_at`.
+- With every stream gone, the next tick after 10 s ends the vote.
+- Without any ballot, the vote ends at `vote_ends_at + 300 ms`, and every bonus is 0.
+- A join while voting → `in_match`.
+- The `found` event for a display word has exactly the keys of one for a real word.
 - **Grace window:**
   - a tick at `ends_at + 1 ms` publishes no `end`
   - a submit at `+299 ms` is accepted
@@ -532,11 +565,14 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
   - The submit response contains no points.
   - `{"score": …}` in a body → 422.
   - The stream when idle → 204.
-- **Rate limits:** the queue-join rate limit. Submits 0.4 s apart → 429 with no change; 0.5 s apart → both handled.
+- **Rate limits:** the queue-join rate limit. Submits 0.4 s apart → 429 with no change; 0.5 s apart → both handled. A display word 0.4 s after a submit → 429, because they share the gap.
+- **Vote:** `POST …/vote` before the vote → 409 `match_not_voting`; a second ballot → 409 `already_voted`; your own or an unknown candidate id → 422 `invalid_ballot`. Results during the vote → 404.
 - **Payload leaks (M2):** every MatchView and stream event, in every state, is checked against a key allow-list. Nothing may contain:
   - `word1` or `word2` before `start`
   - another player's words, or any score
   - `total_words` before `end`
+  - another player's display word before `voting`, or a nickname next to one during the vote
+  - a ballot, or who voted for whom, anywhere
   - a user ID, anywhere
 
 **Live server (`live_match_server`, `httpx`):**
@@ -544,6 +580,7 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - **Concurrency:**
   - 20 parallel identical submits from one player (gap 0) → 1 accepted, 19 `duplicate`, no 5xx, one row saved.
   - Two players submit GEAR in parallel → scores 4 and 2 in some order, and GE and AR end at 25 %.
+  - 10 parallel identical ballots from one player → one 204, nine `already_voted`, one set of `match_votes` rows.
 - **SSE:**
   - `snapshot` comes first, and a reconnect gets a fresh one
   - a second stream sends `replaced` to the first
@@ -560,7 +597,9 @@ Two `browser.new_context()` on `live_match_server`, with separate cookies and ni
   - player 2 sees "*nickname* found a 4-letter word" (auto-waiting `expect`; popups stay at least 3 s)
   - GE and AR show `data-pct="50"` on both screens
   - GE and AR show `data-locked` on player 1's screen only
-- The test advances the clock past the end. Both see the same results, and reloading the results link shows them again.
+- Each player sets a display word. Player 2 sees the same "found a word" popup as for a real word.
+- The test advances the clock past the end. Both see the vote screen with the other's display word (`data-candidate`) and no names. Both vote; the vote ends without waiting for the 60 s.
+- Both see the same results, with each display word, its votes and the bonus, and reloading the results link shows them again.
 - No `/stream` request is made within 5 s after `end`.
 - Timer text isn't asserted, because the fake clock and the browser's own clock differ.
 

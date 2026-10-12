@@ -40,7 +40,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 | Database | **SQLite.** Locally it's a file in `./var`, which git ignores. On Fly.io it's a file on a 1 GB volume, backed up by Fly's daily snapshots |
 | Security | The fixes from the [Security audit](#security-audit) are part of the build steps |
 | Implementation | Module layout, API contract and schema in [architecture.md](architecture.md); tests in [test-strategy.md](test-strategy.md) |
-| Multiplayer | **Public quick-match for 2–6 players**, 60 s on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
+| Multiplayer | **Public quick-match for 2–6 players**, 60 s on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Each player can set one unchecked **display word**; after play, a vote on creativity (up to 60 s) adds a bonus of up to 10 points. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
 | Hosting | **Fly.io app `trur`** in Frankfurt (`fra`), separate from GoCalypse. It **stops when idle** and **goes live at the end** of the solo build (step 7); multiplayer follows after go-live |
 
 ## Game rules
@@ -197,7 +197,7 @@ The logo is the smallest TRUR grid: **TU** across the top and **RR** down the si
 **Output:**
 
 - **One approved design** that the frontend copies. Colours, sizes, spacing and fonts come from it, and the ASCII sketch stops being the reference.
-- **Multiplayer screens 7–10** (queue, countdown, match, results) join this brief when multiplayer is built. They're listed in [multiplayer.md §8](multiplayer.md#8-layout-claude-design).
+- **Multiplayer screens 7–11** (queue, countdown, match, results, creativity vote) join this brief when multiplayer is built. They're listed in [multiplayer.md §8](multiplayer.md#8-layout-claude-design).
 - **The design link** goes in the README.
 - **The CSP (S12) applies to the build:** fonts are self-hosted, and styles live in CSS files, not inline.
 - **Optional:** if reusable parts grow out of it (tile, button, colour tokens), they can become a Claude Design design system, kept in sync with `web/` through `/design-sync`.

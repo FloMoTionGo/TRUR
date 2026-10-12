@@ -38,7 +38,7 @@ TRUR/
 │  ├─ auth.py              token/cookie, nickname rules + folding, user lookup
 │  ├─ daily.py             fetch/import daily JSON, ensure-today-has-a-pair + fallback, past answers
 │  ├─ games.py             game service: create/resume/submit/end/sweep, plausibility, event log
-│  ├─ match.py             multiplayer rules engine: tile %, points, locks, duplicates, time window (stdlib only)
+│  ├─ match.py             multiplayer rules engine: tile %, points, locks, duplicates, time window, display words, vote and bonus (stdlib only)
 │  ├─ lobby.py             multiplayer queue, matches, Hub (SSE fan-out), tick()/run() (stdlib + asyncio)
 │  ├─ rankings.py          ranking recompute + board queries
 │  ├─ security.py          body cap, security headers, JSON/Origin check, RateLimiter, client IP
@@ -52,7 +52,7 @@ TRUR/
 │  ├─ js/game.js           grid, selection/undo/clear, submit, reject animation (textContent only)
 │  ├─ js/boards.js         monthly + daily boards, past answers view
 │  ├─ js/events.js         batches tile events (≤50, ≥1 s apart)
-│  ├─ js/match.js          multiplayer: queue, countdown, match, results, results link
+│  ├─ js/match.js          multiplayer: queue, countdown, match, display word, vote, results, results link
 │  ├─ js/stream.js         EventSource wrapper for /api/match/stream
 │  ├─ img/logo.svg, img/logo-compact.svg, favicon.svg
 │  └─ fonts/*.woff2        self-hosted
@@ -292,10 +292,10 @@ It runs with `uvicorn trur.app:create_app --factory --workers 1`. It has to be o
 | 401 | `no_player` |
 | 403 | `bad_origin`, `day_not_over` |
 | 404 | `not_found` |
-| 409 | `already_registered`, `nickname_taken`, `game_over`, `day_closed`; multiplayer: `in_match`, `match_not_running`, `tile_locked` |
+| 409 | `already_registered`, `nickname_taken`, `game_over`, `day_closed`; multiplayer: `in_match`, `match_not_running`, `tile_locked`, `match_not_voting`, `already_voted` |
 | 413 | `payload_too_large` |
 | 415 | `unsupported_media_type` |
-| 422 | `invalid_request`, `invalid_tiles`, `invalid_nickname`, `nickname_not_allowed` |
+| 422 | `invalid_request`, `invalid_tiles`, `invalid_nickname`, `nickname_not_allowed`; multiplayer: `invalid_ballot` |
 | 429 | `rate_limited`, `limit_reached` |
 | 503 | `no_pair_available`; multiplayer: `server_busy` |
 | 500 | `internal_error` |
@@ -350,9 +350,11 @@ It runs with `uvicorn trur.app:create_app --factory --workers 1`. It has to be o
 | `GET /api/match/current` | – | 200 MatchView |
 | `GET /api/match/stream` | – | 200 `text/event-stream`, starting with `snapshot`; 204 when idle |
 | `POST /api/match/{id}/submit` | `{"tiles":[[row,col],…]}` | 200 `{status, word, changes}`, no points |
+| `POST /api/match/{id}/display` | `{"tiles":[[row,col],…]}` | 200 `{status:"displayed", word, changes}`, no check, no points |
+| `POST /api/match/{id}/vote` | `{"ranking":[candidate id, …]}`, 1–3 entries | 204 |
 | `GET /api/match/{id}/results` | – | 200 Results (players of that match only) |
 
-**Server-only event types.** The server logs these itself and refuses them from clients: `game_started`, `word_accepted`, `word_rejected`, `word_duplicate` and `game_ended`. Payloads: `game_started` `{mode}`, `word_*` `{word, points}`, `game_ended` `{reason, score, flagged}`, logged once per game even when requests race. Client events store their fields minus `type` and `game_id`, with the server's time in `created_at`. Multiplayer adds `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate` and `match_ended`, written when a match is saved.
+**Server-only event types.** The server logs these itself and refuses them from clients: `game_started`, `word_accepted`, `word_rejected`, `word_duplicate` and `game_ended`. Payloads: `game_started` `{mode}`, `word_*` `{word, points}`, `game_ended` `{reason, score, flagged}`, logged once per game even when requests race. Client events store their fields minus `type` and `game_id`, with the server's time in `created_at`. Multiplayer adds `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate`, `match_display_word`, `match_vote_cast` and `match_ended`, written when a match is saved.
 
 **Boards.** The board endpoints first run `sweep_abandoned` on a read-write connection, then run the query on `connect_ro`.
 
@@ -454,7 +456,7 @@ ORDER BY score DESC, u.nickname_key LIMIT ?
 - It sets `PRAGMA journal_mode=WAL` and reads `PRAGMA user_version`.
 - For each pending `MIGRATIONS[i]` it runs `executescript("BEGIN IMMEDIATE;" + SQL + "PRAGMA user_version=i+1; COMMIT;")`. The SQL is always a constant in the code, never input.
 - Migrations only move forward: never edit one that has been applied; append a new one instead.
-- **Migration 2** (multiplayer, after go-live) adds `matches`, `match_players`, `match_submissions` and `events.match_id`. Its SQL is in [multiplayer.md §6.6](multiplayer.md#66-database-migration-2).
+- **Migration 2** (multiplayer, after go-live) adds `matches`, `match_players` (with `word_score`, `vote_bonus` and `display_word`), `match_submissions` (with `kind`: word or display), `match_votes` and `events.match_id`. Its SQL is in [multiplayer.md §6.6](multiplayer.md#66-database-migration-2).
 - Request connections set `foreign_keys=ON` and `busy_timeout` *before* installing the authorizer.
 
 ## 5. Configuration

@@ -217,7 +217,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T22 · **Files:** web/js/{main,game,boards}.js, web/css/app.css · **Scope:** M
 
 ### ✅ Checkpoint E
-- [ ] A manual `workflow_dispatch` commits tomorrow's pair; a second run commits nothing
+- [x] A manual `workflow_dispatch` commits tomorrow's pair; a second run commits nothing
 - [ ] After midnight UTC the backend serves that pair; today's answers can't be fetched by any route
 
 ---

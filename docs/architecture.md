@@ -133,7 +133,7 @@ def validate_daily_entry(lex: Lexicon, item: object) -> DailyEntry | None
 - `solve()` builds `grid[a+b] = count1[a] * count2[b]`. It prefilters with two 26-bit mask tests, then checks `pair_counts ≤ grid`. This stays well under 50 ms in pure Python.
 
 **Free play and daily use the same picker** with different `accept` rules:
-- Free play: neither word is one of today's daily words, and `len(answers) ≥ MIN_FREE_WORDS`.
+- Free play: neither word is one of today's daily words, and `MIN_FREE_WORDS ≤ len(answers) ≤ MAX_FREE_WORDS` (the upper bound only when `MAX_FREE_WORDS` isn't 0).
 - Daily: `pair_key` hasn't been used before, and `any(is_win_word(w) for w in answers)`.
 
 ```python
@@ -474,6 +474,7 @@ All values come from environment variables through `config.load_settings()`. Tes
 | `MAX_BODY_BYTES` | 16384 | same | same |
 | `FREE_GAMES_PER_DAY` | 20 | 20 | 20 |
 | `MIN_FREE_WORDS` (N) | 12 (from the [spike](spike-report.md)) | 1 | 12 |
+| `MAX_FREE_WORDS` | 74 (the spike's p90; 0 = off, otherwise at least `MIN_FREE_WORDS`) | 0 | 74 |
 | `SUBMIT_MIN_GAP_S` | 1.0 | 0, except in the gap test | 1.0 |
 | `RL_NEW_PLAYERS_PER_IP_HOUR` / `RL_GAMES_PER_PLAYER_HOUR` / `RL_EVENTS_PER_PLAYER_S` | 5 / 30 / 1 | 0 (off), except in the rate-limit tests | same as local |
 | `RL_REQUESTS_PER_IP_MIN` (backstop) | 300 | 0 | 300 |

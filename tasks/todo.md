@@ -233,8 +233,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T25a: Cap on words per free grid
 **Description:** Owner decision on spike finding 1 (2026-10-12): add `MAX_FREE_WORDS` (default 74, the spike's p90; 0 = off, the test default) so free play redraws the richest grids and a lucky draw can't dominate the monthly boards. The free-play `accept` rule becomes `MIN_FREE_WORDS ≤ len(answers) ≤ MAX_FREE_WORDS`; daily picks are unaffected. Update Arch §5 (picker rules and the settings table).
 **Acceptance criteria:**
-- [ ] With a cap set, no free game has more answers than the cap; with 0, behaviour is unchanged
-- [ ] `MAX_FREE_WORDS` below `MIN_FREE_WORDS` (other than 0) is rejected at startup
+- [x] With a cap set, no free game has more answers than the cap; with 0, behaviour is unchanged
+- [x] `MAX_FREE_WORDS` below `MIN_FREE_WORDS` (other than 0) is rejected at startup
 **Dependencies:** T25 · **Files:** trur/config.py, trur/games.py, docs/architecture.md, tests/test_games.py, tests/test_config.py · **Scope:** S
 
 ### T26: Rankings, boards and the plausibility flag

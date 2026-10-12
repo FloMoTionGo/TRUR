@@ -101,6 +101,7 @@ def make_settings(data_dir: Path, **overrides: object) -> Settings:
         daily_json_source=str(FIXTURES / "daily" / "valid.json"),
         allowed_origins=(ORIGIN,),
         min_free_words=1,
+        max_free_words=0,
         submit_min_gap_s=0.0,
         rl_new_players_per_ip_hour=0,
         rl_games_per_player_hour=0,

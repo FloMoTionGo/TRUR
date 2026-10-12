@@ -75,7 +75,10 @@ def create_game(
         excluded = {todays.word1, todays.word2}
     except ApiError:
         excluded = set()  # no daily pair to protect; free play still works
-    accept = lambda w1, w2, found: w1 not in excluded and w2 not in excluded and len(found) >= s.min_free_words  # noqa: E731
+    def accept(w1: str, w2: str, found: tuple[str, ...]) -> bool:
+        if w1 in excluded or w2 in excluded or len(found) < s.min_free_words:
+            return False
+        return not s.max_free_words or len(found) <= s.max_free_words
     try:  # the picker runs outside the transaction: it can take a while and needs no lock
         word1, word2, answers = pick_pair(lex, rng, accept)
     except LookupError:

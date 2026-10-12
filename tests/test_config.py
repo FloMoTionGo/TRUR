@@ -25,17 +25,28 @@ def test_fly_values_are_parsed() -> None:
         "TRUST_FLY_CLIENT_IP": "1",
         "SUBMIT_MIN_GAP_S": "0",
         "MIN_FREE_WORDS": "12",
+        "MAX_FREE_WORDS": "80",
     })
     assert s.db_path == Path("/data/trur.db")
     assert s.allowed_origins == ("https://trur.fly.dev",)
     assert s.hsts and s.trust_fly_client_ip
-    assert s.submit_min_gap_s == 0.0 and s.min_free_words == 12
+    assert s.submit_min_gap_s == 0.0 and (s.min_free_words, s.max_free_words) == (12, 80)
 
 
-@pytest.mark.parametrize("env", [{"HSTS": "yes"}, {"MIN_FREE_WORDS": "many"}])
+@pytest.mark.parametrize("env", [
+    {"HSTS": "yes"},
+    {"MIN_FREE_WORDS": "many"},
+    {"MAX_FREE_WORDS": "11"},  # below MIN_FREE_WORDS (12): no grid could qualify
+    {"MAX_FREE_WORDS": "-1"},
+])
 def test_bad_values_fail_at_startup(env: dict[str, str]) -> None:
     with pytest.raises(ValueError):
         load_settings(env)
+
+
+def test_max_free_words_defaults_to_the_spike_p90_and_0_switches_it_off() -> None:
+    assert Settings().max_free_words == 74
+    assert load_settings({"MAX_FREE_WORDS": "0", "MIN_FREE_WORDS": "500"}).max_free_words == 0
 
 
 def test_http_daily_source_is_refused() -> None:

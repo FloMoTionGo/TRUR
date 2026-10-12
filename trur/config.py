@@ -25,6 +25,7 @@ class Settings:
     max_body_bytes: int = 16_384
     free_games_per_day: int = 20
     min_free_words: int = 12  # from the step-1 spike (docs/spike-report.md)
+    max_free_words: int = 74  # the spike's p90, so a lucky draw can't dominate the boards; 0 = off
     submit_min_gap_s: float = 1.0
     rl_new_players_per_ip_hour: int = 5  # rate limits: 0 = off
     rl_games_per_player_hour: int = 30
@@ -41,6 +42,8 @@ class Settings:
     def __post_init__(self) -> None:
         if self.daily_json_source.lower().startswith("http://"):
             raise ValueError("DAILY_JSON_SOURCE must use https (S10)")
+        if self.max_free_words < 0 or 0 < self.max_free_words < self.min_free_words:
+            raise ValueError("MAX_FREE_WORDS must be 0 (off) or at least MIN_FREE_WORDS")
 
     @property
     def db_path(self) -> Path:

@@ -106,6 +106,16 @@ def test_free_games_respect_min_free_words(db_path: Path, clock: FakeClock, lex:
             assert game["total_words"] == len(lex.solve(game["word1"], game["word2"])) >= 9
 
 
+@pytest.mark.parametrize("max_free_words", [3, 0])
+def test_free_games_respect_max_free_words(db_path: Path, clock: FakeClock, max_free_words: int) -> None:
+    """The fixture grids have 1–9 words. A cap of 3 redraws the rest; 0 switches the cap off."""
+    app = create_app(make_settings(db_path.parent, max_free_words=max_free_words), clock, random.Random(1))
+    with make_client(app) as c:
+        c.post("/api/users", json={"nickname": "Alice"})
+        sizes = [c.post(GAMES, json={"mode": "free"}).json()["total_words"] for _ in range(20)]
+    assert (max(sizes) <= 3) == (max_free_words == 3)
+
+
 # --- resuming ---
 
 def test_current_resumes_the_open_game(alice: TestClient) -> None:

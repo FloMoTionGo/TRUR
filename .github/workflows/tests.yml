@@ -35,6 +35,25 @@ jobs:
       - name: Dependency audit (S12)
         run: pip-audit -r requirements.txt
 
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Build the image
+        run: docker build -t trur .
+      - name: Only the app is in the image (S9)
+        run: docker run --rm trur sh -c 'test ! -e tests && test ! -e var && test ! -e .git && ! find / -xdev -name "*.db" | grep -q .'
+      - name: The container serves /healthz
+        run: |
+          docker run -d --name trur -p 8080:8080 -e DAILY_JSON_SOURCE=/app/data/daily_challenges.json trur
+          for _ in $(seq 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz; then exit 0; fi
+            sleep 1
+          done
+          docker logs trur
+          exit 1
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10

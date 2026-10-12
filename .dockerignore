@@ -1,0 +1,13 @@
+# S9: the database never gets into the image. Only trur/, web/, data/ and scripts/ are copied.
+.git
+.github
+var/
+*.db
+*.db-wal
+*.db-shm
+.venv/
+tests/
+build/
+__pycache__/
+.pytest_cache/
+.coverage

@@ -46,4 +46,6 @@ The rule is not too strict. Only 3% of grids have fewer than 4 words, and the me
 1. **Grids vary a lot.** The richest grids have over 100 times as many words and points as the thinnest ones that are still accepted (p90 514 points, max 7,976). Free-play monthly boards rank by best single game. Even with the 20-games-a-day limit, a lucky draw can therefore matter more than skill. The plan already rejected "percentage of the grid's possible points" as the ranking. Two options if this becomes a problem:
    - add a `MAX_FREE_WORDS` cap, or
    - rank free play by percentage after all.
+
+   **Decision (owner, 2026-10-12):** add the `MAX_FREE_WORDS` cap at 74 words (p90), for now; revisit with real board data. Tracked as T25a.
 2. **"All words found" will rarely end a game.** Median grids have 23 words, and big ones have hundreds. Most games will end by 3 wrong words or **End game**, as the plan expects.

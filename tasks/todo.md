@@ -51,7 +51,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T2, T4 · **Files:** scripts/spike_stats.py, docs/spike-report.md, trur/config.py, docs/architecture.md, tests/test_spike.py · **Scope:** S
 
 ### ✅ Checkpoint A: go/no-go
-- [ ] Review the spike report with the owner. If most pairs give only 0–3 words, **stop** and adjust the rules in docs/plan.md before any UI or backend work.
+- [x] Review the spike report with the owner. If most pairs give only 0–3 words, **stop** and adjust the rules in docs/plan.md before any UI or backend work.
 
 ---
 
@@ -230,12 +230,19 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 - [ ] TS step 6 "Free-play limits" cases pass
 **Dependencies:** T21 · **Files:** trur/games.py, tests/test_rankings.py · **Scope:** S
 
+### T25a: Cap on words per free grid
+**Description:** Owner decision on spike finding 1 (2026-10-12): add `MAX_FREE_WORDS` (default 74, the spike's p90; 0 = off, the test default) so free play redraws the richest grids and a lucky draw can't dominate the monthly boards. The free-play `accept` rule becomes `MIN_FREE_WORDS ≤ len(answers) ≤ MAX_FREE_WORDS`; daily picks are unaffected. Update Arch §5 (picker rules and the settings table).
+**Acceptance criteria:**
+- [ ] With a cap set, no free game has more answers than the cap; with 0, behaviour is unchanged
+- [ ] `MAX_FREE_WORDS` below `MIN_FREE_WORDS` (other than 0) is rejected at startup
+**Dependencies:** T25 · **Files:** trur/config.py, trur/games.py, docs/architecture.md, tests/test_games.py, tests/test_config.py · **Scope:** S
+
 ### T26: Rankings, boards and the plausibility flag
 **Description:** `rankings.py` (`periods`, `recompute_ranking` called from `_end`, `monthly_board`, `daily_board` on `connect_ro` after a sweep on the read-write connection), `is_implausible` setting `flagged` in `_end`, and both board endpoints.
 **Acceptance criteria:**
 - [ ] TS step 6 "Boards", "Sweep" and "Plausibility check" cases pass, plus the month-boundary case
 - [ ] Rows contain exactly `rank`, `nickname` and `score`
-**Dependencies:** T25 · **Files:** trur/rankings.py, trur/games.py, trur/api.py, tests/test_rankings.py · **Scope:** M
+**Dependencies:** T25a · **Files:** trur/rankings.py, trur/games.py, trur/api.py, tests/test_rankings.py · **Scope:** M
 
 ### T27: Admin script
 **Description:** `scripts/admin.py`: `hide`, `unhide`, `flag`, `unflag` (with ranking recompute) and `delete-player` (cascade).

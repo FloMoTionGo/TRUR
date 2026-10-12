@@ -258,7 +258,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T26 · **Files:** web/js/{boards,main}.js, web/css/app.css · **Scope:** S
 
 ### ✅ Checkpoint F
-- [ ] Flagged games and hidden players are missing from every board; the full suite and E2E are green
+- [x] Flagged games and hidden players are missing from every board; the full suite and E2E are green
 
 ---
 

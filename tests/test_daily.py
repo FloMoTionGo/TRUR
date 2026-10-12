@@ -425,7 +425,7 @@ def new_user(conn: sqlite3.Connection, clock: FakeClock) -> str:
 def test_free_play_never_uses_todays_daily_words(
     conn: sqlite3.Connection, lex: Lexicon, db_path: Path, source: Path, clock: FakeClock, json_only: bool,
 ) -> None:
-    s = settings_for(db_path, source)
+    s = settings_for(db_path, source, free_games_per_day=50)  # one player, 50 starts in one day
     user_id = new_user(conn, clock)
     for seed in range(50):
         if json_only:

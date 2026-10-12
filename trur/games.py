@@ -5,7 +5,6 @@ the score. Answers never leave the server for an open game (S12); `missed_words`
 only once a free game is over.
 
 Seams for later tasks, each marked where it goes:
-- T25: the free-games-per-day limit
 - T26: the plausibility flag and the ranking recompute in _end
 """
 
@@ -13,7 +12,7 @@ import json
 import random
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
 from typing import Literal, TypedDict
 
 from trur import daily, db
@@ -83,7 +82,13 @@ def create_game(
         raise ApiError(503, "no_pair_available", "No word pair is available right now. Please try again.") from None
     game_id = str(uuid.uuid4())
     with db.tx(conn):
-        # T25: the free-games-per-day limit is checked here, before the open game is touched.
+        day_start = datetime.combine(today, time(), timezone.utc)
+        (started_today,) = conn.execute(  # every free start counts, however the game ended (S6)
+            "SELECT COUNT(*) FROM games WHERE user_id = ? AND mode = 'free' AND started_at >= ? AND started_at < ?",
+            (user_id, db.iso(day_start), db.iso(day_start + timedelta(days=1))),
+        ).fetchone()
+        if started_today >= s.free_games_per_day:  # checked before the open game is touched
+            raise ApiError(429, "limit_reached", f"You've played {s.free_games_per_day} free games today. Come back after midnight UTC.")
         open_game = conn.execute(
             "SELECT * FROM games WHERE user_id = ? AND mode = 'free' AND ended_at IS NULL", (user_id,)
         ).fetchone()

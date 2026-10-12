@@ -227,7 +227,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T25: Free-play daily limit
 **Description:** The 20-per-UTC-day limit inside the create transaction (429 `limit_reached`, open game untouched; abandoned and flagged games count; daily games don't).
 **Acceptance criteria:**
-- [ ] TS step 6 "Free-play limits" cases pass
+- [x] TS step 6 "Free-play limits" cases pass
 **Dependencies:** T21 · **Files:** trur/games.py, tests/test_rankings.py · **Scope:** S
 
 ### T25a: Cap on words per free grid

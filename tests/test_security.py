@@ -324,7 +324,7 @@ def test_the_ip_is_never_stored(limited: Limited, db_path: Path) -> None:
 
 
 def test_thirty_first_game_call_in_an_hour_is_429(limited: Limited, clock: FakeClock, db_path: Path) -> None:
-    c = limited(rl_games_per_player_hour=30)
+    c = limited(rl_games_per_player_hour=30, free_games_per_day=100)  # the daily limit isn't under test
     assert register(c, "Anna").status_code == 201
     for _ in range(30):
         assert c.post("/api/games", json={"mode": "free"}).status_code == 201
@@ -494,9 +494,13 @@ def test_no_route_takes_a_user_id() -> None:
     assert not {n for n in names if "user" in n}
 
 
-def test_game_ids_are_uuid4(player: Player) -> None:
+def test_game_ids_are_uuid4(player: Player, clock: FakeClock) -> None:
     alice = player("Alice")
-    ids = [alice.post("/api/games", json={"mode": "free"}).json()["game_id"] for _ in range(100)]
+    ids = []
+    for i in range(100):
+        if i and i % 20 == 0:
+            clock.advance(86400)  # stay under the free-games-per-day limit
+        ids.append(alice.post("/api/games", json={"mode": "free"}).json()["game_id"])
     assert len(set(ids)) == 100
     assert all(uuid.UUID(i).version == 4 and str(uuid.UUID(i)) == i for i in ids)
 

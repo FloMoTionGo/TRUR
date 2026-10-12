@@ -2,10 +2,7 @@
 
 The server is authoritative: it picks the grid, rebuilds words from tile coordinates and keeps
 the score. Answers never leave the server for an open game (S12); `missed_words` is filled in
-only once a free game is over.
-
-Seams for later tasks, each marked where it goes:
-- T26: the plausibility flag and the ranking recompute in _end
+only once a free game is over. A game is checked for plausibility and ranked when it ends (S4).
 """
 
 import json
@@ -15,7 +12,7 @@ import uuid
 from datetime import datetime, time, timedelta, timezone
 from typing import Literal, TypedDict
 
-from trur import daily, db
+from trur import daily, db, rankings
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.solver import MAX_TRIES, Lexicon, Tile, is_win_word, pick_pair, points, word_from_tiles
@@ -208,6 +205,18 @@ def sweep_abandoned(
     return len(stale)
 
 
+def is_implausible(found: int, total: int, cells: int, minutes: float, s: Settings) -> bool:
+    """The S4 check when a game ends (§8 item 9). `minutes` runs from the start to the last valid word.
+
+    The word-share rule applies only with the timing rule and only on big grids, because every
+    complete game finds 100 %.
+    """
+    wpm = found / max(0.5, minutes)
+    too_fast = wpm > s.plaus_max_wpm and found >= s.plaus_min_words
+    too_complete = cells >= s.plaus_min_cells and found >= s.plaus_found_ratio * total and wpm > s.plaus_soft_wpm
+    return too_fast or too_complete
+
+
 def log_client_events(conn: sqlite3.Connection, user_id: str, events: list[dict], now: datetime) -> None:
     """Store a batch of client events (tile clicks). 404 and nothing stored if any game isn't the player's (S2)."""
     with db.tx(conn):
@@ -290,7 +299,15 @@ def _end(conn: sqlite3.Connection, lex: Lexicon, s: Settings, game: sqlite3.Row,
     cur = conn.execute("UPDATE games SET ended_at = ? WHERE id = ? AND ended_at IS NULL", (db.iso(now), game["id"]))
     if cur.rowcount == 0:
         return  # already closed by a request that got there first
-    # T26: set `flagged` with is_implausible, then recompute_ranking for each of the game's periods.
+    found, last = conn.execute(
+        "SELECT COUNT(*), MAX(submitted_at) FROM submissions WHERE game_id = ? AND is_valid = 1", (game["id"],)
+    ).fetchone()
+    minutes = (datetime.fromisoformat(last) - datetime.fromisoformat(game["started_at"])).total_seconds() / 60 if last else 0.0
+    cells = len(game["word1"]) * len(game["word2"])
+    flagged = is_implausible(found, game["total_words"], cells, minutes, s)
+    conn.execute("UPDATE games SET flagged = ? WHERE id = ?", (int(flagged), game["id"]))
+    for period in rankings.periods(game):
+        rankings.recompute_ranking(conn, game["user_id"], game["mode"], period)
     ended = conn.execute("SELECT score, flagged FROM games WHERE id = ?", (game["id"],)).fetchone()
     payload = {"reason": reason, "score": ended["score"], "flagged": bool(ended["flagged"])}
     _log_event(conn, game["user_id"], game["id"], "game_ended", payload, now)

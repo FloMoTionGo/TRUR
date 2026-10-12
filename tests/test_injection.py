@@ -3,7 +3,7 @@
 Each payload goes into each input. Nothing may return a 500 or mention SQL, and the schema,
 the row counts and PRAGMA integrity_check must be unchanged afterwards.
 
-Inputs added by later tasks join this matrix there: the board month and date (T26).
+The board mode, month and date joined with T26.
 """
 
 import sqlite3
@@ -66,6 +66,19 @@ def test_mode_in_body_and_query(alice: TestClient, db_path: Path, payload: str) 
     before = db_snapshot(db_path)
     assert_harmless(alice.post("/api/games", json={"mode": payload}), db_path, before)
     assert_harmless(alice.get("/api/games/current", params={"mode": payload}), db_path, before)
+
+
+@pytest.mark.parametrize("payload", PAYLOADS)
+def test_board_mode_month_and_date(alice: TestClient, db_path: Path, payload: str) -> None:
+    before = db_snapshot(db_path)
+    for path, params in (
+        ("/api/rankings", {"mode": payload}),
+        ("/api/rankings", {"mode": "free", "month": payload}),
+        ("/api/rankings/daily", {"date": payload}),
+    ):
+        r = alice.get(path, params=params)
+        assert r.status_code == 422, r.text
+        assert_harmless(r, db_path, before)
 
 
 @pytest.mark.parametrize("payload", PAYLOADS)

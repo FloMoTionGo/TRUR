@@ -240,8 +240,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T26: Rankings, boards and the plausibility flag
 **Description:** `rankings.py` (`periods`, `recompute_ranking` called from `_end`, `monthly_board`, `daily_board` on `connect_ro` after a sweep on the read-write connection), `is_implausible` setting `flagged` in `_end`, and both board endpoints.
 **Acceptance criteria:**
-- [ ] TS step 6 "Boards", "Sweep" and "Plausibility check" cases pass, plus the month-boundary case
-- [ ] Rows contain exactly `rank`, `nickname` and `score`
+- [x] TS step 6 "Boards", "Sweep" and "Plausibility check" cases pass, plus the month-boundary case
+- [x] Rows contain exactly `rank`, `nickname` and `score`
 **Dependencies:** T25a · **Files:** trur/rankings.py, trur/games.py, trur/api.py, tests/test_rankings.py · **Scope:** M
 
 ### T27: Admin script

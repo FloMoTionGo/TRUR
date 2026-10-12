@@ -537,6 +537,8 @@ def test_no_route_leaks_todays_unfound_words(player: Player, client: TestClient,
         ("POST", "/api/games/{game_id}/submit"): [submit(alice, game, DEMOCRATIC), submit(alice, game, WRONG[0])],
         ("POST", "/api/events"): [alice.post("/api/events", json=event)],
         ("GET", "/api/daily/{day}/answers"): [alice.get(answers_url("2026-10-11")), alice.get(answers_url("2026-10-10"))],
+        ("GET", "/api/rankings"): [client.get("/api/rankings?mode=daily"), client.get("/api/rankings?mode=free")],
+        ("GET", "/api/rankings/daily"): [client.get("/api/rankings/daily")],
         ("POST", "/api/games/{game_id}/end"): [alice.post(f"{GAMES}/{gid}/end", json={})],  # last: it ends the game
     }
     routes = {(m, r.path) for r in api_router.routes if isinstance(r, APIRoute) for m in r.methods}

@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from trur import auth, daily, db, games
+from trur import auth, daily, db, games, rankings
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.security import RateLimiter, check_post, client_ip
@@ -237,6 +237,47 @@ def parse_day(raw: str) -> date:
 def answers(day: str, request: Request, conn: Conn, lex: Lex, now: Now) -> dict:
     player = auth.user_for_token(conn, request.cookies.get(auth.COOKIE))  # optional: adds the caller's finds
     return daily.daily_answers(conn, lex, player["id"] if player else None, parse_day(day), now.date())
+
+
+_MONTH = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
+
+
+def parse_month(raw: str) -> str:
+    if _MONTH.fullmatch(raw):
+        return raw
+    raise ApiError(422, "invalid_request", "The month is not valid.")
+
+
+def get_conn_ro(request: Request) -> Iterator[sqlite3.Connection]:
+    """A read-only connection for the board query (S1). It reads after the sweep has committed (§8 item 14)."""
+    conn = db.connect_ro(request.app.state.settings.db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+ConnRo = Annotated[sqlite3.Connection, Depends(get_conn_ro)]
+
+
+@router.get("/api/rankings")
+def monthly_board(
+    mode: Annotated[GameMode, Query()], conn: Conn, conn_ro: ConnRo, s: Cfg, lex: Lex, now: Now,
+    month: Annotated[str | None, Query()] = None,
+) -> dict:
+    period = now.strftime("%Y-%m") if month is None else parse_month(month)
+    games.sweep_abandoned(conn, lex, s, now)
+    return {"mode": mode, "month": period, "entries": rankings.monthly_board(conn_ro, mode, period, s.board_limit)}
+
+
+@router.get("/api/rankings/daily")
+def daily_board(
+    conn: Conn, conn_ro: ConnRo, s: Cfg, lex: Lex, now: Now,
+    day: Annotated[str | None, Query(alias="date")] = None,
+) -> dict:
+    when = now.date() if day is None else parse_day(day)
+    games.sweep_abandoned(conn, lex, s, now)
+    return {"date": when.isoformat(), "entries": rankings.daily_board(conn_ro, when, s.board_limit)}
 
 
 @router.post("/api/events", status_code=204, dependencies=POST)

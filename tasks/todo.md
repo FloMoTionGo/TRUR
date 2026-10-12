@@ -282,6 +282,14 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 
 ---
 
-## Phase 8: Multiplayer (after go-live)
+## Phase 8: Multiplayer (M1–M6 before go-live, owner 2026-10-12)
 
-Broken down into tasks once phase 7 is done, following [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups.
+### M1: Rules engine
+**Description:** `trur/match.py` (multiplayer.md §6.3): `pct`, `word_points`, `submit`, `display`, `close_play`, `ballot_for`, `vote`, `bonus`, `finish`, `results`. Plus a dev sandbox, `python -m scripts.match_sandbox` (owner request): one shared board on localhost, hot-seat players, no clock, with the vote and the results.
+**Acceptance criteria:**
+- [x] TS §6 step M1 cases pass, including the worked example, the 1-point case and the worked results example
+- [x] 100 % branch coverage on `match.py`
+- [ ] The owner has played a 4-player game in the sandbox
+**Dependencies:** T3 · **Files:** trur/match.py, scripts/match_sandbox.{py,html}, tests/test_match.py, tests/test_match_sandbox.py · **Scope:** M
+
+The remaining steps follow [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups.

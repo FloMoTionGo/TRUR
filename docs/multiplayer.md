@@ -604,7 +604,7 @@ What the design does to stay testable:
 
 ## 10. Implementation plan
 
-Multiplayer comes **after plan.md step 7 (go-live)**. It needs:
+Multiplayer was planned **after plan.md step 7 (go-live)**. **Owner, 2026-10-12:** M1–M6 run locally and are built before go-live, since go-live waits on Fly access; only M7 needs the deploy. It needs:
 
 - the solver (step 1) and the grid UI (step 2)
 - the security stack (step 3) and players (step 4)
@@ -695,7 +695,7 @@ Applied on 2026-10-12, for the display word and creativity vote:
 
 ## 13. Open questions
 
-1. **Display word limits:** should the button be limited (for example 3 presses a match) instead of relying on the tile cost? And should display words go through the nickname blocklist ([§7](#7-security) M10)?
+1. ~~**Display word limits**~~ **Decided (owner, 2026-10-12):** no press limit and no blocklist. The tile cost and the submit gap are enough for friends-only play ([§7](#7-security) M10).
 2. **Power-ups** (step M8):
    - Does every player get each power-up once per match, or one random power-up per match?
    - Does "reduce letter pair multiplier to half" mean spoiling a tile for everyone (as assumed), or halving the cut your own words cause?

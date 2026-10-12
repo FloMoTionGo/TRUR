@@ -27,7 +27,7 @@ This plan turns the design docs into an ordered list of tasks: [docs/plan.md](..
 | 5 Daily challenge | 5 | T20–T24 | Workflow commits pairs; daily mode playable |
 | 6 Rankings | 6 | T25–T28 | Boards with flags and hidden players respected |
 | 7 Go live | 7 | T29–T30 | `https://trur.fly.dev` live, restore drilled |
-| 8 Multiplayer | 8 (M1–M8) | M1–M8 | See multiplayer.md §10; broken down into tasks once phase 7 is done |
+| 8 Multiplayer | 8 (M1–M8) | M1–M8 | See multiplayer.md §10; M1–M6 are built before go-live (owner, 2026-10-12) |
 
 **Parallel work:** T6 (design) can run alongside phase 1. T7–T8 need only the approved design. T23 (`pick_daily` + workflow) depends only on T4, so it can start any time after phase 1. Everything in phases 3–6 is sequential, because it shares `games.py`, `api.py` and the schema.
 

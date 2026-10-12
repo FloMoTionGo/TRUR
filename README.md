@@ -100,7 +100,7 @@ uvicorn trur.app:create_app --factory --reload --port 8000   # http://localhost:
 pytest -q -m "not e2e and not smoke"                         # fast suite; -m e2e for the browser flows
 ```
 
-- **Scripts** run as `python -m scripts.<name>`: `build_wordlists` (word lists), `spike_stats` (feasibility report), `pick_daily --dry-run` (shows the next daily pair) and `admin` (hide players, clear flags, delete a player).
+- **Scripts** run as `python -m scripts.<name>`: `build_wordlists` (word lists), `spike_stats` (feasibility report), `pick_daily --dry-run` (shows the next daily pair), `match_sandbox` (a multiplayer match on http://127.0.0.1:8765 with hot-seat players and no clock) and `admin` (hide players, clear flags, delete a player).
 - **The local database** is `var/trur.db`. Git ignores `var/`. Never put the database in `data/`, which is committed and public.
 - **Deploying** is manual: run `pip-audit -r requirements.txt`, then `fly deploy`. Afterwards, run the smoke tests with `pytest tests/smoke --base-url https://trur.fly.dev`.
 

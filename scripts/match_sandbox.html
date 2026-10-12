@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRUR Match Sandbox</title>
+<style>
+:root {
+  --ground: #FFFFFF; --ink: #1E1E1E; --muted: #5C5C5C; --line: #E2E2DC; --panel: #EEF0E6;
+  --tile: #6B7B3A; --tile-ink: #FFFFFF; --tile-edge: #4D5829;
+  --orange: #D9853B; --on-orange: #1E1E1E; --red: #C0392B; --on-red: #FFFFFF; --page: #F6F6F3;
+  --font-ui: "Space Grotesk", system-ui, sans-serif; --font-tile: "Space Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ground: #171A12; --ink: #FFFFFF; --muted: #B9BDAE; --line: #2F3524; --panel: #232819;
+          --tile-edge: #F2EDE0; --page: #0F110B; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.4 var(--font-ui); }
+main { max-width: 760px; margin: 0 auto; padding: 16px; }
+header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+h1 { font-size: 18px; margin: 0; letter-spacing: .08em; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { border: 1px solid var(--line); background: var(--ground); color: var(--ink); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+.tabs button[aria-pressed="true"] { background: var(--tile); color: var(--tile-ink); border-color: var(--tile-edge); }
+.note { color: var(--muted); font-size: 13px; }
+.panel { background: var(--ground); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
+table.grid { border-collapse: separate; border-spacing: 4px; margin: 0 auto; }
+table.grid th { font: 700 14px var(--font-tile); color: var(--muted); width: 48px; }
+.tile { width: 48px; height: 48px; border-radius: 6px; border: 2px solid var(--tile-edge); background: var(--tile); color: var(--tile-ink);
+        font: 700 15px/1 var(--font-tile); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 0; }
+.tile small { font: 400 10px var(--font-ui); opacity: .9; }
+.tile[data-pct="50"] { opacity: .85; } .tile[data-pct="25"] { opacity: .7; } .tile[data-pct="13"] { opacity: .6; }
+.tile[data-low] { opacity: .5; }
+.tile[data-selected] { background: var(--orange); color: var(--on-orange); border-color: var(--on-orange); opacity: 1; }
+.tile[data-locked] { background: var(--panel); color: var(--muted); border-style: dashed; cursor: not-allowed; opacity: 1; }
+.word { min-height: 32px; font: 700 22px var(--font-tile); letter-spacing: .1em; text-align: center; margin: 10px 0; }
+.actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+button.act { font: 600 14px var(--font-ui); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--tile-edge); background: var(--tile); color: var(--tile-ink); cursor: pointer; }
+button.act.alt { background: var(--ground); color: var(--ink); border-color: var(--line); }
+button.act.warn { background: var(--orange); color: var(--on-orange); border-color: var(--orange); }
+button.act:disabled { opacity: .4; cursor: default; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .cols { grid-template-columns: 1fr; } }
+ul { margin: 6px 0 0; padding-left: 18px; }
+h2 { font-size: 14px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+#toasts { position: fixed; bottom: 12px; right: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+.toast { background: var(--ink); color: var(--ground); padding: 8px 12px; border-radius: 6px; font-size: 14px; animation: fade 3.5s forwards; }
+.toast.bad { background: var(--red); color: var(--on-red); }
+.toast.dup { background: var(--tile); color: var(--tile-ink); }
+@keyframes fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+.cand { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font: 700 18px var(--font-tile); padding: 10px; margin: 6px 0;
+        border: 1px solid var(--line); background: var(--ground); color: var(--ink); border-radius: 8px; cursor: pointer; }
+.cand .rank { font: 700 13px var(--font-ui); min-width: 54px; color: var(--muted); }
+.cand[data-rank] { border-color: var(--orange); }
+.cand[data-rank] .rank { color: var(--orange); }
+table.res { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.res th, table.res td { text-align: left; padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mini { border-collapse: separate; border-spacing: 2px; font: 11px var(--font-tile); }
+.mini td { width: 30px; height: 22px; text-align: center; background: var(--panel); border-radius: 3px; }
+.dev { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.dev input { font: inherit; padding: 6px; width: 110px; border: 1px solid var(--line); border-radius: 6px; background: var(--ground); color: var(--ink); text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>TRUR · match sandbox</h1>
+    <div class="tabs" id="tabs"></div>
+  </header>
+  <p class="note">No clock: play lasts until <b>End play</b>. Switch players with the tabs (hot seat), or open one window per player with <code>?p=1</code> … Popups appear for the player you're viewing.</p>
+
+  <section id="play" class="panel" hidden>
+    <table class="grid" id="grid"></table>
+    <div class="word" id="sel"></div>
+    <div class="actions">
+      <button class="act" id="submit">Submit</button>
+      <button class="act alt" id="displayBtn">Display word</button>
+      <button class="act alt" id="clear">Clear</button>
+    </div>
+    <div class="cols" style="margin-top:14px">
+      <div><h2>Your display word</h2><div id="disp" class="note">none</div></div>
+      <div><h2>Your words (points hidden)</h2><ul id="found"></ul></div>
+    </div>
+  </section>
+
+  <section id="vote" class="panel" hidden>
+    <h2>Creativity vote</h2>
+    <p class="note" id="voteNote"></p>
+    <div id="cands"></div>
+    <div class="actions"><button class="act" id="sendVote">Send ballot</button></div>
+  </section>
+
+  <section id="results" class="panel" hidden>
+    <h2>Results</h2>
+    <table class="res"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Words</th><th>Display word</th></tr></thead><tbody id="resBody"></tbody></table>
+    <div class="cols" style="margin-top:12px">
+      <div><h2>Missed words</h2><p class="note" id="missed"></p></div>
+      <div><h2>Final board</h2><table class="mini" id="finalGrid"></table></div>
+    </div>
+  </section>
+
+  <section class="panel dev">
+    <button class="act warn" id="endPlay">End play (time's up)</button>
+    <button class="act alt" id="endVote">End vote (60 s up)</button>
+    <span style="flex:1"></span>
+    <input id="w1" placeholder="word 1"><input id="w2" placeholder="word 2">
+    <button class="act alt" id="newBoard">New board</button>
+  </section>
+</main>
+<div id="toasts"></div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text != null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+let me = new URLSearchParams(location.search).get("p") || "1";
+let state = null, sel = [], ranking = [], seen = {}, gridKey = "";
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || r.status), { data });
+  return data;
+}
+function toast(text, cls = "") { const t = el("div", text, { class: "toast " + cls }); $("toasts").append(t); setTimeout(() => t.remove(), 3600); }
+
+async function refresh() {
+  try { state = await api("/api/state?p=" + encodeURIComponent(me)); } catch { return; }
+  const top = state.feed.length ? state.feed[state.feed.length - 1].n : -1;
+  if (!(me in seen)) seen[me] = top;
+  for (const f of state.feed) if (f.n > seen[me]) toast(`${f.nickname} found a ${f.letters}-letter word`);
+  seen[me] = Math.max(seen[me], top);
+  render();
+}
+
+function render() {
+  const s = state;
+  const tabs = $("tabs"); tabs.replaceChildren();
+  for (const p of s.players) {
+    const b = el("button", p.nickname, { "aria-pressed": String(p.id === me) });
+    b.onclick = () => { me = p.id; sel = []; ranking = []; history.replaceState(null, "", "?p=" + me); refresh(); };
+    tabs.append(b);
+  }
+  $("play").hidden = s.phase !== "play";
+  $("vote").hidden = s.phase !== "vote";
+  $("results").hidden = s.phase !== "results";
+  $("endPlay").disabled = s.phase !== "play";
+  $("endVote").disabled = s.phase !== "vote";
+  if (s.phase === "play") renderPlay(s);
+  if (s.phase === "vote") renderVote(s);
+  if (s.phase === "results") renderResults(s.results);
+}
+
+function renderPlay(s) {
+  const key = s.word1 + s.word2;
+  if (key !== gridKey) { gridKey = key; sel = []; }
+  const locked = new Set(s.locked.map(([r, c]) => r + "," + c));
+  const g = $("grid"); g.replaceChildren();
+  const head = el("tr"); head.append(el("th"));
+  for (const ch of s.word1) head.append(el("th", ch));
+  g.append(head);
+  s.word2.split("").forEach((rowCh, r) => {
+    const tr = el("tr"); tr.append(el("th", rowCh));
+    s.word1.split("").forEach((colCh, c) => {
+      const td = el("td"); const pct = s.pct[r][c];
+      const b = el("button", null, { class: "tile", "data-pct": String(pct), "aria-label": `${colCh}${rowCh} ${pct}%` });
+      b.append(el("span", colCh + rowCh), el("small", pct + "%"));
+      if (pct < 13) b.setAttribute("data-low", "");
+      const i = sel.findIndex(([a, d]) => a === r && d === c);
+      if (i >= 0) b.setAttribute("data-selected", "");
+      if (locked.has(r + "," + c)) { b.setAttribute("data-locked", ""); b.disabled = true; }
+      b.onclick = () => { i >= 0 ? sel.splice(i, 1) : sel.push([r, c]); render(); };
+      td.append(b); tr.append(td);
+    });
+    g.append(tr);
+  });
+  $("sel").textContent = sel.map(([r, c]) => s.word1[c] + s.word2[r]).join("");
+  $("submit").disabled = $("displayBtn").disabled = sel.length < 2;
+  $("disp").textContent = s.display || "none";
+  $("found").replaceChildren(...s.found.map((w) => el("li", w)));
+}
+
+async function send(path) {
+  const tiles = sel; sel = [];
+  try {
+    const out = await api(path, { p: me, tiles });
+    if (out.status === "rejected") toast(`${out.word}: not in the dictionary`, "bad");
+    else if (out.status === "duplicate") toast(`${out.word}: already found, no points`, "dup");
+    else if (out.status === "displayed") toast(`Display word set: ${out.word}`);
+  } catch (e) { toast(e.message.replaceAll("_", " "), "bad"); }
+  refresh();
+}
+
+function renderVote(s) {
+  const v = s.vote;
+  $("voteNote").textContent = v.voted
+    ? `Ballot sent. ${v.count} of ${v.of} voted; waiting for the others (or press End vote).`
+    : `Rank up to three display words: click in order (5, 3, 1 points). Your own word isn't here. ${v.count} of ${v.of} voted.`;
+  const box = $("cands"); box.replaceChildren();
+  if (!v.candidates.length) box.append(el("p", "No other display words to rank.", { class: "note" }));
+  for (const c of v.candidates) {
+    const i = ranking.indexOf(c.id);
+    const b = el("button", null, { class: "cand" });
+    b.append(el("span", i >= 0 ? ["1st · 5", "2nd · 3", "3rd · 1"][i] : "", { class: "rank" }), el("span", c.word));
+    if (i >= 0) b.setAttribute("data-rank", String(i + 1));
+    b.disabled = v.voted;
+    b.onclick = () => { i >= 0 ? ranking.splice(i, 1) : ranking.length < 3 && ranking.push(c.id); render(); };
+    box.append(b);
+  }
+  $("sendVote").disabled = v.voted || !ranking.length;
+}
+
+function renderResults(r) {
+  const body = $("resBody"); body.replaceChildren();
+  for (const p of r.players) {
+    const tr = el("tr");
+    tr.append(el("td", p.place), el("td", p.nickname),
+      el("td", `${p.score} (${p.word_score} + ${p.display ? p.display.bonus : 0})`),
+      el("td", p.words.map((w) => `${w.word} ${w.points}`).join(", ") || "–"),
+      el("td", p.display ? `${p.display.word} · ${p.display.votes} votes → +${p.display.bonus}` : "–"));
+    body.append(tr);
+  }
+  $("missed").textContent = `${r.missed_words.join(", ") || "none"} (${r.total_words} words on the board)`;
+  const g = $("finalGrid"); g.replaceChildren();
+  r.pct.forEach((row, ri) => { const tr = el("tr"); row.forEach((p, ci) => tr.append(el("td", r.word1[ci] + r.word2[ri] + " " + p))); g.append(tr); });
+}
+
+$("submit").onclick = () => send("/api/submit");
+$("displayBtn").onclick = () => send("/api/display");
+$("clear").onclick = () => { sel = []; render(); };
+$("sendVote").onclick = async () => {
+  try { await api("/api/vote", { p: me, ranking }); ranking = []; } catch (e) { toast(e.message.replaceAll("_", " "), "bad"); }
+  refresh();
+};
+$("endPlay").onclick = async () => { await api("/api/end", {}); refresh(); };
+$("endVote").onclick = async () => { await api("/api/end-vote", {}); refresh(); };
+$("newBoard").onclick = async () => {
+  const w1 = $("w1").value.trim(), w2 = $("w2").value.trim();
+  try { await api("/api/new", w1 && w2 ? { word1: w1, word2: w2 } : {}); seen = {}; } catch (e) { toast(e.message, "bad"); }
+  refresh();
+};
+refresh();
+setInterval(refresh, 800);
+</script>
+</body>
+</html>

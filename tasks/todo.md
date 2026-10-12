@@ -247,8 +247,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T27: Admin script
 **Description:** `scripts/admin.py`: `hide`, `unhide`, `flag`, `unflag` (with ranking recompute) and `delete-player` (cascade).
 **Acceptance criteria:**
-- [ ] After unflag, the next board request shows the score; after unhide, the player is back
-- [ ] `delete-player` removes only that player's rows (S13)
+- [x] After unflag, the next board request shows the score; after unhide, the player is back
+- [x] `delete-player` removes only that player's rows (S13)
 **Dependencies:** T26 · **Files:** scripts/admin.py, tests/test_admin.py · **Scope:** S
 
 ### T28: Boards UI

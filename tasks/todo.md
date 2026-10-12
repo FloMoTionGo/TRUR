@@ -267,8 +267,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T29: Deploy artifacts and production tests
 **Description:** `Dockerfile`, `.dockerignore`, `fly.toml` (Arch §5), production-settings tests (docs routes off, HSTS on), the route-inventory test (S11), `fly.toml` static checks, the `tests/smoke/` suite, and a short privacy note on the page (S13).
 **Acceptance criteria:**
-- [ ] TS step 7 and S11, S12 and S13 automated cases pass
-- [ ] `docker build` succeeds and the container serves `/healthz`
+- [x] TS step 7 and S11, S12 and S13 automated cases pass
+- [x] `docker build` succeeds and the container serves `/healthz`
 **Dependencies:** T28 · **Files:** Dockerfile, .dockerignore, fly.toml, tests/test_prod.py, tests/smoke/*, web/index.html · **Scope:** M
 
 ### T30: Go-live (manual, with the owner)

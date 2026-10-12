@@ -254,7 +254,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ### T28: Boards UI
 **Description:** `web/js/boards.js`: monthly boards per mode and the daily board, rendered with `textContent`.
 **Acceptance criteria:**
-- [ ] E2E flow 8 passes (the XSS nickname shows as literal text)
+- [x] E2E flow 8 passes (the XSS nickname shows as literal text)
 **Dependencies:** T26 · **Files:** web/js/{boards,main}.js, web/css/app.css · **Scope:** S
 
 ### ✅ Checkpoint F

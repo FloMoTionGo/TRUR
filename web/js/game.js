@@ -2,7 +2,7 @@
 // All text goes in with textContent (S8).
 
 import { api, ApiError } from "./api.js";
-import { addDays, dayLabel, showAnswers } from "./boards.js";
+import { addDays, dayLabel, showAnswers, showBoards } from "./boards.js";
 import { logEvent } from "./events.js";
 import { showScreen } from "./screens.js";
 
@@ -256,6 +256,7 @@ byTestId("new-game").addEventListener("click", async () => {
 const openAnswers = () => showAnswers(game.daily_date, () => show(game)); // back to the screen it came from
 byTestId("past-answers").addEventListener("click", openAnswers);
 byTestId("past-answers-over").addEventListener("click", openAnswers);
+byTestId("boards-open").addEventListener("click", () => showBoards(() => show(game)));
 
 // --- game over ---
 

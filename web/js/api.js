@@ -40,4 +40,8 @@ export const api = {
   end: (gameId) => request("POST", `/api/games/${encodeURIComponent(gameId)}/end`, {}),
   events: (events) => request("POST", "/api/events", { events }),
   answers: (day) => request("GET", `/api/daily/${encodeURIComponent(day)}/answers`),
+  // month / day null → the server's current month / today (UTC)
+  monthlyBoard: (mode, month) =>
+    request("GET", `/api/rankings?mode=${encodeURIComponent(mode)}${month ? `&month=${encodeURIComponent(month)}` : ""}`),
+  dailyBoard: (day) => request("GET", `/api/rankings/daily${day ? `?date=${encodeURIComponent(day)}` : ""}`),
 };

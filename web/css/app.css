@@ -351,6 +351,32 @@ button:disabled { cursor: default; }
 .answers-list li { display: flex; justify-content: space-between; padding: 1px 4px; }
 .answers-list li[data-mine="true"] { background: var(--orange); color: var(--on-orange); font-weight: 700; }
 
+/* --- leaderboards --- */
+.boards-main { flex: 1; min-height: 0; padding: 18px 24px; display: flex; flex-direction: column; gap: 14px; }
+.boards-tabs { display: flex; align-self: flex-start; border: 2px solid var(--ink); }
+.boards-tabs button { height: 40px; padding: 0 14px; border: 0; background: transparent; font-size: 14px; font-weight: 500; }
+.boards-tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.boards-top { display: flex; align-items: center; gap: 10px; }
+.boards-period { min-width: 170px; text-align: center; font-weight: 700; font-size: 18px; }
+.boards-hint { margin-left: auto; font-size: 13px; color: var(--muted); }
+.boards-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.boards-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.boards-table th {
+  position: sticky;
+  top: 0;
+  padding: 8px 12px;
+  text-align: left;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.boards-table th:first-child { width: 64px; }
+.boards-table td { padding: 7px 12px; overflow-wrap: anywhere; }
+.boards-table th:last-child, .boards-table td:last-child { text-align: right; }
+.boards-table td:first-child, .boards-table td:last-child { font-family: var(--font-tile); }
+.boards-table tr:nth-child(even) { background: var(--panel); }
+.boards-table tr[data-me="true"] { background: var(--orange); color: var(--on-orange); font-weight: 700; }
+.boards-empty { margin: 0; color: var(--muted); }
+
 /* --- word feedback popup --- */
 .toast {
   position: absolute;

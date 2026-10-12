@@ -1,6 +1,6 @@
 // Which screen is showing, and which header parts go with it.
 
-const SCREENS = ["loading", "nickname", "game", "over", "answers"];
+const SCREENS = ["loading", "nickname", "game", "over", "answers", "boards"];
 
 export function showScreen(name) {
   for (const screen of SCREENS) {
@@ -9,6 +9,7 @@ export function showScreen(name) {
   for (const el of document.querySelectorAll("[data-game-only]")) el.hidden = name !== "game";
   for (const el of document.querySelectorAll("[data-play-only]")) el.hidden = name !== "game" && name !== "over";
   for (const el of document.querySelectorAll("[data-answers-only]")) el.hidden = name !== "answers";
+  for (const el of document.querySelectorAll("[data-boards-only]")) el.hidden = name !== "boards";
 }
 
 export function showStatus(text) {

@@ -1,5 +1,7 @@
 """E2E flows (docs/test-strategy.md §5) on the live server; only flow 9 keeps its mocked API."""
 
+import sqlite3
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -239,3 +241,57 @@ def test_past_answers_after_midnight_mark_your_finds(game_page: Page, live_serve
     expect(game_page.locator(SEL.format("answers-empty"))).to_have_text("There was no daily challenge on that day.")
     game_page.locator(SEL.format("answers-back")).click()
     expect(game_page.locator(SEL.format("over-score"))).to_have_text("25")  # back where it came from
+
+
+# --- leaderboards ---
+
+XSS = "<img src=x onerror=window.__x=1>"
+
+
+def board_rows(page: Page) -> list[str]:
+    return page.locator(f'{SEL.format("boards-rows")} tr').all_inner_texts()
+
+
+def test_boards_show_your_game_and_go_back(game_page: Page) -> None:
+    play(game_page, GE, AR)
+    game_page.locator(SEL.format("end")).click()
+    expect(game_page.locator(SEL.format("over-score"))).to_have_text("4")
+
+    game_page.locator(SEL.format("boards-open")).click()
+    expect(game_page.get_by_role("heading", name="Leaderboards")).to_be_visible()
+    expect(game_page.get_by_role("tab", name="Free · month")).to_have_attribute("aria-selected", "true")
+    expect(game_page.locator(SEL.format("boards-period"))).to_have_text("October 2026")
+    mine = game_page.locator(f'{SEL.format("boards-rows")} tr[data-me="true"]')
+    expect(mine.locator("td")).to_have_text(["1", "Tester (you)", "4"])
+    expect(game_page.locator(SEL.format("boards-next"))).to_be_disabled()  # no boards from the future
+
+    game_page.locator(SEL.format("boards-prev")).click()
+    expect(game_page.locator(SEL.format("boards-period"))).to_have_text("September 2026")
+    expect(game_page.locator(SEL.format("boards-empty"))).to_have_text("No scores yet.")
+    game_page.locator(SEL.format("boards-next")).click()
+    expect(mine).to_have_count(1)
+
+    game_page.get_by_role("tab", name="Today’s daily").click()
+    expect(game_page.locator(SEL.format("boards-period"))).to_have_text("Sun 11 Oct 2026")
+    expect(game_page.locator(SEL.format("boards-empty"))).to_be_visible()
+    game_page.get_by_role("tab", name="Daily · month").click()
+    expect(game_page.locator(SEL.format("boards-period"))).to_have_text("October 2026")
+
+    game_page.locator(SEL.format("boards-back")).click()
+    expect(game_page.locator(SEL.format("over-score"))).to_have_text("4")  # back where it came from
+
+
+def test_flow_8_nickname_shows_as_text_on_the_board(game_page: Page, live_server) -> None:
+    conn = sqlite3.connect(live_server.app.state.settings.db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO users (id, token_hash, nickname, nickname_key, created_at) VALUES (?, ?, ?, ?, ?)",
+            ("xss-user", "0" * 64, XSS, XSS.lower(), "2026-10-11T00:00:00.000000Z"),
+        )
+        conn.execute("INSERT INTO rankings VALUES ('xss-user', 'free', '2026-10', 99)")
+    conn.close()
+    game_page.locator(SEL.format("boards-open")).click()
+    cells = game_page.locator(f'{SEL.format("boards-rows")} tr').first.locator("td")
+    expect(cells).to_have_text(["1", XSS, "99"])
+    expect(game_page.locator("#screen-boards img")).to_have_count(0)
+    assert game_page.evaluate("window.__x") is None

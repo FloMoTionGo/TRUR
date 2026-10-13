@@ -410,19 +410,19 @@ Run the layout checks once against today's page at 360×780: L2, L3 and L4 must 
 - The focus ring becomes `outline: 3px solid var(--frame)` on every viewport (owner, 2026-10-13).
 
 **Acceptance criteria:**
-- [ ] TS P7.1–P7.4 pass
-- [ ] D1 and D3 pass. The regions are visually hidden, and D1 doesn't record focus outlines, so no recorded value changes
+- [x] TS P7.1–P7.4 pass
+- [x] D1 and D3 pass. The regions are visually hidden, and D1 doesn't record focus outlines, so no recorded value changes
 **Dependencies:** P6 · **Files:** web/index.html, web/css/app.css, web/js/game.js · **Scope:** S
 
 ### P8: Toast on phones
 **Description:** mobile.md §6.5. The toast is `min(380px, 100% − 24px)` wide, docked over the action area above the safe-area inset, and dismissed by the next tile tap. On desktop its position and timing are unchanged.
 **Acceptance criteria:**
-- [ ] TS P8.1–P8.4 pass. The tallest toast stays inside the viewport and never overlaps the grid
-- [ ] Phase-1 gate: flows 2 and 4, replayed with `press()` at `env-corner` and `se-bars`, pass. D1 and D3 pass
+- [x] TS P8.1–P8.4 pass. The tallest toast stays inside the viewport and never overlaps the grid
+- [x] Phase-1 gate: flows 2 and 4, replayed with `press()` at `env-corner` and `se-bars`, pass. D1 and D3 pass
 **Dependencies:** P7 · **Files:** web/css/app.css, web/js/game.js · **Scope:** S
 
 ### ✅ Checkpoint H: phones playable
-- [ ] A free game and a daily game can be played at every `core` and `full` portrait device
+- [x] A free game and a daily game can be played at every `core` and `full` portrait device (`test_checkpoint_h_free_and_daily_by_touch`, real backend, by touch)
 - [ ] Real-device test: 10×10 at 360 px wide (Galaxy S25 or another 360-wide Android). 30 deliberate taps, with misses counted and recorded in mobile.md §11 question 2
 - [ ] The owner has looked at phase 1 on a phone. Before T30 ships, either this checkpoint is reached or the owner accepts R8
 
@@ -474,8 +474,8 @@ It can start any time after checkpoint H.
 ### P13: Back gesture
 **Description:** mobile.md §6.7. The answers and boards screens push a history entry, and `popstate` calls `onBack()`. Reloading on such an entry shows the game. Multiplayer's `#match/<id>` builds on this.
 **Acceptance criteria:**
-- [ ] TS P13.1 passes: `page.go_back()` from answers and from boards returns to the game, and doesn't leave the site
-- [ ] Flows 1–9 pass
+- [x] TS P13.1 passes: `page.go_back()` from answers and from boards returns to the game, and doesn't leave the site
+- [x] Flows 1–9 pass
 **Dependencies:** P5 · **Files:** web/js/{main,screens,boards}.js · **Scope:** S
 
 ### ✅ Checkpoint I: all screens on phones

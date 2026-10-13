@@ -690,3 +690,60 @@ def test_p8_4_flows_2_and_4_by_touch(new_context, playwright, live_server, devic
     expect(tile(page, 0, 0)).to_have_attribute("data-state", "default")
     expect(page.locator(SEL.format("tries"))).to_have_attribute("aria-label", "2 of 3 tries left")
     assert errors == []
+
+
+# --- Checkpoint H: phones playable ---
+
+def test_checkpoint_h_free_and_daily_by_touch(phone: Page, live_server) -> None:
+    """A free game and a daily game, start to finish by touch, on the real backend."""
+    phone.goto(live_server.base_url + "/")
+    phone.locator("#nick").fill("Tester")
+    press(phone.get_by_role("button", name="Play"))
+    phone.locator(".tile").first.wait_for()
+
+    for rc in (GE, AR):
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator(SEL.format("score"))).to_have_text("4")
+    press(phone.locator(SEL.format("end")))
+    expect(phone.locator(SEL.format("over-reason"))).to_have_text("You ended the game · GARDEN × SUMMER")
+
+    press(phone.locator(SEL.format("mode-daily")))
+    expect(phone.locator(".grid .head-col")).to_have_text(list("MEDICAL"))
+    for rc in DEMOCRATIC:
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator(SEL.format("won"))).to_be_visible()
+    assert l4(snapshot(phone)) == []
+    press(phone.locator(SEL.format("end")))
+    expect(phone.locator(SEL.format("over-score"))).to_have_text("25")
+
+
+# --- P13: back gesture ---
+
+@pytest.mark.parametrize("screen", ["answers", "boards"])
+def test_p13_1_back_returns_to_the_game(phone: Page, live_server, lex: Lexicon, screen: str) -> None:
+    if screen == "answers":
+        open_page(phone, live_server, lex, ready=SEL.format("over-score"), **daily_over({}))
+        to_answers(phone)
+        came_from = "#screen-over"
+    else:
+        open_page(phone, live_server, lex)
+        to_boards(phone)
+        came_from = "#screen-game"
+    phone.go_back()
+    expect(phone.locator(came_from)).to_be_visible()
+    assert phone.url.startswith(live_server.base_url)
+
+
+def test_p13_1_in_app_back_leaves_no_extra_entry(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    length = phone.evaluate("history.length")
+    to_boards(phone)
+    press(phone.locator(SEL.format("boards-back")))
+    expect(phone.locator("#screen-game")).to_be_visible()
+    to_boards(phone)  # a second visit reuses the entry rather than stacking another
+    phone.go_back()
+    expect(phone.locator("#screen-game")).to_be_visible()
+    assert phone.evaluate("history.length") == length + 1
+    assert phone.evaluate("history.state") is None

@@ -2,7 +2,7 @@
 // Then the leaderboards (screen 4). All text goes in with textContent (S8).
 
 import { api, ApiError } from "./api.js";
-import { showScreen } from "./screens.js";
+import { popScreen, pushScreen, showScreen } from "./screens.js";
 
 const byTestId = (id) => document.querySelector(`[data-testid="${id}"]`);
 const list = byTestId("answers-list");
@@ -19,7 +19,6 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 let day = null;      // the date on screen, YYYY-MM-DD
 let lastDay = null;  // the latest day whose answers are out
-let onBack = null;
 
 export const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
 
@@ -41,7 +40,6 @@ async function load(iso) {
 
 // Opens on the game's own day once it's over, else on the day before.
 export async function showAnswers(gameDay, back) {
-  onBack = back;
   lastDay = gameDay;
   let result = await load(gameDay);
   if (result.kind === "hidden") {
@@ -50,6 +48,7 @@ export async function showAnswers(gameDay, back) {
   }
   render(lastDay, result);
   showScreen("answers");
+  pushScreen(back);
 }
 
 function render(iso, result) {
@@ -98,7 +97,7 @@ async function go(step) {
 
 prev.addEventListener("click", () => go(-1));
 next.addEventListener("click", () => { if (day < lastDay) go(1); });
-byTestId("answers-back").addEventListener("click", () => { if (onBack) onBack(); });
+byTestId("answers-back").addEventListener("click", popScreen);
 
 // --- leaderboards (docs/plan.md, screen 4): monthly per mode and one day's daily board ---
 
@@ -117,7 +116,7 @@ const boardPrev = byTestId("boards-prev");
 const boardNext = byTestId("boards-next");
 
 // month is shared by both monthly tabs; null asks the server for the current month / today (UTC)
-const board = { tab: "free", month: null, day: null, lastMonth: null, lastDay: null, me: null, request: 0, back: null };
+const board = { tab: "free", month: null, day: null, lastMonth: null, lastDay: null, me: null, request: 0 };
 
 const addMonths = (ym, n) => {
   const [y, m] = ym.split("-").map(Number);
@@ -127,7 +126,7 @@ const monthLabel = (ym) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ${ym.slic
 
 // Opens on this month's free-play board.
 export async function showBoards(back) {
-  Object.assign(board, { back, tab: "free", month: null, day: null, lastMonth: null, lastDay: null });
+  Object.assign(board, { tab: "free", month: null, day: null, lastMonth: null, lastDay: null });
   if (board.me === null) {
     try {
       board.me = (await api.me()).nickname;
@@ -137,6 +136,7 @@ export async function showBoards(back) {
   }
   await loadBoard();
   showScreen("boards");
+  pushScreen(back);
 }
 
 async function loadBoard() {
@@ -212,4 +212,4 @@ document.querySelector("#screen-boards [role=tablist]").addEventListener("keydow
 });
 boardPrev.addEventListener("click", () => step(-1));
 boardNext.addEventListener("click", () => step(1));
-byTestId("boards-back").addEventListener("click", () => { if (board.back) board.back(); });
+byTestId("boards-back").addEventListener("click", popScreen);

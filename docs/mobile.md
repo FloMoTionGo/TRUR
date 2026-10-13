@@ -213,7 +213,7 @@ Inside both phone blocks, portrait and landscape (P14 repeats these rules and th
 
 ### 6.4 Found sheet (P5)
 
-- **Markup:** `<dialog class="sheet" id="sheet" aria-labelledby="found-head">` holds a close button with `autofocus` and `aria-label="Close"`. Add `id="found-head"` to `.found-head` (index.html:89), which today has only the class.
+- **Markup:** `<dialog class="sheet" id="sheet" aria-labelledby="found-open">` holds a close button with `autofocus` and `aria-label="Close"`. The dialog is named by the Found button ("Found 4 of 23"), not by `.found-head`: an id on `.found-head` would rename that desktop element in the D1 baseline (P5, 2026-10-13).
 - **`web/js/sheet.js`:**
   - `openSheet(content, opener)` moves the aside in and calls `showModal()`.
   - On `close`, it puts the aside back after `.grid-area` and calls `opener.focus()`. iOS Safari doesn't focus a button on tap, so the native focus return goes to `<body>`.

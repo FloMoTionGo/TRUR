@@ -456,6 +456,41 @@ button:disabled { cursor: default; }
 .is-dark .nick-error { color: #F0A59C; }
 .privacy { margin: 0; width: 420px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
+/* --- the found sheet (phones, mobile.md §6.4): a <dialog> the found panel moves into; never opened on desktop --- */
+.sheet {
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: 60svh;
+  margin: 0;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overflow: hidden;
+  background: var(--panel);
+  color: var(--ink);
+  border: 0;
+  border-top: 2px solid var(--frame); /* the panel colour alone is only 1.15:1 against the ground */
+  transition: transform 200ms ease-out, overlay 200ms allow-discrete, display 200ms allow-discrete;
+}
+.sheet[open] { display: flex; flex-direction: column; }
+@starting-style { .sheet[open] { transform: translateY(100%); } }
+.sheet::backdrop { background: rgba(0, 0, 0, .45); }
+.sheet-top { flex: none; display: flex; justify-content: flex-end; }
+.sheet-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+}
+.sheet-close svg { width: 22px; height: 22px; }
+.sheet .found { width: auto; margin: 0; flex: 1 1 auto; min-height: 0; }
+html:has(dialog[open]) { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
+
 /* === phones, portrait (docs/mobile.md §4–§6); every viewport of at least 640 × 640 is unchanged ===
    Keep the query in step with PHONE_QUERY in js/grid.js. */
 @media (max-width: 639px) {
@@ -505,6 +540,24 @@ button:disabled { cursor: default; }
   }
   .found-open::after { content: ""; position: absolute; inset: -8px -2px; } /* 6 px past the border: a 44 px hit area at no layout cost */
 
+  /* found sheet (P5): the side panel lives in the sheet on phones */
+  .game-main > .found { display: none; }
+  .found-flash {
+    position: absolute;
+    right: -4px;
+    top: -12px;
+    padding: 0 4px;
+    font-family: var(--font-tile);
+    font-size: 12px;
+    background: var(--orange);
+    color: var(--on-orange); /* ink on an orange chip: orange text on white is only 2.85:1 */
+    border: 2px solid var(--frame);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .found-open[data-flash="a"] .found-flash { animation: flash-a 1s ease-out; }
+  .found-open[data-flash="b"] .found-flash { animation: flash-b 1s ease-out; }
+
   /* press feedback replaces the tap highlight: the pressed offset, without the shadow */
   .button:active:not(:disabled), .icon-button:active, .tile:active:not(:disabled) {
     transform: translate(2px, 2px);
@@ -515,4 +568,11 @@ button:disabled { cursor: default; }
 /* narrow phones: the compact logo without the wordmark (P4) */
 @media (max-width: 399px) {
   .wordmark { display: none; }
+}
+
+/* the +points flash (P5): two identical keyframes, so alternating data-flash restarts it */
+@keyframes flash-a { 0%, 60% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-6px); } }
+@keyframes flash-b { 0%, 60% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .found-open[data-flash] .found-flash { animation: none; opacity: 1; } /* a static highlight while data-flash lasts */
 }

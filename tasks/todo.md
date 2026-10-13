@@ -365,9 +365,9 @@ Run the layout checks once against today's page at 360×780: L2, L3 and L4 must 
 - On the answers and boards screens, the title moves to row 2.
 
 **Acceptance criteria:**
-- [ ] TS P4.1–P4.5 pass
-- [ ] Each `data-testid` matches exactly one visible element at every viewport
-- [ ] D1 and D3 pass
+- [x] TS P4.1–P4.5 pass
+- [x] Each `data-testid` matches exactly one visible element at every viewport
+- [x] D1 and D3 pass
 **Dependencies:** P3 · **Files:** web/index.html, web/css/app.css, web/js/game.js · **Scope:** S
 
 ### P5: Found sheet

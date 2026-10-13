@@ -6,6 +6,7 @@ import { addDays, dayLabel, showAnswers, showBoards } from "./boards.js";
 import { logEvent } from "./events.js";
 import { buildGrid, fitGrid, observeGrid } from "./grid.js";
 import { showScreen } from "./screens.js";
+import { openSheet } from "./sheet.js";
 
 const grid = document.getElementById("grid");
 const foundList = document.getElementById("found-list");
@@ -17,11 +18,13 @@ const clearButton = byTestId("clear");
 
 const REJECT_MS = 420;
 const TOAST_MS = 3200;
+const FLASH_MS = 1000;
 
 let game = null;       // GameState from the API
 let selection = [];    // [[row, col], …] in click order
 let busy = false;
 let toastTimer = 0;
+let flashTimer = 0;
 
 observeGrid(grid);
 
@@ -85,7 +88,7 @@ function render() {
 
   foundList.replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
   byTestId("counter").textContent = `Found ${game.found_count} of ${game.total_words}`;
-  byTestId("found-open").textContent = `Found ${game.found_count} of ${game.total_words}`; // phones' status strip
+  byTestId("found-open").firstElementChild.textContent = `Found ${game.found_count} of ${game.total_words}`;
   byTestId("score").textContent = String(game.score);
   const tries = byTestId("tries");
   tries.setAttribute("aria-label", `${game.tries_left} of 3 tries left`);
@@ -161,6 +164,7 @@ submitButton.addEventListener("click", async () => {
     });
     if (result.status === "accepted") {
       game.found = [...game.found, { word: result.word, points: result.points }];
+      flashFound(result.points);
     } else if (result.status === "duplicate") {
       showToast("duplicate", `${result.word} is already in your list`, "You found it earlier. No points, and no try used.");
     } else {
@@ -218,6 +222,19 @@ const openAnswers = () => showAnswers(game.daily_date, () => show(game)); // bac
 byTestId("past-answers").addEventListener("click", openAnswers);
 byTestId("past-answers-over").addEventListener("click", openAnswers);
 byTestId("boards-open").addEventListener("click", () => showBoards(() => show(game)));
+
+// --- the found list: a side panel on desktop, a sheet on phones (docs/mobile.md §6.4) ---
+
+const foundOpen = byTestId("found-open");
+foundOpen.addEventListener("click", () => openSheet(document.querySelector(".found"), foundOpen));
+
+// "+4" on the Found button; data-flash alternates a/b so a second word restarts the animation.
+function flashFound(points) {
+  foundOpen.lastElementChild.textContent = `+${points}`;
+  foundOpen.dataset.flash = foundOpen.dataset.flash === "a" ? "b" : "a";
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { delete foundOpen.dataset.flash; }, FLASH_MS);
+}
 
 // --- game over ---
 

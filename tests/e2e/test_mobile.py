@@ -1,10 +1,13 @@
 """Phones (docs/test-strategy.md §7): cases per P task, on the --devices set (portrait only until P14)."""
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import FakeApi
-from tests.e2e.layout import l1, press, snapshot
+from tests.e2e.conftest import FakeApi, long_words
+from tests.e2e.layout import l1, l7, press, snapshot
+from tests.e2e.test_layout import BASELINES, GEOMETRY, decode_geometry
 from trur.solver import Lexicon
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mobile]
@@ -217,3 +220,123 @@ def test_p4_4_one_visible_element_per_testid_on_desktop(page: Page, live_server,
     page.locator(".tile").first.wait_for()
     expect(page.locator(SEL.format("found-open"))).to_be_hidden()
     assert all(n == 1 for n in visible_testid_counts(page).values())
+
+
+# --- P5: found sheet ---
+
+GE, AR = (4, 0), (5, 1)
+
+
+def open_sheet(phone: Page) -> None:
+    press(phone.locator(SEL.format("found-open")))
+    expect(phone.locator("dialog#sheet")).to_have_attribute("open", "")
+    phone.wait_for_function("() => document.getElementById('sheet').getAnimations().length === 0")  # the slide-in; a bare string would need unsafe-eval
+
+
+def api_calls(phone: Page) -> list[str]:
+    calls: list[str] = []
+    phone.on("request", lambda r: calls.append(r.url) if "/api/" in r.url and "/api/events" not in r.url else None)
+    return calls
+
+
+def test_p5_1_closed_sheet_is_hidden(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    expect(phone.locator("#sheet")).to_be_hidden()
+    expect(phone.locator(".found")).to_be_hidden()  # the side panel lives in the sheet on phones
+
+
+def test_p5_2_found_opens_a_docked_modal_sheet(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex)
+    open_sheet(phone)
+    assert phone.evaluate("document.getElementById('sheet').matches(':modal')")
+    s = snapshot(phone, sheet="#sheet")
+    assert l7(s, "sheet") == []
+    top, bottom = s["named"]["sheet"]["rect"][1], s["named"]["sheet"]["rect"][3]
+    assert bottom - top <= 0.6 * phone_device.height + 0.5
+    assert phone.evaluate("document.activeElement.dataset.testid") == "sheet-close"
+    expect(phone.locator("#sheet .found " + SEL.format("counter"))).to_be_visible()
+
+
+def test_p5_3_long_list_scrolls_inside_the_sheet(phone: Page, live_server, lex: Lexicon) -> None:
+    words = long_words(40)
+    open_page(phone, live_server, lex, words=words, found=list(words))
+    open_sheet(phone)
+    scroll = phone.evaluate("""() => { const list = document.getElementById('found-list');
+      const before = list.scrollHeight > list.clientHeight;
+      list.scrollTop = list.scrollHeight;
+      return [before, window.scrollY]; }""")
+    assert scroll == [True, 0]
+    last = phone.locator("#found-list li").last
+    assert phone.evaluate("""(el) => { const r = el.getBoundingClientRect();
+      const at = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+      return Boolean(at) && el.contains(at); }""", last.element_handle())
+
+
+def test_p5_4_the_background_is_inert(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    open_sheet(phone)
+    assert any(c["tile"] and not c["hit"] for c in snapshot(phone)["controls"])
+    tiles_hit = [c for c in snapshot(phone)["controls"] if c["tile"] and c["hit"]]
+    assert tiles_hit == []
+    for _ in range(30):
+        phone.keyboard.press("Tab")
+        assert phone.evaluate("""() => { const a = document.activeElement;
+          return a === document.body || document.getElementById('sheet').contains(a); }""")
+
+
+@pytest.mark.parametrize("how", ["button", "escape", "backdrop"])
+def test_p5_5_closing_returns_focus_without_click_through(phone: Page, live_server, lex: Lexicon, how: str) -> None:
+    open_page(phone, live_server, lex)
+    open_sheet(phone)
+    calls = api_calls(phone)
+    if how == "button":
+        press(phone.locator(SEL.format("sheet-close")))
+    elif how == "escape":
+        phone.keyboard.press("Escape")
+    else:
+        phone.touchscreen.tap(phone.viewport_size["width"] / 2, 8)
+    expect(phone.locator("#sheet")).to_be_hidden()
+    assert phone.evaluate("document.activeElement.dataset.testid") == "found-open"
+    expect(phone.locator('.tile[data-state="selected"]')).to_have_count(0)
+    expect(phone.locator(".game-main > .found")).to_have_count(1)  # the panel is home again
+    assert calls == []
+
+
+def test_p5_6_past_answers_closes_the_sheet_first(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex, mode="daily", daily_date="2026-10-11", word1="MEDICAL", word2="CORRECT")
+    open_sheet(phone)
+    press(phone.locator(f"#sheet {SEL.format('past-answers')}"))
+    expect(phone.locator("#screen-answers")).to_be_visible()
+    expect(phone.locator("dialog[open]")).to_have_count(0)
+
+
+def test_p5_7_desktop_width_closes_the_sheet(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    open_sheet(phone)
+    phone.set_viewport_size({"width": 1000, "height": 800})
+    expect(phone.locator("#sheet")).to_be_hidden()
+    expect(phone.locator(".game-main > .found")).to_be_visible()
+    box = phone.locator(".game-main > .found").bounding_box()
+    d1 = decode_geometry((BASELINES / GEOMETRY).read_text(encoding="utf-8"))["game-6x6 1000x800 light"]
+    want = next(row for row in d1 if row[0] == "section#screen-game.screen > div.game-main > aside.found")
+    assert [round(box[k], 2) for k in ("x", "y", "width", "height")] == want[1:5]
+
+
+def test_p5_8_accepted_word_flashes_the_found_button(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    found = phone.locator(SEL.format("found-open"))
+    flash = phone.locator(".found-flash")
+    for rc in (GE, AR):
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(found).to_have_attribute("data-flash", "a")
+    expect(flash).to_have_text("+4")
+    assert phone.evaluate("getComputedStyle(document.querySelector('.found-flash')).animationName") == "flash-a"
+
+    phone.emulate_media(reduced_motion="reduce")
+    for rc in ((4, 3), (5, 4)):  # DE ER
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(found).to_have_attribute("data-flash", "b")
+    assert phone.evaluate("getComputedStyle(document.querySelector('.found-flash')).animationName") == "none"
+    expect(found).not_to_have_attribute("data-flash", re.compile(".*"))  # it clears after about a second

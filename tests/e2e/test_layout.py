@@ -2,7 +2,9 @@
 
 D1 records the rect and key styles of every visible element under #app in 12 states, at two desktop sizes,
 light and dark. D3 records the tile size, gap and grid rect per grid shape. Both compare with
-tests/e2e/baselines/desktop/. `--update-baselines` rewrites the files, only in P1 or in a commit that names
+tests/e2e/baselines/desktop/, exactly. D1 keeps one file per platform (geometry.linux.json is CI's): Linux
+Chromium rounds text widths to whole pixels and Windows doesn't, which moves text-sized boxes by up to 8 px.
+D3 has no text, so tile_sizes.json is shared. `--update-baselines` rewrites the files, only in P1 or in a commit that names
 the desktop change the owner approved. A mismatch also writes what was measured under the Playwright output
 directory (baselines/desktop/), so a failed CI run carries a fresh Linux baseline in its trace artifact.
 """
@@ -15,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Browser, Page, Route, expect
+from playwright.sync_api import Page, Route, expect
 
 from tests.e2e.conftest import FakeApi, long_board, long_words, watch_errors
 from trur.solver import Lexicon
@@ -23,6 +25,7 @@ from trur.solver import Lexicon
 pytestmark = pytest.mark.e2e
 
 BASELINES = Path(__file__).parent / "baselines" / "desktop"
+GEOMETRY = f"geometry.{sys.platform}.json"
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)  # the FakeClock start, a Sunday
 SIZES = [(1000, 800), (640, 640)]
 SCHEMES = ["light", "dark"]
@@ -257,7 +260,7 @@ def encode_sizes(sizes: dict[str, dict]) -> str:
 
 
 FILES = {
-    "geometry.json": (encode_geometry, decode_geometry),
+    GEOMETRY: (encode_geometry, decode_geometry),
     "tile_sizes.json": (encode_sizes, json.loads),
 }
 
@@ -275,21 +278,14 @@ def save(directory: Path, name: str, entries: dict) -> None:
     (directory / name).write_text(FILES[name][0](merged), encoding="utf-8", newline="\n")
 
 
-def tolerance() -> float:
-    """0 px on the platform that took the baseline (Linux, as CI runs), 1 px elsewhere."""
-    meta = BASELINES / "meta.json"
-    platform = json.loads(meta.read_text(encoding="utf-8"))["platform"] if meta.exists() else None
-    return 0.0 if platform == sys.platform else 1.0
-
-
-def diff_geometry(want: list, got: list, tol: float) -> list[str]:
+def diff_geometry(want: list, got: list) -> list[str]:
     want_by = {row[0]: row for row in want}
     got_by = {row[0]: row for row in got}
     out = [f"missing {p}" for p in want_by if p not in got_by]
     out += [f"extra {p}" for p in got_by if p not in want_by]
     for p in (p for p in want_by if p in got_by):
         w, g = want_by[p], got_by[p]
-        if any(abs(a - b) > tol + 1e-9 for a, b in zip(w[1:5], g[1:5])):
+        if w[1:5] != g[1:5]:
             out.append(f"{p}: rect {w[1:5]} -> {g[1:5]}")
         for prop in sorted(w[5].keys() | g[5].keys()):
             if w[5].get(prop) != g[5].get(prop):
@@ -297,38 +293,35 @@ def diff_geometry(want: list, got: list, tol: float) -> list[str]:
     return out
 
 
-def diff_size(want: dict, got: dict, tol: float) -> list[str]:
+def diff_size(want: dict, got: dict) -> list[str]:
     out = [f"{k} {want[k]!r} -> {got[k]!r}" for k in ("tile-size", "gap") if want[k] != got[k]]
-    if any(abs(a - b) > tol + 1e-9 for a, b in zip(want["grid"], got["grid"])):
+    if want["grid"] != got["grid"]:
         out.append(f"grid rect {want['grid']} -> {got['grid']}")
     return out
 
 
 @pytest.fixture
-def baseline(pytestconfig: pytest.Config, browser: Browser):
+def baseline(pytestconfig: pytest.Config):
     """check(file, measured): compare with the baseline, or rewrite it under --update-baselines."""
     update = pytestconfig.getoption("update_baselines")
     out = Path(pytestconfig.getoption("output")) / "baselines" / "desktop"
-    diff = {"geometry.json": diff_geometry, "tile_sizes.json": diff_size}
+    diff = {GEOMETRY: diff_geometry, "tile_sizes.json": diff_size}
 
     def check(name: str, got: dict) -> None:
         if update:
             save(BASELINES, name, got)
-            meta = {"platform": sys.platform, "browser": f"{browser.browser_type.name} {browser.version}"}
-            (BASELINES / "meta.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8", newline="\n")
             return
         want = load(BASELINES, name)
-        tol = tolerance()
         problems = []
         for key, value in got.items():
             if key not in want:
-                problems.append(f"{key}: not in the baseline")
+                problems.append(f"{key}: not in {BASELINES / name}")
             else:
-                problems += [f"{key}: {line}" for line in diff[name](want[key], value, tol)]
+                problems += [f"{key}: {line}" for line in diff[name](want[key], value)]
         if problems:
             save(out, name, got)
             shown = "\n".join(problems[:25]) + (f"\n... {len(problems) - 25} more" if len(problems) > 25 else "")
-            pytest.fail(f"{name} differs from the desktop baseline ({len(problems)} differences, tolerance {tol} px; "
+            pytest.fail(f"{name} differs from the desktop baseline ({len(problems)} differences; "
                         f"measured values in {out}):\n{shown}", pytrace=False)
 
     return check
@@ -340,7 +333,7 @@ def baseline(pytestconfig: pytest.Config, browser: Browser):
 def test_d1_desktop_geometry(name: str, new_context, live_server, lex: Lexicon, baseline) -> None:
     got = {f"{name} {w}x{h} {scheme}": capture(new_context, live_server.base_url, lex, STATES[name], (w, h), scheme)
            for w, h in SIZES for scheme in SCHEMES}
-    baseline("geometry.json", got)
+    baseline(GEOMETRY, got)
 
 
 def test_d3_tile_sizes(new_context, live_server, lex: Lexicon, baseline, pytestconfig: pytest.Config) -> None:
@@ -354,9 +347,9 @@ def test_planted_tile_size_fails_d1_and_d3(new_context, live_server, lex: Lexico
         pytest.skip("the baseline is being rewritten")
     key = "game-6x6 1000x800 light"
     got = capture(new_context, live_server.base_url, lex, STATES["game-6x6"], (1000, 800), "light", css=PLANTED)
-    d1 = diff_geometry(load(BASELINES, "geometry.json")[key], got, tolerance())
+    d1 = diff_geometry(load(BASELINES, GEOMETRY)[key], got)
     assert any(".tile" in line and ": rect " in line for line in d1), d1[:10]
 
     sizes = measure_shapes(new_context, live_server.base_url, lex, [(6, 6, False)], css=PLANTED)
-    d3 = diff_size(load(BASELINES, "tile_sizes.json")["6x6"], sizes["6x6"], tolerance())
+    d3 = diff_size(load(BASELINES, "tile_sizes.json")["6x6"], sizes["6x6"])
     assert "tile-size '48px' -> '47px'" in d3

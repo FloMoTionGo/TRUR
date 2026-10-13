@@ -540,5 +540,153 @@ def test_p6_15_resize_during_the_rejected_flash(phone: Page, live_server, lex: L
     expect(tile(phone, 0, 0)).to_have_attribute("data-state", "rejected")
     phone.set_viewport_size({"width": phone_device.width, "height": phone_device.height - 80})
     expect(phone.locator('.tile[data-state="rejected"]')).to_have_count(0)
-    expect(phone.locator(SEL.format("toast"))).to_be_hidden()  # it covers the grid until P8 docks it
     assert l4(snapshot(phone)) == []
+
+
+# --- P7: screen-reader announcements (all viewports) ---
+
+FRAME = {"light": "rgb(30, 30, 30)", "dark": "rgb(242, 237, 224)"}  # --frame: #1E1E1E and #F2EDE0
+
+
+def test_p7_1_accepted_word_is_announced(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    for rc in (GE, AR):
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator("#sr-status")).to_have_text("GEAR, 4 points. 1 of 9 found.")
+
+
+def test_p7_2_rejected_word_goes_to_the_alert_region(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    for rc in ((0, 0), (0, 1)):
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator("#sr-alert")).to_contain_text("GSAS isn’t in the dictionary")
+
+
+def test_p7_3_quiet_regions_and_names(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex, mode="daily", daily_date="2026-10-11", word1="MEDICAL", word2="CORRECT",
+              found=["DEMOCRATIC"], won=True)
+    assert phone.locator(SEL.format("solution")).get_attribute("aria-live") is None
+    assert phone.locator(SEL.format("toast")).get_attribute("role") is None
+    expect(phone.locator("#grid")).to_have_attribute("role", "group")
+    expect(phone.locator("#grid")).to_have_attribute("aria-label", "Letter grid: MEDICAL across, CORRECT down")
+    phone.evaluate("""() => { window.__wonMutations = 0;
+      new MutationObserver((list) => { window.__wonMutations += list.length; })
+        .observe(document.getElementById('won'), { childList: true, subtree: true, characterData: true }); }""")
+    press(tile(phone, 0, 0))
+    expect(tile(phone, 0, 0)).to_have_attribute("data-state", "selected")
+    assert phone.evaluate("window.__wonMutations") == 0
+
+
+def focus_ring_colours(page: Page) -> list[str]:
+    """Outline colours after keyboard focus on a tile, a selected tile and Submit."""
+    colours = []
+    outline = "getComputedStyle(document.activeElement).outlineColor"
+    tile(page, 0, 0).focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")  # keyboard focus, so :focus-visible matches
+    colours.append(page.evaluate(outline))
+    page.keyboard.press("Enter")
+    colours.append(page.evaluate(outline))
+    page.keyboard.press("Tab")
+    page.keyboard.press("Enter")  # tile 0,1: two tiles selected, so Submit is enabled
+    page.locator(SEL.format("submit")).focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.dataset.testid") == "submit"
+    colours.append(page.evaluate(outline))
+    return colours
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("where", ["desktop", "se-bars"])
+def test_p7_4_focus_ring_uses_the_frame_colour(new_context, playwright, live_server, lex: Lexicon,
+                                               where: str, scheme: str) -> None:
+    if where == "desktop":
+        args = {"viewport": {"width": 1000, "height": 800}}
+    else:
+        args = BY_ID[where].context_args(playwright)
+    page = new_context(**{**args, "color_scheme": scheme}).new_page()
+    errors = watch_errors(page)
+    open_page(page, live_server, lex)
+    assert focus_ring_colours(page) == [FRAME[scheme]] * 3
+
+    page.reload()
+    page.locator(".tile").first.wait_for()
+    tile(page, 2, 2).click()  # a mouse or touch press shows no ring
+    assert page.evaluate("getComputedStyle(document.activeElement).outlineStyle") == "none"
+    assert errors == []
+
+
+# --- P8: toast on phones ---
+
+def test_p8_1_the_tallest_toast_stays_off_the_grid(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex, word1="ABCDEFGHIJ", word2="KLMNOPQRST")
+    for rc in ((0, 0), (0, 1)):  # AKBK: rejected, the longest message
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator(SEL.format("toast"))).to_be_visible()
+    s = snapshot(phone, toast=SEL.format("toast"))
+    left, top, right, bottom = s["named"]["toast"]["rect"]
+    width = phone_device.width
+    assert left >= -0.5 and top >= -0.5 and right <= width + 0.5 and bottom <= phone_device.height + 0.5
+    assert right - left <= min(380, width - 24) + 0.5
+    assert abs((left + right) / 2 - width / 2) <= 1
+    assert top >= s["area"][3] - 0.5, f"the toast (top {top}) overlaps the grid area (bottom {s['area'][3]})"
+
+
+def test_p8_2_next_tile_tap_hides_the_toast(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    for rc in ((0, 0), (0, 1)):
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator(SEL.format("toast"))).to_be_visible()
+    expect(tile(phone, 0, 0)).to_have_attribute("data-state", "default")  # the flash is over: play goes on
+    press(tile(phone, 2, 2))
+    expect(phone.locator(SEL.format("toast"))).to_be_hidden()
+    expect(tile(phone, 2, 2)).to_have_attribute("data-state", "selected")
+
+
+def test_p8_3_desktop_toast_is_unchanged(page: Page, live_server, fake_api) -> None:
+    page.set_viewport_size({"width": 1000, "height": 800})
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(live_server.base_url + "/")
+    page.locator(".tile").first.wait_for()
+    for rc in ((0, 0), (0, 1)):
+        tile(page, *rc).click()
+    page.locator(SEL.format("submit")).click()
+    expect(page.locator('.tile[data-state="rejected"]')).to_have_count(0)
+    tile(page, 2, 2).click()  # on desktop a tap doesn't hide it
+    box = page.locator(SEL.format("toast")).bounding_box()
+    d1 = decode_geometry((BASELINES / GEOMETRY).read_text(encoding="utf-8"))["rejected-toast 1000x800 light"]
+    want = next(row for row in d1 if row[0] == "div#toast.toast[toast]")
+    assert [round(box[k], 2) for k in ("x", "y", "width", "height")] == want[1:5]
+
+
+@pytest.mark.parametrize("device_id", ["env-corner", "se-bars"])
+def test_p8_4_flows_2_and_4_by_touch(new_context, playwright, live_server, device_id: str) -> None:
+    """Phase-1 gate: flows 2 and 4 on the real backend, with taps."""
+    page, errors = device_page(new_context, playwright, device_id)
+    page.goto(live_server.base_url + "/")
+    page.locator("#nick").fill("Tester")
+    press(page.get_by_role("button", name="Play"))
+    page.locator(".tile").first.wait_for()
+
+    for rc in (GE, AR):  # flow 2
+        press(tile(page, *rc))
+    expect(page.locator("#preview")).to_have_text("→ GEAR")
+    press(page.locator(SEL.format("submit")))
+    expect(page.locator(SEL.format("score"))).to_have_text("4")
+    expect(page.locator(".found-count")).to_have_text("Found 1 of 9")
+    expect(page.locator('.tile[data-state="selected"]')).to_have_count(0)
+
+    for rc in ((0, 0), (0, 1)):  # flow 4
+        press(tile(page, *rc))
+    press(page.locator(SEL.format("submit")))
+    expect(tile(page, 0, 0)).to_have_attribute("data-state", "rejected")
+    expect(page.locator(SEL.format("toast"))).to_contain_text("GSAS isn’t in the dictionary")
+    expect(page.locator(SEL.format("toast"))).to_contain_text("2 tries left")
+    expect(tile(page, 0, 0)).to_have_attribute("data-state", "default")
+    expect(page.locator(SEL.format("tries"))).to_have_attribute("aria-label", "2 of 3 tries left")
+    assert errors == []

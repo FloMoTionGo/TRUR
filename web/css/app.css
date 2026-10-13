@@ -66,7 +66,19 @@ body {
 button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; }
 [hidden] { display: none !important; }
-:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+/* the frame colour: 16.7:1 on light, 15.1:1 on dark; orange was 2.85:1 on white (owner, 2026-10-13) */
+:focus-visible { outline: 3px solid var(--frame); outline-offset: 2px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 
 .app {
   position: relative;
@@ -635,6 +647,14 @@ html:has(dialog[open]) { overflow: hidden; }
   #screen-game .solution .button { min-height: 48px; }
   #screen-game [data-testid="end"] { padding: 0 10px; font-size: 13px; }
   #screen-game [data-testid="submit"] { flex: 1; }
+
+  /* toast (P8, mobile.md §6.5): docked over the action area and never over the grid, so it is compact;
+     the hint line is left out on phones (to be confirmed in the P9 design) */
+  .toast { bottom: env(safe-area-inset-bottom); width: min(380px, calc(100% - 24px)); }
+  .toast-head { padding: 6px 12px; }
+  .toast-title { font-size: 14px; }
+  .toast-body { padding: 6px 12px 8px; font-size: 13px; line-height: 1.35; }
+  .toast-hint { display: none; }
 
   /* press feedback replaces the tap highlight: the pressed offset, without the shadow */
   .button:active:not(:disabled), .icon-button:active {

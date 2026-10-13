@@ -239,6 +239,7 @@ Inside both phone blocks, portrait and landscape (P14 repeats these rules and th
 ### 6.5 Toast (P8)
 
 - `width: min(380px, calc(100% - 24px))`, docked over the action area, above the safe-area inset.
+- **Compact on phones** (P8, 2026-10-13): 13 px body, tighter padding, and **no hint line**. Docked over the action area (about 102 px), the full rejected toast with its hint was about 140 px tall at 375 wide and covered the bottom tile rows at `se-bars`. Whether the hint comes back elsewhere is for the P9 design.
 - It is dismissed by the next tile tap, or after `TOAST_MS`. Whether rejected toasts on phones should stay up for 6 s or more (WCAG 2.2.1) is decided in P10.
 
 ### 6.6 Game over, past answers, leaderboards, nickname (P11, P12)

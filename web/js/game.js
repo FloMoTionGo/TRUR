@@ -4,7 +4,7 @@
 import { api, ApiError } from "./api.js";
 import { addDays, dayLabel, showAnswers, showBoards } from "./boards.js";
 import { logEvent } from "./events.js";
-import { buildGrid, fitGrid, observeGrid } from "./grid.js";
+import { buildGrid, fitGrid, observeGrid, PHONE_QUERY } from "./grid.js";
 import { showScreen } from "./screens.js";
 import { openSheet } from "./sheet.js";
 
@@ -29,6 +29,18 @@ let wonDismissed = false; // phones can dismiss the won banner to get its room b
 const coarse = window.matchMedia("(hover: none) and (pointer: coarse)");
 
 observeGrid(grid);
+
+// Text that only changes now and then is written only when it changes, so live regions stay quiet.
+function setText(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+// Announcements go through two persistent regions; clearing first lets the same message be read again.
+const regions = { status: document.getElementById("sr-status"), alert: document.getElementById("sr-alert") };
+function announce(kind, text) {
+  regions[kind].textContent = "";
+  requestAnimationFrame(() => { regions[kind].textContent = text; });
+}
 
 const pair = ([row, col]) => game.word1[col] + game.word2[row];
 const isSelected = (row, col) => selection.findIndex(([r, c]) => r === row && c === col);
@@ -91,8 +103,8 @@ function render() {
   preview.textContent = game.game_over ? "Game over" : word ? `→ ${word}` : hint;
 
   foundList.replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
-  byTestId("counter").textContent = `Found ${game.found_count} of ${game.total_words}`;
-  byTestId("found-open").firstElementChild.textContent = `Found ${game.found_count} of ${game.total_words}`;
+  setText(byTestId("counter"), `Found ${game.found_count} of ${game.total_words}`);
+  setText(byTestId("found-open").firstElementChild, `Found ${game.found_count} of ${game.total_words}`);
   byTestId("score").textContent = String(game.score);
   const tries = byTestId("tries");
   tries.setAttribute("aria-label", `${game.tries_left} of 3 tries left`);
@@ -106,9 +118,9 @@ function render() {
   fitGrid(grid); // the banner takes room from the grid
   if (isWon()) {
     const word = game.found.map((f) => f.word).find((w) => w.length >= 10);
-    document.getElementById("won-title").textContent = `Daily challenge won · ${dayLabel(game.daily_date)}`;
-    document.getElementById("won-body").textContent =
-      word ? `You found ${word} (${word.length} letters). Keep going for points.` : "Keep going for points.";
+    setText(document.getElementById("won-title"), `Daily challenge won · ${dayLabel(game.daily_date)}`);
+    setText(document.getElementById("won-body"),
+      word ? `You found ${word} (${word.length} letters). Keep going for points.` : "Keep going for points.");
   }
   document.getElementById("found-foot").hidden = game.mode !== "daily";
   if (game.mode === "daily") byTestId("answers-note").textContent = answersNote();
@@ -119,15 +131,20 @@ function render() {
 function showToast(kind, title, body, hint = "") {
   const toast = document.getElementById("toast");
   toast.dataset.kind = kind;
-  toast.setAttribute("role", kind === "rejected" ? "alert" : "status");
   document.getElementById("toast-title").textContent = title;
   document.getElementById("toast-body").textContent = body;
   const hintEl = document.getElementById("toast-hint");
   hintEl.textContent = hint;
   hintEl.hidden = !hint;
   toast.hidden = false;
+  announce(kind === "rejected" ? "alert" : "status", `${title}. ${body}`); // the toast itself has no role
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { toast.hidden = true; }, TOAST_MS);
+}
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  document.getElementById("toast").hidden = true;
 }
 
 function triesText(left) {
@@ -137,9 +154,12 @@ function triesText(left) {
 
 // --- actions ---
 
+const phone = window.matchMedia(PHONE_QUERY);
+
 grid.addEventListener("click", (event) => {
   const tile = event.target.closest(".tile");
   if (!tile || !game || busy || game.game_over) return;
+  if (phone.matches) hideToast(); // on phones the toast covers the action area, so the next tap clears it
   const row = Number(tile.dataset.row);
   const col = Number(tile.dataset.col);
   const i = isSelected(row, col);
@@ -174,6 +194,7 @@ submitButton.addEventListener("click", async () => {
     if (result.status === "accepted") {
       game.found = [...game.found, { word: result.word, points: result.points }];
       flashFound(result.points);
+      announce("status", `${result.word}, ${result.points} points. ${result.found_count} of ${result.total_words} found.`);
     } else if (result.status === "duplicate") {
       showToast("duplicate", `${result.word} is already in your list`, "You found it earlier. No points, and no try used.");
     } else {

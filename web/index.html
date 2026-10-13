@@ -88,7 +88,7 @@
     </div>
     <div class="game-main">
       <div class="grid-area" aria-label="Grid">
-        <div class="grid" id="grid" data-testid="grid"></div>
+        <div class="grid" id="grid" data-testid="grid" role="group"></div>
       </div>
       <aside class="found" aria-label="Found words">
         <div class="found-head" data-testid="counter">Found 0 of 0</div>
@@ -100,7 +100,7 @@
       </aside>
     </div>
     <div class="solution">
-      <div class="solution-word" data-testid="solution" aria-live="polite">
+      <div class="solution-word" data-testid="solution">
         <span id="chips"></span>
         <span class="preview" id="preview" data-empty="true">Click tiles to build a word</span>
       </div>
@@ -198,7 +198,7 @@
     </div>
   </section>
 
-  <div class="toast" id="toast" data-testid="toast" role="status" hidden>
+  <div class="toast" id="toast" data-testid="toast" hidden>
     <div class="toast-head">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
       <strong class="toast-title" id="toast-title"></strong>
@@ -209,6 +209,9 @@
     </div>
   </div>
 </div>
+<!-- screen-reader announcements (docs/mobile.md §7): always present, visually hidden, filled after mount -->
+<div class="sr-only" id="sr-status" role="status"></div>
+<div class="sr-only" id="sr-alert" role="alert"></div>
 <dialog class="sheet" id="sheet" aria-labelledby="found-open">
   <div class="sheet-top">
     <button type="button" class="sheet-close" data-testid="sheet-close" aria-label="Close" autofocus>

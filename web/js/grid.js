@@ -15,6 +15,7 @@ function head(letter, className) {
 
 // word1 runs across (one column per letter), word2 down. Only for a new game: resizing never rebuilds.
 export function buildGrid(el, word1, word2) {
+  el.setAttribute("aria-label", `Letter grid: ${word1} across, ${word2} down`);
   el.style.setProperty("--cols", String(word1.length));
   el.style.setProperty("--rows", String(word2.length));
   el.replaceChildren(document.createElement("span"));

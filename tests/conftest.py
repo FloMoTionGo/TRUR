@@ -25,6 +25,13 @@ ORIGIN = "https://testserver"
 DEFAULT_NOW = datetime(2026, 10, 11, 12, 0, 0, tzinfo=timezone.utc)
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    group = parser.getgroup("trur", "TRUR desktop baseline (docs/test-strategy.md §7)")
+    group.addoption("--update-baselines", action="store_true",
+                    help="rewrite tests/e2e/baselines/: only in P1 or for a desktop change the owner approved")
+    group.addoption("--all-shapes", action="store_true", help="check D3 over all 72 grid shapes, not the per-push 8")
+
+
 class FakeClock:
     """Test clock (docs/test-strategy.md §2). Starts at 2026-10-11T12:00:00Z."""
 

@@ -314,6 +314,7 @@ Spec: [docs/mobile.md](../docs/mobile.md). Tests: [TS §7](../docs/test-strategy
 **Acceptance criteria:**
 - [ ] TS P1.1–P1.3 pass: D1 and D3 pass on `main` as it is, and a planted change (`--tile-size: 47px` on the grid) makes both fail and names the `.tile` rects
 - [ ] Flows 1–9 are unchanged, and the extra e2e time per push is under 1 minute in CI
+**Status (2026-10-13):** green locally on Windows (32 e2e in 38 s, previously 20 s). The committed baseline was taken on win32, so CI compares with 1 px tolerance. Next: a CI run, then commit the Linux baseline from its `test-results/baselines/desktop/` artifact if it differs.
 **Dependencies:** none · **Files:** tests/e2e/{conftest,test_layout}.py, tests/e2e/baselines/desktop/*, .gitattributes · **Scope:** M
 
 ### P2: Shared grid module and phone sizing

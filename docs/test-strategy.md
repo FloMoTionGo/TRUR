@@ -705,15 +705,15 @@ W×H is the viewport. Each check uses `getBoundingClientRect()`, with EPS = 0.5 
     - game over, daily
     - past answers
     - boards
-  - tolerance: 0 on Linux, where CI took the baseline, and 1 px elsewhere
-- **D3, tile sizes:** `--tile-size`, `--gap` and the grid rect for all 72 shapes (5–10 × 5–10, won or not), compared with `tile_sizes.json`. The per-push run checks 8 of them: 5×5, 6×6, 7×7 won, 8×10, 10×5, 5×10, 10×10 and 10×10 won.
+  - tolerance: 0 on the platform that took the baseline (`meta.json`; Linux, as CI runs) and 1 px elsewhere
+- **D3, tile sizes:** `--tile-size`, `--gap` and the grid rect for all 72 shapes (5–10 × 5–10, won or not), compared with `tile_sizes.json`. The per-push run checks 8 of them: 5×5, 6×6, 7×7 won, 8×10, 10×5, 5×10, 10×10 and 10×10 won; `--all-shapes` checks all 72.
 - **No pixel comparison:** as in §5, it's too brittle. D1 and D3 catch layout and style drift.
 - **Repeatable states:**
   - UTC, `en-US` and `reduced_motion="reduce"`
   - `page.clock.install()` keeps toasts up
   - wait for `document.fonts.ready` and two frames
 - **Files:** `tests/e2e/baselines/desktop/{geometry.json, tile_sizes.json, meta.json}`.
-- **Updating:** `--update-baselines` rewrites them, only in P1 or in a commit whose message says which desktop change the owner approved.
+- **Updating:** `--update-baselines` rewrites them, only in P1 or in a commit whose message says which desktop change the owner approved. A mismatch writes the measured values to `test-results/baselines/desktop/`, which the e2e job uploads on failure, so a CI run can supply a Linux baseline.
 
 ### Step P1: desktop baseline
 

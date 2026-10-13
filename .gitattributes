@@ -1,2 +1,4 @@
 # pick_daily writes this file byte-exact with LF; keep it LF in every checkout.
 data/daily_challenges.json text eol=lf
+# The desktop baseline (tests/e2e/test_layout.py) is written with LF; keep it byte-exact.
+tests/e2e/baselines/** text eol=lf

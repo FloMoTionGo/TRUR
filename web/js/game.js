@@ -4,6 +4,7 @@
 import { api, ApiError } from "./api.js";
 import { addDays, dayLabel, showAnswers, showBoards } from "./boards.js";
 import { logEvent } from "./events.js";
+import { buildGrid, fitGrid, observeGrid } from "./grid.js";
 import { showScreen } from "./screens.js";
 
 const grid = document.getElementById("grid");
@@ -14,11 +15,6 @@ const byTestId = (id) => document.querySelector(`[data-testid="${id}"]`);
 const submitButton = byTestId("submit");
 const clearButton = byTestId("clear");
 
-const GRID_WIDTH = 410;   // px available for the grid beside the found list
-const GRID_HEIGHT = 470;  // px available between the header and the solution area
-const WON_HEIGHT = 70;    // the daily "won" banner, margin included
-const HEAD = 24;          // row-letter column and column-letter row
-const MAX_TILE = 48;
 const REJECT_MS = 420;
 const TOAST_MS = 3200;
 
@@ -26,6 +22,8 @@ let game = null;       // GameState from the API
 let selection = [];    // [[row, col], …] in click order
 let busy = false;
 let toastTimer = 0;
+
+observeGrid(grid);
 
 const pair = ([row, col]) => game.word1[col] + game.word2[row];
 const isSelected = (row, col) => selection.findIndex(([r, c]) => r === row && c === col);
@@ -46,9 +44,10 @@ function show(state) {
     else button.removeAttribute("aria-current");
   }
   if (game.game_over) return showGameOver();
-  buildGrid();
+  buildGrid(grid, game.word1, game.word2);
   render();
   showScreen("game");
+  fitGrid(grid); // the grid was built while hidden; on phones it can only be measured now
 }
 
 export function notify(title, body) {
@@ -65,44 +64,6 @@ function answersNote() {
 }
 
 // --- rendering ---
-
-function buildGrid() {
-  const cols = game.word1.length;
-  const rows = game.word2.length;
-  const gap = Math.max(cols, rows) >= 8 ? 4 : 6;
-  const size = Math.min(
-    MAX_TILE,
-    Math.floor((GRID_WIDTH - HEAD - gap * cols) / cols),
-    Math.floor((GRID_HEIGHT - (isWon() ? WON_HEIGHT : 0) - HEAD - gap * rows) / rows),
-  );
-  grid.style.setProperty("--cols", String(cols));
-  grid.style.setProperty("--rows", String(rows));
-  grid.style.setProperty("--tile-size", `${size}px`);
-  grid.style.setProperty("--gap", `${gap}px`);
-  grid.replaceChildren(document.createElement("span"));
-  for (const letter of game.word1) grid.append(head(letter, "head head-col"));
-  [...game.word2].forEach((rowLetter, row) => {
-    grid.append(head(rowLetter, "head"));
-    [...game.word1].forEach((colLetter, col) => {
-      const tile = document.createElement("button");
-      tile.type = "button";
-      tile.className = "tile";
-      tile.dataset.row = String(row);
-      tile.dataset.col = String(col);
-      tile.dataset.state = "default";
-      tile.textContent = colLetter + rowLetter;
-      tile.setAttribute("aria-pressed", "false");
-      grid.append(tile);
-    });
-  });
-}
-
-function head(letter, className) {
-  const span = document.createElement("span");
-  span.className = className;
-  span.textContent = letter;
-  return span;
-}
 
 function render() {
   for (const tile of grid.querySelectorAll(".tile")) {
@@ -134,6 +95,7 @@ function render() {
 
   const won = byTestId("won");
   won.hidden = !isWon();
+  fitGrid(grid); // the banner takes room from the grid
   if (isWon()) {
     const word = game.found.map((f) => f.word).find((w) => w.length >= 10);
     document.getElementById("won-title").textContent = `Daily challenge won · ${dayLabel(game.daily_date)}`;
@@ -191,7 +153,6 @@ submitButton.addEventListener("click", async () => {
   render();
   try {
     const result = await api.submit(game.game_id, tiles);
-    const wasWon = isWon();
     Object.assign(game, {
       score: result.score, tries_left: result.tries_left, found_count: result.found_count,
       total_words: result.total_words, won: result.won, game_over: result.game_over,
@@ -199,7 +160,6 @@ submitButton.addEventListener("click", async () => {
     });
     if (result.status === "accepted") {
       game.found = [...game.found, { word: result.word, points: result.points }];
-      if (!wasWon && isWon()) buildGrid(); // the banner takes room from the grid
     } else if (result.status === "duplicate") {
       showToast("duplicate", `${result.word} is already in your list`, "You found it earlier. No points, and no try used.");
     } else {

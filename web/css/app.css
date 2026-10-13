@@ -133,9 +133,17 @@ button:disabled { cursor: default; }
 .grid {
   --tile-size: 48px;
   --gap: 6px;
+  /* fitGrid (js/grid.js) reads these. Desktop sizes tiles for the fixed --fit-w × --fit-h box. */
+  --head: 24px;
+  --max-tile: 48px;
+  --gap-dense: 4px;   /* 8 or more columns or rows */
+  --gap-loose: 6px;
+  --fit-w: 410px;
+  --fit-h: 470px;
+  --won-h: 70px;      /* the daily "won" banner, margin included */
   display: grid;
-  grid-template-columns: 24px repeat(var(--cols, 6), var(--tile-size));
-  grid-template-rows: 24px repeat(var(--rows, 6), var(--tile-size));
+  grid-template-columns: var(--head) repeat(var(--cols, 6), var(--tile-size));
+  grid-template-rows: var(--head) repeat(var(--rows, 6), var(--tile-size));
   gap: var(--gap);
   align-items: center;
   justify-items: center;

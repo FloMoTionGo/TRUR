@@ -140,6 +140,10 @@ def watch_errors(page: Page) -> list[str]:
 
     page.on("console", on_console)
     page.on("pageerror", lambda exc: errors.append(str(exc)))
+    # "ResizeObserver loop" errors reach only window's error event, never the console (TS §7, L8).
+    page.add_init_script(
+        "addEventListener('error', (e) => { if (/ResizeObserver/.test(e.message)) console.error(e.message); });"
+    )
     return errors
 
 

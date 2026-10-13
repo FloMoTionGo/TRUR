@@ -312,8 +312,9 @@ Spec: [docs/mobile.md](../docs/mobile.md). Tests: [TS §7](../docs/test-strategy
 - Pin `timezone_id="UTC"` and `locale="en-US"` for the baseline contexts.
 
 **Acceptance criteria:**
-- [ ] TS P1.1–P1.3 pass: D1 and D3 pass on `main` as it is, and a planted change (`--tile-size: 47px` on the grid) makes both fail and names the `.tile` rects
-- [ ] Flows 1–9 are unchanged, and the extra e2e time per push is under 1 minute in CI
+- [x] TS P1.1–P1.3 pass: D1 and D3 pass on `main` as it is, and a planted change (`--tile-size: 47px` on the grid) makes both fail and names the `.tile` rects
+- [x] Flows 1–9 are unchanged, and the extra e2e time per push is under 1 minute in CI
+**Done 2026-10-13:** CI e2e 24 s → 46 s. D1 is kept per platform (`geometry.linux.json` from CI, `geometry.win32.json` for local runs): Linux Chromium rounds text widths, so boxes differ by up to 8 px between them.
 **Dependencies:** none · **Files:** tests/e2e/{conftest,test_layout}.py, tests/e2e/baselines/desktop/*, .gitattributes · **Scope:** M
 
 ### P2: Shared grid module and phone sizing

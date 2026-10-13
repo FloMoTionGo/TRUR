@@ -341,6 +341,39 @@ def test_d3_tile_sizes(new_context, live_server, lex: Lexicon, baseline, pytestc
     baseline("tile_sizes.json", measure_shapes(new_context, live_server.base_url, lex, ALL_SHAPES if every else PUSH_SHAPES))
 
 
+DEMOCRATIC = [(4, 2), (1, 0), (2, 4), (6, 5), (0, 3)]  # DE MO CR AT IC on MEDICAL × CORRECT
+
+
+def test_won_banner_refits_without_rebuilding(page: Page, live_server, fake_api: FakeApi, console_errors) -> None:
+    """P2.2: winning the daily shrinks the tiles in place; the tile buttons survive."""
+    fake_api.mode, fake_api.daily_date, fake_api.word1, fake_api.word2 = "daily", "2026-10-11", "MEDICAL", "CORRECT"
+    fake_api.win_on_accept = True
+    page.set_viewport_size({"width": 1000, "height": 800})
+    page.goto(live_server.base_url + "/")
+    page.locator(".tile").first.wait_for()
+    page.evaluate("document.querySelector('.tile').trurMarker = 1")
+
+    tap(page, *DEMOCRATIC)
+    page.locator(SEL.format("submit")).click()
+    expect(page.locator(SEL.format("won"))).to_be_visible()
+
+    assert page.evaluate("document.querySelector('.tile').trurMarker") == 1
+    want = load(BASELINES, "tile_sizes.json")["7x7 won"]["tile-size"]
+    assert page.evaluate(TILE_SIZE)["tile-size"] == want
+    assert console_errors == []
+
+
+def test_error_collector_catches_resize_observer_loops(page: Page, live_server, console_errors) -> None:
+    """P2.3's oracle: a ResizeObserver that resizes what it observes is reported."""
+    page.goto(live_server.base_url + "/")
+    page.evaluate("""() => new Promise((done) => {
+      const box = document.getElementById("app");
+      new ResizeObserver(() => { box.style.setProperty("width", `${box.offsetWidth + 1}px`); }).observe(box);
+      setTimeout(done, 200);
+    })""")
+    assert any("ResizeObserver loop" in e for e in console_errors)
+
+
 def test_planted_tile_size_fails_d1_and_d3(new_context, live_server, lex: Lexicon, pytestconfig: pytest.Config) -> None:
     """P1.2: the oracle notices a 1-px tile change and names the tiles."""
     if pytestconfig.getoption("update_baselines"):

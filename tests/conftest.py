@@ -30,6 +30,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption("--update-baselines", action="store_true",
                     help="rewrite tests/e2e/baselines/: only in P1 or for a desktop change the owner approved")
     group.addoption("--all-shapes", action="store_true", help="check D3 over all 72 grid shapes, not the per-push 8")
+    group.addoption("--devices", default="core",
+                    help="phone devices for the mobile tests: core (default), full, or ids like s360,se-bars")
 
 
 class FakeClock:

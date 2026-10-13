@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import pytest
 from playwright.sync_api import ConsoleMessage, Page, Route
 
+from tests.e2e.devices import Device, selected
 from trur.solver import Lexicon, points, word_from_tiles
 
 
@@ -145,6 +146,22 @@ def watch_errors(page: Page) -> list[str]:
         "addEventListener('error', (e) => { if (/ResizeObserver/.test(e.message)) console.error(e.message); });"
     )
     return errors
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    """A test that takes `phone_device` runs once per selected portrait device (--devices; landscape from P14)."""
+    if "phone_device" in metafunc.fixturenames:
+        devices = [d for d in selected(metafunc.config) if d.portrait]
+        metafunc.parametrize("phone_device", devices, ids=[d.id for d in devices])
+
+
+@pytest.fixture
+def phone(phone_device: Device, new_context, playwright) -> Page:
+    """A page in a context for `phone_device`; console errors and ResizeObserver loops fail the test."""
+    page = new_context(**phone_device.context_args(playwright)).new_page()
+    errors = watch_errors(page)
+    yield page
+    assert errors == []
 
 
 @pytest.fixture

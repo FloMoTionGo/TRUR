@@ -29,6 +29,9 @@ function applyTheme() {
   root.classList.toggle("is-dark", dark);
   document.querySelector('[data-testid="theme-toggle"]')
     .setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  // the browser bar on phones follows the in-app pick, not just the system setting
+  document.querySelector('meta[name="theme-color"]')
+    .setAttribute("content", getComputedStyle(root).getPropertyValue("--ground").trim());
 }
 
 function toggleTheme() {
@@ -77,6 +80,9 @@ for (const button of document.querySelectorAll(".modes button")) {
     }
   });
 }
+
+// iOS applies :active (the press feedback on phones) only to pages with a touch listener.
+document.addEventListener("touchstart", () => {}, { passive: true });
 
 async function boot() {
   applyTheme();

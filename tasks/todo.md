@@ -327,8 +327,8 @@ Spec: [docs/mobile.md](../docs/mobile.md). Tests: [TS §7](../docs/test-strategy
 - A resize only sets custom properties; it never rebuilds tiles.
 
 **Acceptance criteria:**
-- [ ] D1 and D3 pass with zero differences, and flow 9 passes
-- [ ] TS P2.1–P2.3 pass: the won banner refits without rebuilding the tiles, and there's no ResizeObserver loop error
+- [x] D1 and D3 pass with zero differences, and flow 9 passes
+- [x] TS P2.1–P2.3 pass: the won banner refits without rebuilding the tiles, and there's no ResizeObserver loop error
 **Dependencies:** P1 · **Files:** web/js/{grid,game}.js, web/css/app.css, docs/architecture.md §1 · **Scope:** M
 
 ### P3: Phone test harness, page shell and phone block

@@ -12,6 +12,7 @@ markers = [
     "e2e: Playwright flows against a live server",
     "realdata: tests over the committed word lists in data/",
     "smoke: read-only checks against a deployed instance",
+    "mobile: phone layout checks on the --devices set (docs/test-strategy.md §7)",
 ]
 
 [tool.coverage.run]

@@ -158,6 +158,17 @@ def test_html_has_no_inline_script_or_style(path: Path) -> None:
     assert re.search(r"(src|href)=\"(https?:)?//", html) is None, "external resource"
 
 
+def test_page_meta_for_phones() -> None:
+    """TS P3.1: zoom stays possible, the page reaches under the notch, and one theme-color follows the toggle."""
+    html = (WEB / "index.html").read_text(encoding="utf-8")
+    assert re.findall(r'<meta name="viewport" content="([^"]*)">', html) == [
+        "width=device-width, initial-scale=1, viewport-fit=cover"
+    ]
+    assert "user-scalable" not in html and "maximum-scale" not in html
+    theme = re.findall(r'<meta name="theme-color"[^>]*>', html)
+    assert len(theme) == 1 and "media=" not in theme[0]
+
+
 @pytest.mark.parametrize("path", JS_FILES, ids=lambda p: str(p.relative_to(ROOT)))
 def test_js_never_parses_html(path: Path) -> None:
     js = path.read_text(encoding="utf-8")

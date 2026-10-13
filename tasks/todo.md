@@ -292,6 +292,13 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 - [ ] The owner has played a 4-player game in the sandbox
 **Dependencies:** T3 · **Files:** trur/match.py, scripts/match_sandbox.{py,html}, tests/test_match.py, tests/test_match_sandbox.py · **Scope:** M
 
+### M2: Spike for matches
+**Description:** `python -m scripts.spike_stats --match` (multiplayer.md §10, TS §6 step M2): pair supply for a `MIN_MATCH_WORDS` rule, pick time, and 1,000 seeded matches of greedy players with display words and random ballots.
+**Acceptance criteria:**
+- [x] TS §6 step M2 cases pass: the report repeats with the same seed, and simulated players obey the match rules
+- [ ] `MIN_MATCH_WORDS` is set, and the §10 targets hold. **Waiting on the owner:** at a word every 6 s two targets fail whatever the board size; at 12 s, 60 words with `BONUS_SCALE` 1 meet all of them ([spike-report.md](../docs/spike-report.md#open-decisions-for-the-owner))
+**Dependencies:** M1 · **Files:** scripts/spike_stats.py, tests/test_spike.py, docs/spike-report.md · **Scope:** S
+
 The remaining steps follow [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups. **M6 starts after checkpoint I (phase 9)** so the match screens are built phone-ready (owner, 2026-10-13). M2–M5 can run alongside phase 9.
 
 ---

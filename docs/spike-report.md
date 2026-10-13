@@ -49,3 +49,55 @@ The rule is not too strict. Only 3% of grids have fewer than 4 words, and the me
 
    **Decision (owner, 2026-10-12):** add the `MAX_FREE_WORDS` cap at 74 words (p90), for now; revisit with real board data. Tracked as T25a.
 2. **"All words found" will rarely end a game.** Median grids have 23 words, and big ones have hundreds. Most games will end by 3 wrong words or **End game**, as the plan expects.
+
+---
+
+# Matches (step M2), 2026-10-13
+
+Step M2 of [multiplayer.md §10](multiplayer.md#10-implementation-plan). It plays seeded matches through `trur/match.py` to set `MIN_MATCH_WORDS` and to confirm the vote bonus.
+
+- **Reproduce:** `python -m scripts.spike_stats --match --sample 5000 --seed 1 --min-words 20` (add `--every 12` and `--bonus-scale 1` for the second run below).
+- **Simulation:** 200 matches per player count (1,000 in all). Greedy players each submit the best word still open to them; a pair goes on its least-used free tile. At the end each player sets a two-tile display word, and everyone ranks a random ballot.
+
+**Pairs accepted by a `MIN_MATCH_WORDS` rule** (5,000 sampled ordered pairs):
+
+| N | 12 | 20 | 30 | 40 | 60 |
+| --- | --- | --- | --- | --- | --- |
+| accepted | 78.4% | 57.2% | 39.0% | 27.6% | 14.5% |
+
+**As specified: a word every 6 s, `MIN_MATCH_WORDS` 20, `BONUS_SCALE` 2.**
+
+| Players | Median word score | Everyone still has a word at the end | All word scores within 2 points | Max vote bonus | Winner changed by random votes |
+| --- | --- | --- | --- | --- | --- |
+| 2 | 49 | 13.0% | 37.0% | 10 | 0.0% |
+| 3 | 39 | 9.0% | 17.5% | 10 | 24.0% |
+| 4 | 31 | 8.5% | 8.0% | 10 | 39.0% |
+| 5 | 29 | 11.0% | 3.0% | 10 | 43.5% |
+| 6 | 25 | 9.0% | 1.5% | 10 | 35.5% |
+
+Two of the M2 targets fail:
+
+- **Players run out of words** (9% of 6-player matches end with a word left for everyone; the target is 95%). It isn't about the number of players: 2-player matches are at 13%. Ten words in 60 s lock most of a player's **own** tiles. A larger `MIN_MATCH_WORDS` barely helps: 100 words gave 37%, 150 words gave 54%, and picks then took up to 1 s.
+- **Random votes change the winner too often** (up to 43.5%; the limit is 30%). `BONUS_SCALE` 1 alone gave 37%.
+
+The close-scores target holds (13.4% of matches within 2 points; the limit is 20%), and picks take at most 23 ms on the dev PC.
+
+**With a word every 12 s (5 words each, as the §3.7 assessment assumed), `MIN_MATCH_WORDS` 60 and `BONUS_SCALE` 1, every target holds:**
+
+| Players | Median word score | Everyone still has a word at the end | All word scores within 2 points | Max vote bonus | Winner changed by random votes |
+| --- | --- | --- | --- | --- | --- |
+| 2 | 56 | 98.0% | 26.0% | 5 | 0.0% |
+| 3 | 47.5 | 96.5% | 8.0% | 5 | 16.0% |
+| 4 | 40 | 96.5% | 4.5% | 5 | 24.0% |
+| 5 | 36.5 | 97.5% | 0.0% | 5 | 21.5% |
+| 6 | 32 | 96.5% | 0.0% | 5 | 21.5% |
+
+7.7% of matches within 2 points, and the slowest pick took 93 ms. At 12 s per word, `MIN_MATCH_WORDS` 40 reaches 91%, and 60 reaches 96.5%.
+
+## Open: decisions for the owner
+
+M2 stays open until these are settled. Nothing in `trur/match.py` or the settings has changed.
+
+1. **How fast do real players find words?** A word every 6 s (the M2 text) can't meet the 95% target with any board size. A word every 12 s can. Real play data would settle it, but there is none before go-live.
+2. **`MIN_MATCH_WORDS`:** 60 if the 12 s rate is accepted (14.5% of pairs qualify, still tens of thousands).
+3. **`BONUS_SCALE`:** lower it from 2 to 1 (bonus 0–5 instead of 0–10), as §10 asks when random votes change the winner in more than 30% of matches. This changes the decided rule in §3.7 and the worked results example in `test_match.py`.

@@ -643,6 +643,7 @@ The display word and vote are **built inside M1–M6**, not as a later step. The
 1. **M1 – Rules engine.** `trur/match.py` with the rounding, rules and time-boundary tests, including display words, ballots and the bonus.
    - *Done when:* there's 100 % branch coverage, and the worked example and the 1-point case pass as tests.
 2. **M2 – Spike for matches.** Add `--match` to `scripts/spike_stats.py`, using `match.py`.
+   - **Status (2026-10-13):** the tool and its tests are done. At a word every 6 s, two targets fail whatever `MIN_MATCH_WORDS` is; at 12 s, `MIN_MATCH_WORDS` 60 with `BONUS_SCALE` 1 meets all of them. Waiting on three owner decisions: [spike-report.md, Matches](spike-report.md#open-decisions-for-the-owner).
    - It reports the answers per pair, `pick_pair`'s acceptance rate and time per pick, and runs a seeded simulation.
    - The simulation: 1,000 matches, 2–6 greedy players, each submitting the best word still open to them every 6 s, for 60 s.
    - It gets a fixture-data test of its own.

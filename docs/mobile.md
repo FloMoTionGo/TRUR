@@ -193,7 +193,7 @@ Inside both phone blocks, portrait and landscape (P14 repeats these rules and th
   - all of them at least 44 × 44
 - **Row 2 (32 px):** the status strip on the game screen; the title on the answers and boards screens.
   - **Score · Tries · Found 4 of 23**, with "Found" written out because screen readers read "4/23" as a fraction or a date
-  - The Found button (`data-testid="found-open"`, `aria-haspopup="dialog"`) opens the sheet. Its hit area is extended to 44 px by a `::after { inset: -6px 0 }`, with no layout cost. P4 adds it as the counter, and P5 makes it open the sheet.
+  - The Found button (`data-testid="found-open"`, `aria-haspopup="dialog"`) opens the sheet. Its hit area is extended to 44 px by a `::after { inset: -8px -2px }` (the `::after` is placed inside the 2 px border, so 6 px past the border needs −8) and `z-index: 1`, so the extension wins over the row above and the screen below, with no layout cost. P4 adds it as the counter, and P5 makes it open the sheet.
 - **Header width:** Free | Daily | Multi plus two 44 px icons doesn't fit at 320–360 px. P9 decides where Leaderboards and the theme toggle go below 400 px, for example a "⋯" menu, together with End (§11).
 - **Answers and boards screens:** "Back to game" stays in row 1, and the title moves to row 2.
 

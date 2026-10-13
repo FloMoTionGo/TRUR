@@ -99,6 +99,7 @@ button:disabled { cursor: default; }
 .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ink); }
 .dot[data-full="true"] { background: var(--ink); }
 .bar-end { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.found-open { display: none; } /* the status strip's counter, phones only (P4); it opens the found sheet from P5 */
 
 .icon-button {
   width: 40px;
@@ -477,9 +478,41 @@ button:disabled { cursor: default; }
 
   .grid { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
 
+  /* header (P4): row 1 (48 px) logo and controls; row 2 (32 px) the status strip, or the screen title.
+     The ::after is a zero-height line break; order moves the strip and title after it. */
+  .bar { min-height: 0; padding: 0 12px; flex-wrap: wrap; column-gap: 8px; row-gap: 0; }
+  .bar::after { content: ""; order: 2; flex-basis: 100%; height: 0; }
+  .brand, .bar-end { min-height: 48px; }
+  .bar-end { gap: 8px; }
+  .icon-button { width: 44px; height: 44px; }
+  .modes button { min-width: 44px; min-height: 44px; }
+  .stat, .found-open, .bar-title { order: 3; height: 32px; }
+  .stat { flex-direction: row; align-items: center; gap: 6px; }
+  .stat-value { font-size: 16px; }
+  .tries { padding-top: 0; }
+  .bar-title { font-size: 16px; line-height: 32px; }
+  .found-open {
+    position: relative;
+    z-index: 1; /* its hit area reaches over the row above and the screen below */
+    margin-left: auto;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: 2px solid var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .found-open::after { content: ""; position: absolute; inset: -8px -2px; } /* 6 px past the border: a 44 px hit area at no layout cost */
+
   /* press feedback replaces the tap highlight: the pressed offset, without the shadow */
   .button:active:not(:disabled), .icon-button:active, .tile:active:not(:disabled) {
     transform: translate(2px, 2px);
     box-shadow: none;
   }
+}
+
+/* narrow phones: the compact logo without the wordmark (P4) */
+@media (max-width: 399px) {
+  .wordmark { display: none; }
 }

@@ -352,9 +352,9 @@ Run the layout checks once against today's page at 360×780: L2, L3 and L4 must 
   - `user-select: none` and `-webkit-touch-callout: none` on the grid
 
 **Acceptance criteria:**
-- [ ] The layout checks failed on today's page at 360×780 (recorded in the commit message)
-- [ ] TS P3.1–P3.5 pass. `#app` fills the viewport on every portrait device, and there is no sideways scroll
-- [ ] D1 and D3 pass, and the phone `core` run adds under 1 minute per push in CI
+- [x] The layout checks failed on today's page at 360×780 (recorded in the commit message)
+- [x] TS P3.1–P3.5 pass. `#app` fills the viewport on every portrait device, and there is no sideways scroll
+- [x] D1 and D3 pass, and the phone `core` run adds under 1 minute per push in CI
 **Dependencies:** P2 · **Files:** tests/e2e/{conftest,devices,layout,test_mobile}.py, pyproject.toml, web/index.html, web/js/main.js, web/css/app.css, tests/test_static.py · **Scope:** M
 
 ### P4: Header and status strip

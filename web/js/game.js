@@ -85,6 +85,7 @@ function render() {
 
   foundList.replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
   byTestId("counter").textContent = `Found ${game.found_count} of ${game.total_words}`;
+  byTestId("found-open").textContent = `Found ${game.found_count} of ${game.total_words}`; // phones' status strip
   byTestId("score").textContent = String(game.score);
   const tries = byTestId("tries");
   tries.setAttribute("aria-label", `${game.tries_left} of 3 tries left`);

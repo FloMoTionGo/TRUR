@@ -1,6 +1,6 @@
 # TRUR – Test strategy
 
-How [plan.md](plan.md) gets tested. Module, setting and endpoint names come from [architecture.md](architecture.md). Multiplayer, built after go-live, has its own section, [§6](#6-multiplayer-after-go-live). Drafted on 2026-10-11 from a test-engineering review, with the owner's decisions applied:
+How [plan.md](plan.md) gets tested. Module, setting and endpoint names come from [architecture.md](architecture.md). Multiplayer, built after go-live, has its own section, [§6](#6-multiplayer-after-go-live), and phones have [§7](#7-phones). Drafted on 2026-10-11 from a test-engineering review, with the owner's decisions applied:
 - the daily challenge is won by a word of **10 or more letters**
 - open free games **close at midnight UTC**
 
@@ -15,7 +15,7 @@ How [plan.md](plan.md) gets tested. Module, setting and endpoint names come from
 | Smoke | read-only checks against `https://trur.fly.dev` | about 10 s, run by hand |
 
 **Tools.** This is the complete list:
-- **pytest:** one runner for every level. Markers: `e2e`, `realdata`, `smoke`.
+- **pytest:** one runner for every level. Markers: `e2e`, `realdata`, `smoke`, and `mobile` for the phone cases (§7).
 - **pytest-cov:** coverage gate in CI.
   - 85 % for `trur/` and `scripts/`.
   - 100 % branch coverage for `trur/solver.py`.
@@ -24,7 +24,7 @@ How [plan.md](plan.md) gets tested. Module, setting and endpoint names come from
   - `httpx.AsyncClient` sends the parallel requests.
 - **uvicorn:** a `live_server` fixture on a random port. The parallel tests and E2E need it, because in-process requests never truly overlap.
   - Multiplayer adds `live_match_server`, which runs in a thread of the test process with a shared `FakeClock` (§6). `TestClient` can't test an endless SSE stream, because it waits for the response to finish.
-- **pytest-playwright:** Chromium only, since the game is desktop-only. `page.route()` mocks the API during step 2.
+- **pytest-playwright:** Chromium on every push, plus a weekly WebKit run for two phone sizes (§7). `page.route()` mocks the API during step 2.
 - **pip-audit:** already required by S12.
 - **No time-freezing library.** The injected `Clock` plus an AST guard (§2) make the midnight tests exact.
 - **No Node toolchain.** The backend decides everything and the JS is thin, so E2E covers the JS.
@@ -405,7 +405,8 @@ Base fixture: the JSON has 10-10 = STRONG × MEANING and 10-11 = MEDICAL × CORR
 7. **Daily game:** the Daily tab shows MEDICAL × CORRECT. Playing DEMOCRATIC shows the won state. After End, no missed words appear, and a note says the answers come after midnight UTC.
 8. **Nickname shown as text:** a nickname `<img src=x onerror=window.__x=1>` inserted directly into the database appears on the board as literal text, and `window.__x` stays undefined.
 9. **Layout** (API mocked): 5×5 and 10×10 grids fit inside the 640×640 game area without overlapping tiles.
-10. **Multiplayer match** (after go-live): two players in two browser contexts; see §6, step M6.
+10. **Multiplayer match** (after go-live): two players in two browser contexts; see §6, step M6. It also runs in a phone context (360×780, touch) with the §7 layout checks.
+11. **Phones:** flows 1, 2 and 4–8 replayed with taps on the `core` devices; see §7.
 
 **Step 2:** before the backend exists, flows 2–4 and 9 run against `page.route('**/api/**')` mocks. Once step 3 lands they move to the live server, and only flow 9 keeps its mock.
 
@@ -414,7 +415,7 @@ Base fixture: the JSON has 10-10 = STRONG × MEANING and 10-11 = MEDICAL × CORR
 - **Game logic:** solver results, scoring, limits, rate limits, midnight logic, import and fallback, and ranking order are covered by integration tests, which are faster and exact.
 - **Security plumbing:** headers, cookie flags, CSRF and injection are covered by integration tests.
 - **Pixel comparison with the design:** too brittle. "Matches the design" in step 2 is checked by eye.
-- **Other browsers, mobile and other viewports:** the game is desktop-only by decision.
+- **Other browsers:** Chromium only, apart from the weekly WebKit phone run. Phones and their viewports are covered in §7.
 - **Animation timing:** only "the rejected state appears and clears" is checked.
 
 ## 6. Multiplayer (after go-live)
@@ -622,9 +623,271 @@ These are written with M8, once the open questions in [multiplayer.md §13](mult
 ### Coverage
 
 - 100 % branch coverage for `trur/match.py`, and for `trur/lobby.py` except the `run()` loop.
-- `--cov-fail-under` only sets the overall gate, so CI runs an extra step (§7).
+- `--cov-fail-under` only sets the overall gate, so CI runs an extra step (§8).
 
-## 7. CI
+## 7. Phones
+
+How [mobile.md](mobile.md) gets tested. The tasks are P1–P17 in [todo.md](../tasks/todo.md#phase-9-phones). Drafted on 2026-10-13 from a test-engineering review. The probes behind it ran against today's page in the pinned Chromium (Playwright 1.63):
+
+- At 360×780, `scrollWidth == clientWidth`, yet the grid starts at about x = −97 and the found panel covers tiles. A scroll check alone never fails.
+- Chromium's touch adjustment snaps a tap in a 4-px gap onto a tile. Gap tests therefore use `page.mouse`.
+- A click from Enter has `clientX = clientY = 0` and `detail = 0`.
+- `has_touch` alone makes `(pointer: coarse)` and `(hover: none)` match.
+
+Multiplayer M6 reuses everything in this section for its lobby, match and vote screens.
+
+### Devices (`tests/e2e/devices.py`)
+
+Each row is a context from pytest-playwright's `new_context` fixture, so `--tracing retain-on-failure` covers it. Every context also gets `timezone_id="UTC"`, `locale="en-US"` and `color_scheme="light"` unless a case says otherwise. Use `--devices=core|full|id,id` to pick the set; the default is `core`.
+
+| id | viewport | DPR | mobile + touch | tier |
+| --- | --- | --- | --- | --- |
+| `env-corner` | 360×550 | 3 | ✓ | core (design-envelope corner) |
+| `s360` | 360×780 | 3 | ✓ | full |
+| `w320` | 320×568 | 2 | ✓ | full (reflow floor) |
+| `se` | 375×667 | 2 | ✓ | full |
+| `se-bars` | 375×553 | 2 | ✓ | core (worst case) |
+| `ip17-bars` | 402×681 | 3 | ✓ | full |
+| `px` | 412×839 | 2.625 | ✓ | full |
+| `promax` | 440×763 | 3 | ✓ | full |
+| `land` | 874×402 | 3 | ✓ | core from P14 |
+| `land-short` | 756×308 | 2.625 | ✓ | full (Pixel 10 landscape, the shortest) |
+| `desk-short` | 1280×600 | 1 | – | full (short desktop window, mouse; gets the landscape layout) |
+
+- User agents come from Playwright's device descriptors. The app never reads the UA.
+- Until P14 the phone cases run on portrait devices only. `land` joins `core` with P14.
+- `is_mobile` can't be changed once a context exists, so resize cases stay in one context and use `set_viewport_size`.
+
+### Layout checks (`tests/e2e/layout.py`)
+
+W×H is the viewport. Each check uses `getBoundingClientRect()`, with EPS = 0.5 px. Tiles and primary buttons add 3 px on the right and bottom for their shadow. One `page.evaluate` measures a whole screen.
+
+- **L1, no sideways scroll:**
+  - `documentElement.scrollWidth ≤ clientWidth`, and the same for `body`
+  - `visualViewport.scale == 1`
+  - after `scrollTo(9999, 0)`, `scrollX == 0`
+- **L2, nothing clipped:** every visible `button`, `input`, `a`, `[role=tab]` and `.tile` in the active screen lies within [−EPS, W+EPS] × [−EPS, H+EPS] at `scrollY = 0`.
+- **L3, hittable:** `elementFromPoint(centre)` is the element itself or a descendant of it. This catches covering panels and toasts.
+- **L4, tiles fit:**
+  - the tile count is cols × rows
+  - every tile is inside `.grid-area` and the viewport, between the status strip and the action area
+  - neighbours don't overlap
+  - every tile passes L3
+- **L5, no overlap:** two rects may not intersect by more than EPS on both axes.
+- **L6, reachable control:** the element passes L2 and L3 at `scrollY = 0` and is at least 48 px high.
+- **L7, docked:** `bottom == H ± 1`.
+- **L8, stable after a resize:**
+  - two frames after the resize, `--tile-size` stays the same over the next 10 frames
+  - at most 2 `style` mutations on the grid
+  - no "ResizeObserver loop" error, caught by a `window` `error` listener that an init script installs
+- **Pitch:** the smallest distance between neighbouring tile origins, in either direction.
+
+**Shared helpers:**
+
+- `press(locator)` calls `tap()` with touch and `click()` without it. The flows reuse `play()` through it.
+- Each `data-testid` matches exactly one visible element at any viewport, because Playwright's strict mode fails otherwise.
+- Every phone context gets the `console_errors` collector plus the ResizeObserver listener, and must be empty at teardown.
+
+### Desktop baseline (from P1 on, every task)
+
+- **D1, geometry:**
+  - what is recorded, per visible element under `#app`: its rect (to 0.01 px) and its font, colour, background, border, shadow and gap; for the grid also `--tile-size` and `--gap`
+  - where: at 1000×800 and 640×640, light and dark, in 12 states:
+    - nickname
+    - game 6×6
+    - GE and AR selected
+    - rejected toast
+    - duplicate toast
+    - 5×5
+    - 10×10
+    - daily 7×7 won
+    - game over, free
+    - game over, daily
+    - past answers
+    - boards
+  - tolerance: 0 on Linux, where CI took the baseline, and 1 px elsewhere
+- **D3, tile sizes:** `--tile-size`, `--gap` and the grid rect for all 72 shapes (5–10 × 5–10, won or not), compared with `tile_sizes.json`. The per-push run checks 8 of them: 5×5, 6×6, 7×7 won, 8×10, 10×5, 5×10, 10×10 and 10×10 won.
+- **No pixel comparison:** as in §5, it's too brittle. D1 and D3 catch layout and style drift.
+- **Repeatable states:**
+  - UTC, `en-US` and `reduced_motion="reduce"`
+  - `page.clock.install()` keeps toasts up
+  - wait for `document.fonts.ready` and two frames
+- **Files:** `tests/e2e/baselines/desktop/{geometry.json, tile_sizes.json, meta.json}`.
+- **Updating:** `--update-baselines` rewrites them, only in P1 or in a commit whose message says which desktop change the owner approved.
+
+### Step P1: desktop baseline
+
+- **P1.1** Capture D1 and D3 from `main` before any CSS change.
+- **P1.2** Planted change: set `--tile-size` to `47px` → D1 and D3 fail and name the `.tile` rects.
+- **P1.3** The FakeApi extensions are defaulted, so flows 1–9 pass unchanged.
+
+### Step P2: grid module
+
+These run at 1000×800. Measured sizing only starts with the phone block (P3), so the resize cases are in P6.
+
+- **P2.1** D1 and D3 show zero differences, and flow 9 passes.
+- **P2.2** Winning the daily (7×7, DEMOCRATIC) refits the grid without rebuilding it: a marker property set on tile [0,0] beforehand survives, and the tile size equals D3's won value.
+- **P2.3** No console errors and no "ResizeObserver loop" error in flows 1–9.
+
+### Step P3: page shell
+
+This step builds the phone harness: `devices.py`, `layout.py` (L1–L8), `press()`, the phone error collector and the `mobile` marker. The layout checks are run once against today's page at 360×780, before any phone CSS: L2, L3 and L4 must fail there, which proves they can fail.
+
+- **P3.1** Static: the viewport meta is `width=device-width, initial-scale=1, viewport-fit=cover`, with no `user-scalable=no` and no `maximum-scale`. There is exactly one `theme-color` meta, with no `media` attribute.
+- **P3.2** The `theme-color` meta's `content` equals the computed `--ground` after toggling light → dark → light.
+- **P3.3** On every portrait device `#app` = (0, 0, W, H) ± 0.5, and L1 holds.
+- **P3.4** Two taps on one tile 150 ms apart → the tile is back to `default`, and `visualViewport.scale == 1` (no double-tap zoom).
+- **P3.5** Computed styles:
+  - `html` `touch-action: manipulation`
+  - grid `user-select: none`
+  - tap highlight transparent
+  - the inner lists `overscroll-behavior-y: contain`
+
+### Step P4: header and status strip
+
+- **P4.1** Row 1 is 48 ± 0.5 high. Row 2 is 32 ± 0.5 on the game, answers and boards screens.
+- **P4.2** Every header control is at least 44 × 44 and passes L3.
+- **P4.3** The wordmark is hidden below 400 px and visible from 400 px.
+- **P4.4** Row 2 shows score, tries and "Found n of m". Each test id matches one visible element.
+- **P4.5** On the answers and boards screens, "Back to game" is in row 1 and the title in row 2. No header controls fail L5.
+
+### Step P5: found sheet
+
+- **P5.1** Closed: the sheet is hidden.
+- **P5.2** Tapping Found opens the sheet:
+  - it is open as a modal (`dialog[open]` with `:modal`)
+  - L7 holds, and its height is at most 0.6 H
+  - focus is on the close button
+- **P5.3** With 40 found words:
+  - the list scrolls
+  - after scrolling the list to its end, the window's `scrollY` is still 0
+  - the last item passes L3
+- **P5.4** While the sheet is open: a tile centre fails L3, and over 30 Tab presses focus never lands on an element outside the dialog (`body` is allowed).
+- **P5.5** Close by the close button, by Escape, and by a tap at (W/2, 8). Each time:
+  - the sheet is closed and focus is on the Found button
+  - no tile is selected and no request is sent (no click-through)
+- **P5.6** "Past answers" inside the sheet closes the sheet, then shows the answers screen. No dialog stays open.
+- **P5.7** Resizing to 1000×800 while the sheet is open closes it. The aside is back in `.game-main`, and its rect equals D1's.
+- **P5.8** After an accepted word the Found button gets `data-flash`. With reduced motion there is no animation.
+
+### Step P6: game screen
+
+- **P6.1** For 5×5, 6×6, 10×10, 5×10 and 10×5 on every portrait device: L1, L2 and L4 hold, and there's no vertical scroll.
+- **P6.2** At 10×10 in portrait without the banner, at widths of 360 and up: pitch ≥ 32, and the tile font is at least 12 px. Everywhere: pitch ≥ 24.
+- **P6.3** At 5×5 on widths of 375 and up, the tile is 56 px.
+- **P6.4** Submit and Clear pass L6, and Submit is at least as wide as Clear.
+- **P6.5** With a coarse pointer the visible hint reads "Tap tiles to build a word". At 1000×800 flow 3 still reads "Click tiles…".
+- **P6.6** With 10 tiles selected, L1 holds and Submit passes L3.
+- **P6.7** **Gap clicks:** `page.mouse.click` 1 px left and 1 px right of a gap midpoint selects the left and the right tile. `tile_clicked` carries that tile's row and col.
+- **P6.8** **Keyboard:** focus tile [5,5], then press Enter and then Space → that tile toggles each time.
+- **P6.9** A click on a head letter selects nothing. A gap click after game over, or while busy, selects nothing.
+- **P6.10** **Width change:** at `ip17-bars` on 10×10 with GE and AR selected, resize to 360×780 and back:
+  - L4 and L8 hold at each step
+  - the selection is kept
+  - the tile size after the round trip equals the size before it
+- **P6.11** **Bars:** at 375 wide on 5×10, go 553 → 667 → 553 high. The tile size grows, then returns exactly, and L8 holds.
+- **P6.12** **Won banner:** daily DEMOCRATIC at `se-bars`, and a mocked `win_on_accept` on 10×10:
+  - L4 holds, and the banner overlaps no tile
+  - the tile size is no larger than before
+  - dismissing the banner restores the old size
+- **P6.13** Focus survives a resize: tile [3,3] is focused, the viewport changes, and `activeElement` is still that tile.
+- **P6.14** Resize while the game screen is hidden (on the answers screen), then go back → L4 holds, with the same size as a fresh load.
+- **P6.15** Resize during the rejected flash → the tiles return to `default`, and L4 holds.
+
+### Step P7: announcements
+
+- **P7.1** After GEAR is accepted, the status region reads "GEAR, 4 points. 1 of 9 found.".
+- **P7.2** A rejected word puts its message in the alert region.
+- **P7.3** `.solution-word` has no `aria-live`. The won banner's text node isn't replaced on a tile tap (a MutationObserver counts 0). The grid has `role="group"` and a name. The toast has no `role` of its own.
+- **P7.4** Focus ring: after Tab onto a tile, a selected tile and Submit, the computed `outline-color` equals the computed `--frame`, in light and in dark, at 1000×800 and at `se-bars`. A mouse click on a tile shows no outline.
+
+### Step P8: toast
+
+- **P8.1** On every portrait device the tallest toast (rejected, with hint, on 10×10):
+  - lies inside the viewport
+  - width ≤ min(380, W − 24) + EPS, centred to ±1
+  - doesn't overlap the grid area
+- **P8.2** The next tile tap hides the toast.
+- **P8.3** At 1000×800, the toast's rect equals D1's.
+- **P8.4** Phase-1 gate: flows 2 and 4 replayed with `press()` at `env-corner` and `se-bars`.
+
+### Steps P10–P13: designed screens
+
+- **P10.1** On phones, End opens a confirm dialog and sends no `POST /end`. **Keep playing** has focus. Cancelling (button or Esc) returns focus to End, and **End game** shows game over. A daily shows "You can't play today's challenge again." At 1000×800, End still ends the game at once (the existing flows are unchanged).
+- **P10.2** Remove-last:
+  - after GE, AR, NE, ⌫ leaves GEAR, and the `tile_clicked` event for NE has `selected: false`
+  - ⌫ is disabled with nothing selected, passes L3, and is at least 44 px high
+  - Backspace does the same at `se-bars` and at 1000×800
+  - Backspace does nothing with focus in the nickname input, with the sheet or confirm dialog open, or after game over
+  - at 1000×800 the ⌫ button is not visible
+- **P11.1** **Game over** with 80 missed words:
+  - L1 holds, "Your words" is full width, and it sits above the missed words
+  - the missed words use exactly 2 column positions, and no `li` overflows
+  - "New game" passes L6 at the top and at the end
+- **P11.2** **Past answers** with 120 words:
+  - L1 and L2 hold, in 2 columns
+  - previous and next are at least 44 × 44 and pass L3
+  - the "you" badge is below the date, inside the viewport
+- **P12.1** **Boards** with 50 rows and a 16-character `W` nickname:
+  - the tabs are equally wide (±1) and fill their row
+  - below 400 px the visible labels are Free, Daily and Today, and every tab's `aria-label` is its full name ("Free · month" …)
+  - the table doesn't overflow its container
+  - after scrolling 400 px, the header is still at the container's top (±1)
+- **P12.2** **Nickname:**
+  - form width ≤ min(W − 24, 360), and privacy text ≤ min(W − 24, 420)
+  - below 400 px Play is under the input
+  - the input font is at least 16 px
+  - the error for `ab` lies inside the viewport
+  - (static) the input has `enterkeyhint="go"` and `autocapitalize="off"`
+  - nothing is focused at boot on touch devices
+- **P13.1** `go_back()` from the answers screen and from the boards screen returns to the game. The URL stays on the site.
+- **Checkpoint I gate:** flows 1, 2 and 5–8 replayed with `press()` at `se-bars` and `s360`.
+
+### Step P14: landscape
+
+- **P14.1** At `land` and `land-short`, on 10×10 and 6×6:
+  - L1, L2 and L4 hold
+  - the found list and the actions are right of the grid area
+  - Submit passes L6
+  - pitch ≥ 24
+  - a `page.mouse` click in a gap selects the nearer tile (full-pitch tiles, as P6.7)
+- **P14.2** **Rotation:** at `ip17-bars` on 10×10 with GE and AR selected, rotate to 874×402 and back. L4 and L8 hold at each step, the selection is kept, and the tile size after the round trip equals the size before it.
+- **P14.3** At `desk-short` (mouse), the landscape layout applies: L1, L2 and L4 hold, the found list is right of the grid area, and the hint still reads "Click tiles…". At 1280×640 the desktop layout is unchanged (D1 geometry, shifted by the centring offset).
+
+### Step P17: home-screen install
+
+- **P17.1** `GET /manifest.webmanifest` → 200, `application/manifest+json`, with the S12 headers.
+- **P17.2** The JSON has `name`, `display`, `theme_color`, `background_color` and `icons`, and no `orientation`. Every icon URL answers 200.
+- **P17.3** The PNG sizes, read from the IHDR with `struct`: 180, 192 and 512.
+- **P17.4** `index.html` links the manifest and the touch icon. The S11 route inventory is unchanged.
+
+### Real-device checklist (P16)
+
+Devices: iOS Safari at SE size and on a Pro Max, and Chrome on a 360-wide Android. Run every item in light and dark, with the bars expanded and collapsed.
+
+1. 10×10 at 360 px: 30 deliberate taps, including some in gaps. Count the misses; 0–1 is the target, and more goes to the owner (mobile.md §11 question 2).
+2. Nothing jumps or flickers when the bars collapse or expand.
+3. Nothing sits under the notch, the Dynamic Island or the home indicator, in portrait or in landscape.
+4. Focusing the nickname input doesn't zoom, and Play stays reachable with the keyboard open.
+5. Scrolling the sheet, the board or the answers doesn't trigger pull-to-refresh.
+6. Double-tap doesn't zoom, and pinch zoom works.
+7. The browser bars match the page in both themes, including after the in-app toggle.
+8. Rotating mid-game keeps the selection.
+9. The sheet closes by Back on Android, and by the VoiceOver scrub gesture on iOS.
+10. VoiceOver and TalkBack can play a word, and the accepted word is announced.
+11. (P17) Add to Home Screen shows the PNG icon.
+
+**Not automated:**
+
+- safe-area insets
+- iOS bar collapse and `dvh`
+- the on-screen keyboard
+- pull-to-refresh
+- real tap accuracy
+
+These are covered by the real-device checklist only.
+
+## 8. CI
 
 ### `.github/workflows/tests.yml`
 
@@ -675,7 +938,7 @@ Runs on every push and pull request.
 - **Static checks:** S10 covers this file.
 - **Failures:** a failed scheduled run emails the repo owner. The fallback covers that day, and rows with `picked_by = 'fallback'` are the signal to investigate.
 
-## 8. Resolved gaps
+## 9. Resolved gaps
 
 The review found these gaps in the plan, and they are now settled:
 

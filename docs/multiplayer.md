@@ -567,7 +567,7 @@ The audit rules from [plan.md: Security audit](plan.md#security-audit) apply to 
 
 ## 8. Layout (Claude Design)
 
-These screens are added to the brief in [plan.md: Designed in Claude Design](plan.md#designed-in-claude-design), all at 640×640:
+These screens are added to the brief in [plan.md: Designed in Claude Design](plan.md#designed-in-claude-design), at 640×640 and in the phone sizes:
 
 7. **Quick-match queue:** players waiting, the fill countdown, **Cancel**.
 8. **Match found + 3-2-1:** the nicknames, with a large countdown and no grid.
@@ -588,6 +588,32 @@ These screens are added to the brief in [plan.md: Designed in Claude Design](pla
 - these notes: "no other players right now", "server busy, try again later", "match cancelled" and "Multiplayer is open in another tab"
 
 **For tests:** each tile carries `data-pct` and `data-locked` attributes, and each ballot entry a `data-candidate` attribute, so the E2E tests don't depend on colours or order.
+
+**Phones** (added 2026-10-13, see [mobile.md](mobile.md)).
+
+Screens 7–11 are also designed at the solo game's phone sizes: 360×780, 375×553, 440×956 and 874×402 landscape. They follow the solo phone rules (mobile.md §8):
+
+- the portrait breakpoint `max-width: 639px`
+- the grid sized from its measured area (`web/js/grid.js`), with full-pitch tile buttons
+- secondary lists in a bottom sheet (`web/js/sheet.js`)
+- Submit in the thumb zone above the home indicator
+
+Also design for phones:
+
+- **Header:** Free | Daily | Multi doesn't fit at 320–360 px with the icons, so use the overflow solution chosen in solo task P9.
+- **Tile percentage at 29-px tiles (10×10 on a 360-px phone):**
+  - show it as a fill or opacity driven by `data-pct`, with numerals only at 36 px or more
+  - the accessible name includes it, for example "GS, 50 percent"
+- **Locked tiles:**
+  - `aria-disabled="true"`, not `disabled`, so screen readers still announce them
+  - a lock cue that doesn't rely on colour
+- **Timer, 10-s warning and popup ticker:** in the status strip. The popup stack docks over the action area and never covers the grid. Popups are announced politely and collapsed in bursts ("2 players found words").
+- **Your words during play:** a count or a one-line strip, not a sheet. 60 s is too short to keep opening one.
+- **Display word:**
+  - on the opposite edge from Submit, and visually distinct, because it can't be undone
+  - no confirm step, because of the time pressure
+- **Vote:** tap a word, then tap a rank slot. No drag and drop.
+- **Results:** one scrolling column.
 
 ## 9. Testing
 
@@ -634,9 +660,10 @@ The display word and vote are **built inside M1–M6**, not as a later step. The
 5. **M5 – API and stream.** The routes, the SSE endpoint, the lifespan start and stop, the settings, and `--timeout-graceful-shutdown 2`.
    - *Security:* player checks (M1), payload allow-lists (M2), submit gap and rate limit (M3, M5), injection test extended (M4).
    - *Done when:* the step M5 tests pass, including a full match between two `httpx` clients on `live_match_server`.
-6. **M6 – Design, then frontend.**
-   - First design the screens in [§8](#8-layout-claude-design) in Claude Design.
-   - Then build `web/js/match.js` (queue, countdown, match with the Display word button, vote, results, results link) and `web/js/stream.js` (EventSource wrapper: snapshot handling, `close()` on terminal events, "match cancelled" detection through `GET /api/match/current` when the stream closes without a terminal event). Share the grid rendering with `game.js` instead of copying it.
+6. **M6 – Design, then frontend.** Starts after checkpoint I of the phone tasks (tasks/todo.md P1–P13, owner 2026-10-13), so the match screens are phone-ready from the start.
+   - First design the screens in [§8](#8-layout-claude-design) in Claude Design, at 640×640 and in the phone sizes.
+   - Then build `web/js/match.js` (queue, countdown, match with the Display word button, vote, results, results link) and `web/js/stream.js` (EventSource wrapper: snapshot handling, `close()` on terminal events, "match cancelled" detection through `GET /api/match/current` when the stream closes without a terminal event). Share the grid rendering with `game.js` instead of copying it: use `web/js/grid.js` (render, measured sizing) and `web/js/sheet.js`.
+   - **Phones:** the stream stops when the phone locks or the tab goes to the background. On `visibilitychange` back to visible, reopen it if it's closed and rebuild from the snapshot ([§6.5](#65-stream-events)). With `MATCH_STREAM_GONE_S` at 10 s, a player who glances at a notification during the vote counts as "done"; see [§13](#13-open-questions) question 7.
    - *Done when:* the design is approved, and E2E flow 10 passes.
 7. **M7 – Release.**
    - Check the concurrency rule from [§6.8](#68-hosting-impact) against `fly.toml`.
@@ -670,6 +697,12 @@ Applied on 2026-10-12, for the display word and creativity vote:
 - **plan.md:** the *Decisions* row *Multiplayer* mentions the display word and vote; *Designed in Claude Design* points to screens 7–11.
 - **architecture.md:** the routes `POST …/display` and `POST …/vote`, the error codes `match_not_voting`, `already_voted` and `invalid_ballot`, the event types `match_display_word` and `match_vote_cast`, and the migration 2 changes (`match_players` columns, `match_submissions.kind`, `match_votes`).
 - **test-strategy.md §6:** cases for display words, ballots, the bonus, absent voters, payload leaks and E2E flow 10; the route inventory grows to eight match routes.
+
+Applied on 2026-10-13, for phones ([mobile.md](mobile.md)):
+
+- **§8:** the phone sizes and the phone design notes.
+- **§10:** M6 waits for the phone checkpoint I, shares `grid.js` and `sheet.js`, and handles the paused stream on phones.
+- **test-strategy.md:** E2E flow 10 also runs in a phone context. The phone section became §7, and CI and *Resolved gaps* moved to §8 and §9.
 
 ## 12. Assumptions (correct me if wrong)
 
@@ -705,3 +738,4 @@ Applied on 2026-10-12, for the display word and creativity vote:
 4. **Sharing results:** should a results link also open for people who weren't in the match?
 5. **Match boards:** if they come later, they need the S4 plausibility work for matches, and a fair measure, since scores depend on the number of players.
 6. **Match history:** a screen listing your past matches would use the stored snapshots.
+7. **Phones and the stream** (2026-10-13, [mobile.md](mobile.md)): with `MATCH_STREAM_GONE_S` at 10 s, a player whose phone locks, or who glances at a notification, counts as gone: "done" in the vote, and dropped from the queue. Raise the limit for phones, or accept it?

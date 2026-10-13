@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan turns the design docs into an ordered list of tasks: [docs/plan.md](../docs/plan.md) (what the game does), [docs/architecture.md](../docs/architecture.md) (how it's built), [docs/test-strategy.md](../docs/test-strategy.md) (how it's tested) and [docs/multiplayer.md](../docs/multiplayer.md) (after go-live). It follows the docs' build order, steps 1–7 for the solo game and M1–M8 for multiplayer. Each step is split into tasks of size S or M that each leave the system working. The docs remain the specification; each task names the test-strategy cases that must pass. Task details are in [todo.md](todo.md).
+This plan turns the design docs into an ordered list of tasks: [docs/plan.md](../docs/plan.md) (what the game does), [docs/architecture.md](../docs/architecture.md) (how it's built), [docs/test-strategy.md](../docs/test-strategy.md) (how it's tested), [docs/multiplayer.md](../docs/multiplayer.md) (after go-live) and [docs/mobile.md](../docs/mobile.md) (phones). It follows the docs' build order, steps 1–7 for the solo game and M1–M8 for multiplayer. Each step is split into tasks of size S or M that each leave the system working. The docs remain the specification; each task names the test-strategy cases that must pass. Task details are in [todo.md](todo.md).
 
 ## Architecture decisions (taken from the docs, not re-decided here)
 
@@ -28,8 +28,9 @@ This plan turns the design docs into an ordered list of tasks: [docs/plan.md](..
 | 6 Rankings | 6 | T25–T28 | Boards with flags and hidden players respected |
 | 7 Go live | 7 | T29–T30 | `https://trur.fly.dev` live, restore drilled |
 | 8 Multiplayer | 8 (M1–M8) | M1–M8 | See multiplayer.md §10; M1–M6 are built before go-live (owner, 2026-10-12) |
+| 9 Phones | – | P1–P17 | Every screen works on phones; desktop unchanged. P1–P13 (checkpoint I) come **before M6** (owner, 2026-10-13) |
 
-**Parallel work:** T6 (design) can run alongside phase 1. T7–T8 need only the approved design. T23 (`pick_daily` + workflow) depends only on T4, so it can start any time after phase 1. Everything in phases 3–6 is sequential, because it shares `games.py`, `api.py` and the schema.
+**Parallel work:** T6 (design) can run alongside phase 1. T7–T8 need only the approved design. T23 (`pick_daily` + workflow) depends only on T4, so it can start any time after phase 1. Everything in phases 3–6 is sequential, because it shares `games.py`, `api.py` and the schema. Phase 9 is frontend-only, so it runs alongside multiplayer M2–M5 (backend); M6 waits for checkpoint I. P9 (phone design) is owner work and starts after checkpoint H.
 
 ## Risks and mitigations
 
@@ -41,7 +42,11 @@ This plan turns the design docs into an ordered list of tasks: [docs/plan.md](..
 | Midnight-UTC and race logic is subtle | High: ranking integrity | FakeClock, CI with `TZ=Pacific/Kiritimati`, the live-server race tests in T13 and T21 |
 | GitHub disables scheduled workflows after 60 days without activity | Med: falls back silently | The fallback covers it; `picked_by='fallback'` rows are the signal; check after the first 60 days |
 | Lexicon RAM on a 256 MB Fly VM | Low | Measure in T5 and record it; raise the VM size in T29 if needed |
+| Phone work changes the approved desktop layout | High: breaks the approved design | P1 records geometry and tile sizes for all 72 grid shapes before any CSS change; desktop keeps fixed grid sizes (mobile.md §5.2) |
+| 10×10 grids too fiddly on a 360-px phone | Med | Full-pitch tile buttons; real-device test at checkpoint H; owner decides (mobile.md §11) |
+| Go-live (T30) lands mid-phase 9 | Low: desktop stays correct | Reach checkpoint H before T30, or the owner accepts it (mobile.md R8) |
 
 ## Open questions
 
 1. **Spike thresholds:** `MIN_FREE_WORDS`, `PLAUS_*` and `MIN_MATCH_WORDS` are placeholders until T5 and M2.
+2. **Phones:** all five questions were decided on 2026-10-13 (End confirm on phones only, full 10×10 kept, remove-last added, frame-colour focus ring everywhere, compact layout for short desktop windows); see [mobile.md §11](../docs/mobile.md#11-open-questions-owner). Still open: R6 (iOS home-screen cookies) before P17.

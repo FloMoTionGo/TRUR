@@ -1,7 +1,7 @@
 name: daily-challenge
 
 # Picks the pairs for today and tomorrow (UTC) and commits data/daily_challenges.json.
-# The backend imports that file; if a run fails, its fallback covers the day (docs/test-strategy.md §7).
+# The backend imports that file; if a run fails, its fallback covers the day (docs/test-strategy.md §8).
 
 on:
   schedule:

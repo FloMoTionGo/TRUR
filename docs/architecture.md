@@ -49,12 +49,15 @@ TRUR/
 │  ├─ css/app.css          tokens + layout from the approved Claude Design
 │  ├─ js/main.js           ES-module entry: boot, /api/users/me, screen switching
 │  ├─ js/api.js            fetch wrapper (JSON, same-origin, parses the error envelope)
-│  ├─ js/game.js           grid, selection/undo/clear, submit, reject animation (textContent only)
+│  ├─ js/game.js           selection/undo/clear, submit, reject animation (textContent only)
+│  ├─ js/grid.js           grid render + sizing (fixed on desktop, measured on phones), shared with match.js (mobile.md §5)
+│  ├─ js/sheet.js          <dialog> bottom sheet for phones: found list, End confirm (mobile.md §6.3–6.4)
 │  ├─ js/boards.js         monthly + daily boards, past answers view
 │  ├─ js/events.js         batches tile events (≤50, ≥1 s apart)
 │  ├─ js/match.js          multiplayer: queue, countdown, match, display word, vote, results, results link
 │  ├─ js/stream.js         EventSource wrapper for /api/match/stream
-│  ├─ img/logo.svg, img/logo-compact.svg, favicon.svg
+│  ├─ img/logo.svg, img/logo-compact.svg, favicon.svg (+ PNG home-screen icons, mobile.md §6.9)
+│  ├─ manifest.webmanifest optional home-screen install (P17)
 │  └─ fonts/*.woff2        self-hosted
 ├─ data/                   committed, public, never holds the DB
 │  ├─ words.txt            full filtered en_CA dictionary, UPPERCASE, one per line (generated)
@@ -67,7 +70,8 @@ TRUR/
 │  ├─ build_wordlists.py   SCOWL file (in build/, gitignored) + wordfreq → data/words.txt, source_words.txt
 │  ├─ spike_stats.py       step-1 report: words per pair, share of pairs with a 10+-letter word
 │  ├─ pick_daily.py        workflow script; imports only trur.solver and trur.clock (stdlib), so Actions installs nothing
-│  └─ admin.py             hide/unhide, flag/unflag (+ ranking recompute), delete-player; via `fly ssh console`
+│  ├─ admin.py             hide/unhide, flag/unflag (+ ranking recompute), delete-player; via `fly ssh console`
+│  └─ mobile_shots.py      screenshots per phone device, screen and theme for design review (P15)
 ├─ tests/                  see docs/test-strategy.md
 │  ├─ conftest.py, fixtures/ (tiny words, source list, blocklist, daily JSON variants)
 │  └─ test_solver.py, test_games.py, test_auth.py, test_daily.py, test_rankings.py, test_security.py,

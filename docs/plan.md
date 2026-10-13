@@ -31,7 +31,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 | Day boundary | **Midnight UTC** (8 pm Toronto in summer, 7 pm in winter). Daily dates and ranking months use UTC |
 | Free play words | The backend picks them for each new game: two random source words, **never either of today's daily words** |
 | Rankings | A **monthly board per mode** plus **one board per daily challenge**, all ranked by **best single game**. Flagged games and hidden players don't appear |
-| Devices | **Desktop only** for now (fixed 640×640) |
+| Devices | **Desktop** at a fixed 640×640, and **phones** (portrait and landscape, 360–448 px wide) with their own layout; the desktop layout doesn't change. Planned in [mobile.md](mobile.md) (owner, 2026-10-13) |
 | Logo | **The TRUR matrix:** TU × RR, a 2×2 grid with TR and UR marked on the diagonal (see [Logo](#logo)) |
 | Layout design | Designed in **Claude Design** before the frontend is built (see [Designed in Claude Design](#designed-in-claude-design)) |
 | Java | **Not needed.** HTML/CSS/JavaScript frontend, Python backend |
@@ -119,7 +119,7 @@ What this means:
 
 ## Layout & style
 
-All of it fits a fixed **640×640 px** game area. This sketch is the starting brief for the design ([Designed in Claude Design](#designed-in-claude-design)):
+On desktop, all of it fits a fixed **640×640 px** game area; phones get their own layout ([mobile.md](mobile.md)). This sketch is the starting brief for the design ([Designed in Claude Design](#designed-in-claude-design)):
 
 ```text
 +--------------------------------------------------+
@@ -179,7 +179,7 @@ The logo is the smallest TRUR grid: **TU** across the top and **RR** down the si
 
 **Requirement:** the layout and the logo are designed in **Claude Design** (claude.ai/design) before the frontend is built. The sketch, palette, look and tile states above are the brief.
 
-**Screens to design** (all 640×640):
+**Screens to design** (all 640×640; the phone versions are designed later, in task P9 of [mobile.md](mobile.md)):
 
 1. **Free-play game screen:** header with compact logo, score, tries and mode switch; the grid; found words with the counter; solution area with End, Clear and Submit.
 2. **Daily challenge screen:** including the "won" state, and a note that the answers appear after midnight UTC.
@@ -773,4 +773,4 @@ Each step ends with something you can run and check. The test cases for each ste
 
 ## Open questions
 
-None for the solo game. Multiplayer has its own list in [multiplayer.md §13](multiplayer.md#13-open-questions).
+None for the solo game rules. The phone layout has its own list in [mobile.md §11](mobile.md#11-open-questions-owner). Multiplayer has its own list in [multiplayer.md §13](multiplayer.md#13-open-questions).

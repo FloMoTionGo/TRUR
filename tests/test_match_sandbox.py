@@ -48,7 +48,7 @@ def test_full_four_player_game(box: Sandbox) -> None:
     res = box.state("1")["results"]
     assert box.phase == "results" and "user_id" not in res["players"][0]
     rows = {p["nickname"]: (p["score"], p["display"]) for p in res["players"]}
-    assert rows["Dan"] == (10, {"word": "RUNS", "votes": 15, "bonus": 10})
+    assert rows["Dan"] == (5, {"word": "RUNS", "votes": 15, "bonus": 5})
     assert rows["Ana"] == (4, None) and rows["Ben"] == (2, None)
 
 

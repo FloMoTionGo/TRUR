@@ -20,7 +20,7 @@ WARNING_S = 10
 VOTE_S = 60
 GRACE = timedelta(milliseconds=300)
 VOTE_POINTS = (5, 3, 1)
-BONUS_SCALE = 2
+BONUS_SCALE = 1
 
 
 class MatchError(Exception):

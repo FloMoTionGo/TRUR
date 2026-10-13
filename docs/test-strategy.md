@@ -487,7 +487,7 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - With two candidates, a ballot of two gives 5 and 3; a ballot of one gives 5.
 - `bonus(0, 0) == 0`; `bonus(15, 3) == 10` (the maximum); `bonus(5, 4) == 3` (2.5, rounded half up); `bonus(13, 3) == 9`.
 - A player without a display word gets bonus 0 and can still vote.
-- **The worked results example:** three players; C sets no display word; B and C each rank only A's word (5 + 5), A ranks B's (5) → two ballots count for A and two for B: A's bonus (4 × 10 + 2) // 4 = 10, B's (4 × 5 + 2) // 4 = 5; the scores and places include the bonus.
+- **The worked results example:** three players; C sets no display word; B and C each rank only A's word (5 + 5), A ranks B's (5) → two ballots count for A and two for B: A's bonus (2 × 10 + 2) // 4 = 5, B's (2 × 5 + 2) // 4 = 3 (2.5 rounds up); the scores and places include the bonus, so B (8 + 3) places above A (4 + 5).
 
 ### Step M2: spike
 

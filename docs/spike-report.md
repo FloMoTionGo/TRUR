@@ -56,7 +56,7 @@ The rule is not too strict. Only 3% of grids have fewer than 4 words, and the me
 
 Step M2 of [multiplayer.md §10](multiplayer.md#10-implementation-plan). It plays seeded matches through `trur/match.py` to set `MIN_MATCH_WORDS` and to confirm the vote bonus.
 
-- **Reproduce:** `python -m scripts.spike_stats --match --sample 5000 --seed 1 --min-words 20` (add `--every 12` and `--bonus-scale 1` for the second run below).
+- **Reproduce:** `python -m scripts.spike_stats --match --sample 5000 --seed 1` runs the decided rules (a word every 12 s, `MIN_MATCH_WORDS` 60, `BONUS_SCALE` 1). Add `--every 6 --min-words 20 --bonus-scale 2` for the first run below.
 - **Simulation:** 200 matches per player count (1,000 in all). Greedy players each submit the best word still open to them; a pair goes on its least-used free tile. At the end each player sets a two-tile display word, and everyone ranks a random ballot.
 
 **Pairs accepted by a `MIN_MATCH_WORDS` rule** (5,000 sampled ordered pairs):
@@ -94,10 +94,10 @@ The close-scores target holds (13.4% of matches within 2 points; the limit is 20
 
 7.7% of matches within 2 points, and the slowest pick took 93 ms. At 12 s per word, `MIN_MATCH_WORDS` 40 reaches 91%, and 60 reaches 96.5%.
 
-## Open: decisions for the owner
+**With a word every 12 s and `MIN_MATCH_WORDS` 60, but `BONUS_SCALE` still 2:** random votes changed the winner in 24.5 / 30.5 / 35.0 / 30.0 % of 3/4/5/6-player matches. So the slower rate alone doesn't bring the vote under the 30 % limit; the scale has to drop too.
 
-M2 stays open until these are settled. Nothing in `trur/match.py` or the settings has changed.
+## Decisions (owner, 2026-10-13)
 
-1. **How fast do real players find words?** A word every 6 s (the M2 text) can't meet the 95% target with any board size. A word every 12 s can. Real play data would settle it, but there is none before go-live.
-2. **`MIN_MATCH_WORDS`:** 60 if the 12 s rate is accepted (14.5% of pairs qualify, still tens of thousands).
-3. **`BONUS_SCALE`:** lower it from 2 to 1 (bonus 0–5 instead of 0–10), as §10 asks when random votes change the winner in more than 30% of matches. This changes the decided rule in §3.7 and the worked results example in `test_match.py`.
+1. **Assumed play rate:** a word every 12 s, as the §3.7 assessment assumed. At 6 s no board size meets the 95 % target. Revisit with real play data after release: if players are faster, raise `MIN_MATCH_WORDS` or lengthen the match.
+2. **`MIN_MATCH_WORDS` = 60** (14.5 % of ordered pairs qualify, still tens of thousands; 40 would reach only 91 %).
+3. **`BONUS_SCALE` = 1** (bonus 0–5 instead of 0–10), as §10 asks. [multiplayer.md §3.7](multiplayer.md#37-creativity-vote) and the worked results example are updated; in that example B now wins on word score, where A's 10-point bonus used to decide it.

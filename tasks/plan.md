@@ -48,5 +48,5 @@ This plan turns the design docs into an ordered list of tasks: [docs/plan.md](..
 
 ## Open questions
 
-1. **Spike thresholds:** `MIN_FREE_WORDS`, `PLAUS_*` and `MIN_MATCH_WORDS` are placeholders until T5 and M2.
+1. **Spike thresholds:** `MIN_FREE_WORDS` was set in T5 and `MIN_MATCH_WORDS` (60) in M2. `PLAUS_*` stay provisional until real play data exists.
 2. **Phones:** all five questions were decided on 2026-10-13 (End confirm on phones only, full 10×10 kept, remove-last added, frame-colour focus ring everywhere, compact layout for short desktop windows); see [mobile.md §11](../docs/mobile.md#11-open-questions-owner). Still open: R6 (iOS home-screen cookies) before P17.

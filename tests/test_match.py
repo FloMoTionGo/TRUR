@@ -286,7 +286,7 @@ def test_two_candidates_points() -> None:
     assert disp["D"] is None
 
 
-@pytest.mark.parametrize("received, ballots, expected", [(0, 0, 0), (15, 3, 10), (5, 4, 3), (13, 3, 9), (0, 2, 0)])
+@pytest.mark.parametrize("received, ballots, expected", [(0, 0, 0), (15, 3, 5), (5, 4, 1), (13, 3, 4), (3, 2, 2), (0, 2, 0)])
 def test_bonus(received: int, ballots: int, expected: int) -> None:
     assert bonus(received, ballots) == expected
 
@@ -312,8 +312,8 @@ def test_worked_results_example() -> None:
     res = match.results(match.finish(m, VOTE))
     rows = [(p["place"], p["nickname"], p["word_score"], p["display"], p["score"]) for p in res["players"]]
     assert rows == [
-        (1, "A", 4, {"word": "RUNS", "votes": 10, "bonus": 10}, 14),
-        (2, "B", 8, {"word": "GSDU", "votes": 5, "bonus": 5}, 13),
+        (1, "B", 8, {"word": "GSDU", "votes": 5, "bonus": 3}, 11),  # 2.5 rounds up
+        (2, "A", 4, {"word": "RUNS", "votes": 10, "bonus": 5}, 9),
         (3, "C", 3, None, 3),
     ]
 

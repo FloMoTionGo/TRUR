@@ -126,8 +126,8 @@ def test_player_and_vote_rows(conn: sqlite3.Connection) -> None:
     players = rows(conn, "SELECT user_id, score, word_score, vote_bonus, display_word, place, words_found "
                          "FROM match_players ORDER BY place")
     assert players == [
-        ("uB", 16, 8, 8, "GSDU", 1, 1),  # received 3 + 5 from two ballots
-        ("uA", 14, 4, 10, "RUNS", 2, 1),  # received 5 + 5; the last display word
+        ("uB", 12, 8, 4, "GSDU", 1, 1),  # received 3 + 5 from two ballots
+        ("uA", 9, 4, 5, "RUNS", 2, 1),  # received 5 + 5; the last display word
         ("uC", 3, 3, 0, None, 3, 1),
     ]
     assert all(score == word + bonus for _, score, word, bonus, *_ in players)
@@ -171,8 +171,8 @@ def test_events_with_their_real_timestamps(conn: sqlite3.Connection) -> None:
         ("uA", "match_vote_cast", '{"ranked":1}', db.iso(at(63))),
     ]
     assert [(u, t, json.loads(p), c) for u, t, p, c in got[-3:]] == [
-        ("uB", "match_ended", {"place": 1, "score": 16}, db.iso(at(63))),
-        ("uA", "match_ended", {"place": 2, "score": 14}, db.iso(at(63))),
+        ("uB", "match_ended", {"place": 1, "score": 12}, db.iso(at(63))),
+        ("uA", "match_ended", {"place": 2, "score": 9}, db.iso(at(63))),
         ("uC", "match_ended", {"place": 3, "score": 3}, db.iso(at(63))),
     ]
 

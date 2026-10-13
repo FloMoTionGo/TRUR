@@ -168,7 +168,7 @@ The **Display word** button sends the current selection as your display word.
 - One ballot per player, final once sent. A partial ballot (only a 1st place) is allowed. Not voting within 60 s is allowed too: that player's ballot is empty.
 - Players who didn't set a display word still vote.
 
-**Bonus (decided).** `bonus = round_half_up(2 × received ÷ ballots)`, where `received` is the sum of points the word got and `ballots` is the number of non-empty ballots from **other** players. In integers: `(4 × received + ballots) // (2 × ballots)`. No ballots, or no display word: 0. The range is 0–10 in every match size.
+**Bonus (decided; scale lowered from 2 to 1 by the owner on 2026-10-13 after step M2).** `bonus = round_half_up(received ÷ ballots)`, where `received` is the sum of points the word got and `ballots` is the number of non-empty ballots from **other** players. In integers: `(2 × received + ballots) // (2 × ballots)`. No ballots, or no display word: 0. The range is 0–5 in every match size, about one fresh 2-tile word.
 
 **Assessment of the literal rule** (bonus = sum of votes received). Simulated on 300 matches per player count with the solver, `MIN_MATCH_WORDS` 20, boards capped at 74 words, greedy players finding 5 words each in 60 s, everyone setting a display word and voting at random:
 
@@ -188,7 +188,7 @@ What this shows:
 - **With 2 players the vote does nothing** under either rule: each gets the other's only vote. It still rewards setting a display word at all.
 - **Tactical voting:** if names or scores were visible, a rational player would give 5 to whoever can't overtake them. So the ballot shows neither, and the results never show who voted for whom.
 
-The owner chose the averaged bonus on 2026-10-12. Step M2 re-runs this with the real `MIN_MATCH_WORDS` and confirms the cap ([§10](#10-implementation-plan)).
+The owner chose the averaged bonus on 2026-10-12. Step M2 re-ran this with `MIN_MATCH_WORDS` 60: at scale 2 random votes still changed the winner in up to 35 % of matches (4–5 players), over the 30 % limit; at scale 1, at most 24 %. The owner lowered the scale to 1 on 2026-10-13 ([spike-report.md](spike-report.md#decisions-owner-2026-10-13)).
 
 ## 4. Quick-match and match states
 
@@ -293,7 +293,7 @@ Browser B ◄──SSE /api/match/stream┤ api.py (async match routes)         
 
 ```python
 COUNTDOWN_S = 3; DURATION_S = 60; WARNING_S = 10; VOTE_S = 60; GRACE = timedelta(milliseconds=300)   # decided rules
-VOTE_POINTS = (5, 3, 1); BONUS_SCALE = 2                                                 # decided rules (§3.7)
+VOTE_POINTS = (5, 3, 1); BONUS_SCALE = 1                                                 # decided rules (§3.7)
 class PlayerState:
     nickname: str; locked: set[Tile]; found: dict[str, FoundWord]   # FoundWord: word, tiles, points, at
     display: DisplayWord | None                                     # word, tiles, at; the last one only
@@ -321,7 +321,7 @@ def ballot_for(m: Match, user_id: str, rng) -> list[Candidate]   # the others' d
 def vote(m: Match, user_id: str, ranking: Sequence[str], now: datetime) -> None
     # outside (closed_at, vote_ends_at + GRACE] → NotVoting · already voted → AlreadyVoted
     # unknown id, own word, repeat, or more than len(VOTE_POINTS) → ValueError
-def bonus(received: int, ballots: int) -> int           # (4 × received + ballots) // (2 × ballots); 0 if no ballots
+def bonus(received: int, ballots: int) -> int           # (2 × received + ballots) // (2 × ballots); 0 if no ballots
 def finish(m: Match, now: datetime) -> MatchRecord      # returns a frozen copy (tuples only) for saving
 def results(rec: MatchRecord) -> ResultsData            # place (RANK), user_id, word score, display word, votes, bonus,
                                                         # score, words; missed; total; final pct
@@ -518,7 +518,7 @@ ALTER TABLE events ADD COLUMN match_id TEXT REFERENCES matches(id) ON DELETE CAS
 
 ### 6.7 Configuration
 
-Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)). The constants in `match.py` (3-s countdown, 60-s match, 10-s warning, 60-s vote limit, 300-ms grace, 5/3/1 vote points, bonus scale 2) are rules, not settings. Tests drive time through `FakeClock`, so they don't need shorter values.
+Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)). The constants in `match.py` (3-s countdown, 60-s match, 10-s warning, 60-s vote limit, 300-ms grace, 5/3/1 vote points, bonus scale 1) are rules, not settings. Tests drive time through `FakeClock`, so they don't need shorter values.
 
 | Variable | Default | Test | Note |
 | --- | --- | --- | --- |
@@ -528,7 +528,7 @@ Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)). Th
 | `MATCH_STREAM_GONE_S` | 10 | same | a queued player without a stream is dropped after this; a voting player without one counts as done |
 | `MATCH_SUBMIT_MIN_GAP_S` | 0.5 | 0, except in the gap test | lower than solo's 1 s, because it's a race |
 | `MATCH_MAX_ACTIVE` / `MATCH_MAX_QUEUE` | 8 / 24 | small values | sized to Fly's connection limit ([§6.8](#68-hosting-impact)) |
-| `MIN_MATCH_WORDS` | set after the spike (placeholder 20) | 1 | |
+| `MIN_MATCH_WORDS` | 60 (step M2, owner 2026-10-13) | 1 | 14.5 % of ordered pairs qualify |
 | `RL_QUEUE_JOINS_PER_PLAYER_HOUR` | 30 | 0 (off), except in the rate-limit test | |
 | `MATCH_TICK_MS` | 200 | **0 = ticker off** in-process, where tests call `tick()` themselves; 10 on `live_match_server` | |
 | `SSE_KEEPALIVE_S` | 5 | 0.2 | |
@@ -643,9 +643,9 @@ The display word and vote are **built inside M1–M6**, not as a later step. The
 1. **M1 – Rules engine.** `trur/match.py` with the rounding, rules and time-boundary tests, including display words, ballots and the bonus.
    - *Done when:* there's 100 % branch coverage, and the worked example and the 1-point case pass as tests.
 2. **M2 – Spike for matches.** Add `--match` to `scripts/spike_stats.py`, using `match.py`.
-   - **Status (2026-10-13):** the tool and its tests are done. At a word every 6 s, two targets fail whatever `MIN_MATCH_WORDS` is; at 12 s, `MIN_MATCH_WORDS` 60 with `BONUS_SCALE` 1 meets all of them. Waiting on three owner decisions: [spike-report.md, Matches](spike-report.md#open-decisions-for-the-owner).
+   - **Done (2026-10-13).** At a word every 6 s two targets failed whatever `MIN_MATCH_WORDS` was. The owner chose a word every 12 s as the assumed rate, `MIN_MATCH_WORDS` 60 and `BONUS_SCALE` 1, and every target holds: [spike-report.md, Matches](spike-report.md#decisions-owner-2026-10-13).
    - It reports the answers per pair, `pick_pair`'s acceptance rate and time per pick, and runs a seeded simulation.
-   - The simulation: 1,000 matches, 2–6 greedy players, each submitting the best word still open to them every 6 s, for 60 s.
+   - The simulation: 1,000 matches, 2–6 greedy players, each submitting the best word still open to them every 12 s (owner, 2026-10-13; first specified as 6 s), for 60 s.
    - It gets a fixture-data test of its own.
    - *Done when:*
      - `MIN_MATCH_WORDS` is set

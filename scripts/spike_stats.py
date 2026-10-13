@@ -9,7 +9,7 @@ it has, how many points they are worth, and whether it has a win word (10+ lette
 
 --match (docs/multiplayer.md §10, M2) reports how many pairs a MIN_MATCH_WORDS rule accepts and how long
 a pick takes, then plays seeded matches through trur.match: 2–6 greedy players, each submitting the best
-word still open to them every 6 s for 60 s, then a display word each and random ballots.
+word still open to them every 12 s for 60 s, then a display word each and random ballots.
 """
 
 import argparse
@@ -241,9 +241,9 @@ def main(argv: list[str] | None = None) -> str:
     parser.add_argument("--sample", type=int, default=0, help="solve a random sample of this many pairs (0 = all)")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--match", action="store_true", help="the step-M2 match report instead")
-    parser.add_argument("--min-words", type=int, default=20, help="--match: the MIN_MATCH_WORDS to simulate")
+    parser.add_argument("--min-words", type=int, default=60, help="--match: the MIN_MATCH_WORDS to simulate")
     parser.add_argument("--matches", type=int, default=200, help="--match: matches per player count (2-6)")
-    parser.add_argument("--every", type=int, default=6, help="--match: seconds between a player's words")
+    parser.add_argument("--every", type=int, default=12, help="--match: seconds between a player's words")
     parser.add_argument("--bonus-scale", type=int, default=None,
                         help="--match: the vote bonus scale to simulate (default: the rule in trur/match.py)")
     args = parser.parse_args(argv)

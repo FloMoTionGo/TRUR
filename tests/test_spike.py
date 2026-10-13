@@ -46,6 +46,6 @@ def test_bonus_scale_option_applies_only_to_its_run() -> None:
     from trur import match
 
     rule = match.BONUS_SCALE
-    assert "BONUS_SCALE = 1." in spike_stats.main([*MATCH_ARGS, "--bonus-scale", "1"])
+    assert "BONUS_SCALE = 2." in spike_stats.main([*MATCH_ARGS, "--bonus-scale", "2"])
     assert match.BONUS_SCALE == rule
     assert f"BONUS_SCALE = {rule}." in spike_stats.main(MATCH_ARGS)

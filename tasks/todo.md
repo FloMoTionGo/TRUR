@@ -296,8 +296,8 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Description:** `python -m scripts.spike_stats --match` (multiplayer.md §10, TS §6 step M2): pair supply for a `MIN_MATCH_WORDS` rule, pick time, and 1,000 seeded matches of greedy players with display words and random ballots.
 **Acceptance criteria:**
 - [x] TS §6 step M2 cases pass: the report repeats with the same seed, and simulated players obey the match rules
-- [ ] `MIN_MATCH_WORDS` is set, and the §10 targets hold. **Waiting on the owner:** at a word every 6 s two targets fail whatever the board size; at 12 s, 60 words with `BONUS_SCALE` 1 meet all of them ([spike-report.md](../docs/spike-report.md#open-decisions-for-the-owner))
-**Dependencies:** M1 · **Files:** scripts/spike_stats.py, tests/test_spike.py, docs/spike-report.md · **Scope:** S
+- [x] `MIN_MATCH_WORDS` is set, and the §10 targets hold: a word every 12 s, `MIN_MATCH_WORDS` 60, `BONUS_SCALE` 1 (owner, 2026-10-13; [spike-report.md](../docs/spike-report.md#decisions-owner-2026-10-13))
+**Dependencies:** M1 · **Files:** scripts/spike_stats.py, trur/match.py, tests/test_spike.py, docs/spike-report.md · **Scope:** S
 
 ### M3: Schema and saving
 **Description:** migration 2, `db.save_match` and `db.match_results` (multiplayer.md §6.6, TS §6 step M3). Independent of the M2 decisions: `MIN_MATCH_WORDS` and `BONUS_SCALE` change no column.

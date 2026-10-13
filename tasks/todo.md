@@ -498,7 +498,7 @@ It can start any time after checkpoint H.
 
 **Acceptance criteria:**
 - [ ] Both jobs are green, and `test_static.py`'s workflow checks cover the new jobs
-- [ ] `python -m scripts.mobile_shots --list` prints the device ids, and `--help` documents every option
+- [x] `python -m scripts.mobile_shots --list` prints the device ids, and `--help` documents every option
 - [ ] The push wall time stays under 5 minutes
 **Dependencies:** P1 (the full value comes after checkpoint I) · **Files:** .github/workflows/tests.yml, scripts/mobile_shots.py, tests/e2e/test_shots.py, tests/test_mobile_shots.py · **Scope:** M
 

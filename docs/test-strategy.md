@@ -909,7 +909,10 @@ Runs on every push and pull request.
     - no date appears twice
     - no pair repeats, in either order
   - **Time budget:** under 2 minutes.
-- **Job `e2e`** (in parallel): a cached Chromium, `pytest -m e2e`, and the Playwright trace uploaded on failure. Under 4 minutes.
+- **Job `e2e`** (in parallel): a cached Chromium, `pytest -m "e2e and not mobile"`, and the Playwright trace uploaded on failure. Under 4 minutes.
+- **Job `e2e-phones`** (in parallel, from P15): a matrix with one job per phone device, each running `pytest -m mobile --devices=<id>`. The full matrix takes about 4½ minutes serially, so one job per device keeps the push under 5 minutes without a new dependency. `test_static.py` checks that the matrix lists exactly the devices the phone cases run on.
+- **Workflow `phones-webkit.yml`** (weekly, plus `workflow_dispatch`): the layout cases (P3.3, P4.1, P6.1, P6.2, P8.1) in WebKit at `se-bars` and `promax`.
+- **Shots helper:** `python -m scripts.mobile_shots` saves every screen per device and theme to `var/shots/<sha>/` for design review. It serves `web/` with the FakeApi and drives the same screen recipes as D1 (`tests/e2e/screens.py`).
 - **Total:** the whole run stays under 5 minutes. A test that pushes past that gets smaller data rather than being skipped.
 
 ### Smoke test after a Fly deploy

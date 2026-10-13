@@ -233,3 +233,25 @@ def test_daily_challenge_workflow() -> None:
 def test_ci_dry_runs_pick_daily() -> None:
     steps = _workflow(ROOT / ".github" / "workflows" / "tests.yml")["jobs"]["test"]["steps"]
     assert any(s.get("run") == "python -m scripts.pick_daily --dry-run" for s in steps)
+
+
+def test_ci_runs_every_phone_device() -> None:
+    """P15: the phone cases run on every device they parametrize over, one job per device, beside desktop e2e."""
+    from tests.e2e.devices import DEVICES
+
+    jobs = _workflow(ROOT / ".github" / "workflows" / "tests.yml")["jobs"]
+    assert any(s.get("run", "").startswith('pytest -q -m "e2e and not mobile"') for s in jobs["e2e"]["steps"])
+    phones = jobs["e2e-phones"]
+    assert phones["strategy"]["matrix"]["device"] == [d.id for d in DEVICES if d.portrait]
+    assert phones["strategy"]["fail-fast"] is False
+    run = next(s["run"] for s in phones["steps"] if s.get("name") == "Phone cases")
+    assert run.startswith('pytest -q -m mobile --devices="$DEVICE"') and "${{" not in run
+
+
+def test_weekly_webkit_workflow() -> None:
+    wf = _workflow(ROOT / ".github" / "workflows" / "phones-webkit.yml")
+    assert set(wf["on"]) == {"schedule", "workflow_dispatch"} and len(wf["on"]["schedule"]) == 1
+    steps = wf["jobs"]["webkit"]["steps"]
+    assert any("playwright install --with-deps webkit" in s.get("run", "") for s in steps)
+    run = next(s["run"] for s in steps if s.get("name") == "Layout cases in WebKit")
+    assert "-m mobile --browser webkit --devices=se-bars,promax" in run

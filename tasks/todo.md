@@ -299,6 +299,15 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 - [ ] `MIN_MATCH_WORDS` is set, and the §10 targets hold. **Waiting on the owner:** at a word every 6 s two targets fail whatever the board size; at 12 s, 60 words with `BONUS_SCALE` 1 meet all of them ([spike-report.md](../docs/spike-report.md#open-decisions-for-the-owner))
 **Dependencies:** M1 · **Files:** scripts/spike_stats.py, tests/test_spike.py, docs/spike-report.md · **Scope:** S
 
+### M3: Schema and saving
+**Description:** migration 2, `db.save_match` and `db.match_results` (multiplayer.md §6.6, TS §6 step M3). Independent of the M2 decisions: `MIN_MATCH_WORDS` and `BONUS_SCALE` change no column.
+**Acceptance criteria:**
+- [x] Migration 2 applies on a fixture DB built at `user_version` 1
+- [x] TS §6 step M3 cases pass: snapshot, rows, display words, votes, events, a player deleted during the match, `delete-player`, injection strings on `match_results`
+- [ ] A failed save is logged and its results stay in memory for 10 min: moves to **M4**, where `run()` and `Lobby.saved()` exist
+- [ ] S1 injection on the new routes: moves to **M5** with the routes
+**Dependencies:** M1 · **Files:** trur/db.py, tests/test_match_db.py, tests/test_db.py · **Scope:** S
+
 The remaining steps follow [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups. **M6 starts after checkpoint I (phase 9)** so the match screens are built phone-ready (owner, 2026-10-13). M2–M5 can run alongside phase 9.
 
 ---

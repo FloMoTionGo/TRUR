@@ -54,7 +54,10 @@ def test_migrate_sets_version_wal_and_strict_tables(tmp_path: Path) -> None:
         assert raw.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)
         assert raw.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         tables = {r[0] for r in raw.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        assert tables == {"users", "daily_challenges", "games", "submissions", "rankings", "events", "words", "meta"}
+        assert tables == {
+            "users", "daily_challenges", "games", "submissions", "rankings", "events", "words", "meta",
+            "matches", "match_players", "match_votes", "match_submissions",
+        }
         assert all("STRICT" in r[0] for r in raw.execute("SELECT sql FROM sqlite_master WHERE type = 'table'"))
     finally:
         raw.close()

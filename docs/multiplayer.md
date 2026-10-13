@@ -367,7 +367,7 @@ async def run(lobby, clock, rng, pick, save, stop: asyncio.Event, tick_s: float)
 
 - **`db.py`:**
   - migration 2 ([§6.6](#66-database-migration-2))
-  - `save_match(conn, record, now)`, one `tx()`
+  - `save_match(conn, record)`, one `tx()`; every timestamp comes from the record
   - `match_results(conn, match_id, user_id)`, which reads the snapshot and returns 404 unless the caller was a player
 - **`api.py`:** the match routes, the SSE route and Pydantic models.
 - **`app.py`:** the lifespan creates the `Hub` and `Lobby` and starts `run()`, unless `MATCH_TICK_MS = 0`. On shutdown it sets `stop`.
@@ -512,7 +512,7 @@ ALTER TABLE events ADD COLUMN match_id TEXT REFERENCES matches(id) ON DELETE CAS
   - **every** display word a player set, not only the last, as `kind = 'display'` rows, since each one halved tiles; and one `match_votes` row per ranked candidate
   - the server-only events `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate`, `match_display_word`, `match_vote_cast` and `match_ended`, with their real timestamps
 - **The save waits for the vote.** It runs when the match ends, after the vote, so up to 60 s add to the window in which a restart loses the match.
-- **A player deleted during the match.** `scripts.admin` runs in another process and can't see in-memory matches. `save_match` therefore inserts player, submission, vote and event rows only for users that still exist (`INSERT … SELECT … WHERE EXISTS`; a vote needs both its voter and its target). The snapshot keeps their words and score but no nickname.
+- **A player deleted during the match.** `scripts.admin` runs in another process and can't see in-memory matches. `save_match` therefore inserts player, submission, vote and event rows only for users that still exist, read inside the same `BEGIN IMMEDIATE` transaction (a vote needs both its voter and its target). The snapshot keeps their words and score but no nickname.
 - **Reading the snapshot.** It stores user IDs, never nicknames. `match_results` looks the nicknames up in `users` on every read. A deleted player becomes "deleted player", so no personal data stays behind (S13). `place` and `player_count` keep their historical values.
 - **A restart mid-match** loses that match. Nothing was written, so nothing is half-saved.
 

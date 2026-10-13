@@ -25,6 +25,8 @@ let selection = [];    // [[row, col], …] in click order
 let busy = false;
 let toastTimer = 0;
 let flashTimer = 0;
+let wonDismissed = false; // phones can dismiss the won banner to get its room back for the grid
+const coarse = window.matchMedia("(hover: none) and (pointer: coarse)");
 
 observeGrid(grid);
 
@@ -42,6 +44,7 @@ export async function startGame(mode) {
 function show(state) {
   game = state;
   selection = [];
+  wonDismissed = false;
   for (const button of document.querySelectorAll(".modes button")) {
     if (button.dataset.mode === game.mode) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
@@ -84,7 +87,8 @@ function render() {
   }));
   const word = selection.map(pair).join("");
   preview.dataset.empty = String(!word);
-  preview.textContent = game.game_over ? "Game over" : word ? `→ ${word}` : "Click tiles to build a word";
+  const hint = coarse.matches ? "Tap tiles to build a word" : "Click tiles to build a word";
+  preview.textContent = game.game_over ? "Game over" : word ? `→ ${word}` : hint;
 
   foundList.replaceChildren(...game.found.map((f) => wordItem(f.word, f.points)));
   byTestId("counter").textContent = `Found ${game.found_count} of ${game.total_words}`;
@@ -98,7 +102,7 @@ function render() {
   clearButton.disabled = busy || selection.length === 0;
 
   const won = byTestId("won");
-  won.hidden = !isWon();
+  won.hidden = !isWon() || wonDismissed;
   fitGrid(grid); // the banner takes room from the grid
   if (isWon()) {
     const word = game.found.map((f) => f.word).find((w) => w.length >= 10);
@@ -142,6 +146,11 @@ grid.addEventListener("click", (event) => {
   selection = i >= 0 ? selection.filter((_, j) => j !== i) : [...selection, [row, col]];
   render();
   logEvent({ type: "tile_clicked", game_id: game.game_id, row, col, selected: i < 0 });
+});
+
+byTestId("won-close").addEventListener("click", () => {
+  wonDismissed = true;
+  render();
 });
 
 clearButton.addEventListener("click", () => {

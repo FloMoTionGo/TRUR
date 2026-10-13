@@ -382,8 +382,8 @@ Run the layout checks once against today's page at 360×780: L2, L3 and L4 must 
 - The `+points` flash on the Found button, with a reduced-motion variant.
 
 **Acceptance criteria:**
-- [ ] TS P5.1–P5.8 pass, including focus return, no click-through, and the Tab key staying inside the sheet
-- [ ] D1 and D3 pass, and the found list on desktop is unchanged
+- [x] TS P5.1–P5.8 pass, including focus return, no click-through, and the Tab key staying inside the sheet
+- [x] D1 and D3 pass, and the found list on desktop is unchanged
 **Dependencies:** P4 · **Files:** web/js/{sheet,game,screens}.js, web/index.html, web/css/app.css · **Scope:** M
 
 ### P6: Game screen phone layout

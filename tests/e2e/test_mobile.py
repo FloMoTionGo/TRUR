@@ -5,8 +5,9 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import FakeApi, long_words
-from tests.e2e.layout import l1, l7, press, snapshot
+from tests.e2e.conftest import FakeApi, long_words, watch_errors
+from tests.e2e.devices import BY_ID
+from tests.e2e.layout import l1, l2, l4, l6, l7, l8, pitch, press, snapshot
 from tests.e2e.test_layout import BASELINES, GEOMETRY, decode_geometry
 from trur.solver import Lexicon
 
@@ -340,3 +341,204 @@ def test_p5_8_accepted_word_flashes_the_found_button(phone: Page, live_server, l
     expect(found).to_have_attribute("data-flash", "b")
     assert phone.evaluate("getComputedStyle(document.querySelector('.found-flash')).animationName") == "none"
     expect(found).not_to_have_attribute("data-flash", re.compile(".*"))  # it clears after about a second
+
+
+# --- P6: game screen ---
+
+SHAPES = {"5x5": ("GREAT", "SUMMR"), "6x6": ("GARDEN", "SUMMER"), "10x10": ("ABCDEFGHIJ", "KLMNOPQRST"),
+          "5x10": ("ABCDE", "KLMNOPQRST"), "10x5": ("ABCDEFGHIJ", "KLMNO")}
+DIAGONAL = [(i, i) for i in range(10)]
+DEMOCRATIC = [(4, 2), (1, 0), (2, 4), (6, 5), (0, 3)]  # DE MO CR AT IC on MEDICAL × CORRECT
+
+
+def tile_size(page: Page) -> str:
+    return page.evaluate("getComputedStyle(document.getElementById('grid')).getPropertyValue('--tile-size').trim()")
+
+
+def device_page(new_context, playwright, device_id: str) -> tuple[Page, list[str]]:
+    """A page on one named device, for the cases the plan ties to a device."""
+    page = new_context(**BY_ID[device_id].context_args(playwright)).new_page()
+    return page, watch_errors(page)
+
+
+def selected_tiles(page: Page) -> list[tuple[int, int]]:
+    cells = page.evaluate("""() => [...document.querySelectorAll('.tile[data-state="selected"]')]
+      .map((t) => [Number(t.dataset.row), Number(t.dataset.col)])""")
+    return [tuple(c) for c in cells]
+
+
+def gap_point(page: Page, row: int, col: int, dx: int) -> tuple[float, float]:
+    """dx px right of the boundary between tile (row, col) and its right neighbour, at mid-height."""
+    box = tile(page, row, col).bounding_box()
+    return box["x"] + box["width"] + dx, box["y"] + box["height"] / 2
+
+
+@pytest.mark.parametrize("shape", list(SHAPES))
+def test_p6_1_every_shape_fits(phone: Page, live_server, lex: Lexicon, shape: str) -> None:
+    word1, word2 = SHAPES[shape]
+    open_page(phone, live_server, lex, word1=word1, word2=word2)
+    s = snapshot(phone)
+    assert l1(s) + l2(s) + l4(s) == []
+    assert phone.evaluate("document.documentElement.scrollHeight <= document.documentElement.clientHeight")
+
+
+def test_p6_2_10x10_pitch_and_font(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex, word1="ABCDEFGHIJ", word2="KLMNOPQRST")
+    p = pitch(snapshot(phone))
+    font = phone.evaluate("parseFloat(getComputedStyle(document.querySelector('.tile')).fontSize)")
+    assert p >= 24
+    if phone_device.width >= 360:
+        assert p >= 32 and font >= 12, (p, font)
+
+
+def test_p6_3_5x5_tiles_reach_56(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex, word1="GREAT", word2="SUMMR")
+    if phone_device.width >= 375:
+        assert tile_size(phone) == "56px"
+
+
+def test_p6_4_submit_and_clear_are_reachable(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    s = snapshot(phone, submit=SEL.format("submit"), clear=SEL.format("clear"))
+    assert l6(s, "submit") + l6(s, "clear") == []
+    widths = {name: s["named"][name]["rect"][2] - s["named"][name]["rect"][0] for name in ("submit", "clear")}
+    assert widths["submit"] >= widths["clear"]
+
+
+def test_p6_5_hint_says_tap(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    expect(phone.locator("#preview")).to_have_text("Tap tiles to build a word")
+
+
+def test_p6_6_ten_tiles_selected(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex, word1="ABCDEFGHIJ", word2="KLMNOPQRST")
+    for rc in DIAGONAL:
+        press(tile(phone, *rc))
+    s = snapshot(phone, submit=SEL.format("submit"))
+    assert l1(s) == [] and s["named"]["submit"]["hit"]
+
+
+def test_p6_7_gap_clicks_pick_the_nearer_tile(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex, word1="ABCDEFGHIJ", word2="KLMNOPQRST")
+    with phone.expect_request("**/api/events") as request:
+        phone.mouse.click(*gap_point(phone, 4, 4, -1))
+        phone.mouse.click(*gap_point(phone, 6, 4, 1))
+    assert selected_tiles(phone) == [(4, 4), (6, 5)]
+    events = request.value.post_data_json["events"]
+    assert [(e["row"], e["col"]) for e in events if e["type"] == "tile_clicked"] == [(4, 4), (6, 5)]
+
+
+def test_p6_8_keyboard_toggles_the_focused_tile(phone: Page, live_server, lex: Lexicon) -> None:
+    open_page(phone, live_server, lex)
+    target = tile(phone, 5, 5)
+    target.focus()
+    phone.keyboard.press("Enter")
+    expect(target).to_have_attribute("data-state", "selected")
+    phone.keyboard.press("Space")
+    expect(target).to_have_attribute("data-state", "default")
+    assert selected_tiles(phone) == []
+
+
+def test_p6_9_heads_and_busy_gaps_select_nothing(phone: Page, live_server, lex: Lexicon) -> None:
+    api = open_page(phone, live_server, lex)
+    box = phone.locator(".grid .head-col").first.bounding_box()
+    phone.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    assert selected_tiles(phone) == []
+
+    held = []
+    phone.route("**/submit", lambda route: held.append(route))  # keeps the submit pending: the game is busy
+    for rc in (GE, AR):
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(phone.locator(SEL.format("submit"))).to_be_disabled()
+    assert held
+    phone.mouse.click(*gap_point(phone, 2, 2, 1))
+    assert sorted(selected_tiles(phone)) == [GE, AR]
+    api.handle(held[0])
+    expect(phone.locator(".found-count")).to_contain_text("Found 1 of")
+
+
+def test_p6_10_width_round_trip(new_context, playwright, live_server, lex: Lexicon) -> None:
+    page, errors = device_page(new_context, playwright, "ip17-bars")
+    open_page(page, live_server, lex, word1="ABCDEFGHIJ", word2="KLMNOPQRST")
+    for rc in (GE, AR):
+        press(tile(page, *rc))
+    before = tile_size(page)
+    for width, height in ((360, 780), (402, 681)):
+        assert l8(page, width, height) == []
+        assert l4(snapshot(page)) == []
+        assert sorted(selected_tiles(page)) == [GE, AR]
+    assert tile_size(page) == before
+    assert errors == []
+
+
+def test_p6_11_browser_bars_round_trip(new_context, playwright, live_server, lex: Lexicon) -> None:
+    page, errors = device_page(new_context, playwright, "se-bars")
+    open_page(page, live_server, lex, word1="ABCDE", word2="KLMNOPQRST")
+    short = tile_size(page)
+    assert l8(page, 375, 667) == []
+    tall = tile_size(page)
+    assert l8(page, 375, 553) == []
+    assert float(tall[:-2]) > float(short[:-2]) and tile_size(page) == short
+    assert errors == []
+
+
+@pytest.mark.parametrize("game", ["daily", "10x10"])
+def test_p6_12_won_banner(new_context, playwright, live_server, lex: Lexicon, game: str) -> None:
+    page, errors = device_page(new_context, playwright, "se-bars")
+    if game == "daily":
+        open_page(page, live_server, lex, mode="daily", daily_date="2026-10-11", word1="MEDICAL", word2="CORRECT",
+                  win_on_accept=True)
+        word = DEMOCRATIC
+    else:
+        open_page(page, live_server, lex, mode="daily", daily_date="2026-10-11", word1="ABCDEFGHIJ",
+                  word2="KLMNOPQRST", words=["AKBL", "CMDN"], win_on_accept=True)
+        word = [(0, 0), (1, 1)]  # AK BL
+    before = tile_size(page)
+    for rc in word:
+        press(tile(page, *rc))
+    press(page.locator(SEL.format("submit")))
+    expect(page.locator(SEL.format("won"))).to_be_visible()
+    s = snapshot(page, won=SEL.format("won"))
+    assert l4(s) == []
+    banner = s["named"]["won"]["rect"]
+    assert all(t["rect"][1] >= banner[3] - 0.5 for t in s["controls"] if t["tile"])
+    assert float(tile_size(page)[:-2]) <= float(before[:-2])
+    press(page.locator(SEL.format("won-close")))
+    expect(page.locator(SEL.format("won"))).to_be_hidden()
+    page.wait_for_function("(want) => getComputedStyle(document.getElementById('grid'))"
+                           ".getPropertyValue('--tile-size').trim() === want", arg=before)
+    assert errors == []
+
+
+def test_p6_13_focus_survives_a_resize(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex)
+    tile(phone, 3, 3).focus()
+    phone.set_viewport_size({"width": phone_device.width, "height": phone_device.height - 100})
+    phone.evaluate("() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")
+    assert phone.evaluate("[document.activeElement.dataset.row, document.activeElement.dataset.col]") == ["3", "3"]
+
+
+def test_p6_14_resize_while_hidden(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex, word1="ABCDEFGHIJ", word2="KLMNOPQRST")
+    to_boards(phone)  # the game screen is hidden
+    phone.set_viewport_size({"width": phone_device.width, "height": phone_device.height - 120})
+    press(phone.locator(SEL.format("boards-back")))
+    phone.locator(".tile").first.wait_for()
+    assert l4(snapshot(phone)) == []
+    after = tile_size(phone)
+    phone.reload()
+    phone.locator(".tile").first.wait_for()
+    assert tile_size(phone) == after  # the same as a fresh load at this size
+
+
+def test_p6_15_resize_during_the_rejected_flash(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    open_page(phone, live_server, lex)
+    for rc in ((0, 0), (0, 1)):  # GSAS
+        press(tile(phone, *rc))
+    press(phone.locator(SEL.format("submit")))
+    expect(tile(phone, 0, 0)).to_have_attribute("data-state", "rejected")
+    phone.set_viewport_size({"width": phone_device.width, "height": phone_device.height - 80})
+    expect(phone.locator('.tile[data-state="rejected"]')).to_have_count(0)
+    expect(phone.locator(SEL.format("toast"))).to_be_hidden()  # it covers the grid until P8 docks it
+    assert l4(snapshot(phone)) == []

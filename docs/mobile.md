@@ -163,6 +163,7 @@ Inside both phone blocks, portrait and landscape (P14 repeats these rules and th
 - Every point of the grid is a real `<button>`. `click`, Enter and Space, VoiceOver and TalkBack activation, and Chromium's touch adjustment all go through the unchanged handler (game.js:170).
 - The tracks are tile + gap wide, so the grid stays head + cols × (tile + gap) wide, as the sizing formula assumes. The visible tiles are inset by half a gap, so the head letters sit half a gap from them (desktop: a full gap); P9 can add padding to the heads if that looks tight.
 - Head letters remain outside the buttons, so tapping them selects nothing.
+- **Press feedback moves only `::before`** (P6, 2026-10-13). Moving the button itself on `:active` let a press near its left edge end on the neighbour, and the browser then fired no click at all; TS P6.7 caught it.
 - **Tap only, no drag:** the tiles of a word aren't adjacent, and drag would fight pan and pinch.
 - Selection stays on `click` (the up event, WCAG 2.5.2), never on `pointerdown`.
 - **Fallback** if a real device shows a problem: `cellAt(grid, x, y)` in grid.js, used only when `event.detail > 0` and the target isn't a tile. Never add fields to `tile_clicked`: the event models are `extra="forbid"` (api.py:97, 138), so an unknown field rejects the whole batch with 422.

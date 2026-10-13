@@ -231,6 +231,7 @@ button:disabled { cursor: default; }
 .won-text { display: flex; flex-direction: column; line-height: 1.25; }
 .won-text strong { font-size: 15px; }
 .won-text span { font-size: 13px; }
+.won-close { display: none; } /* phones only (P6) */
 
 .solution {
   height: 88px;
@@ -558,8 +559,85 @@ html:has(dialog[open]) { overflow: hidden; }
   .found-open[data-flash="a"] .found-flash { animation: flash-a 1s ease-out; }
   .found-open[data-flash="b"] .found-flash { animation: flash-b 1s ease-out; }
 
+  /* game screen (P6, mobile.md §5 and §6.3): a column of the compact won banner, the measured grid
+     (flex: 1) and the action area. Values are provisional until the P9 design. */
+  .grid-area { flex: 1 1 0; min-height: 0; overflow: hidden; padding: 8px 12px; }
+  .grid {
+    --head: 16px;
+    --max-tile: 56px;
+    --gap-dense: 3px;
+    --gap-loose: 4px;
+    --fit-w: none; /* fitGrid measures .grid-area instead of the desktop box */
+    gap: 0;
+    grid-template-columns: var(--head) repeat(var(--cols), calc(var(--tile-size) + var(--gap)));
+    grid-template-rows: var(--head) repeat(var(--rows), calc(var(--tile-size) + var(--gap)));
+  }
+  .grid .head { font-size: 12px; }
+
+  /* every point of the grid is a tile button: it covers its whole cell, gaps included, and the visible
+     tile is drawn on ::before, half a gap in (mobile.md §5.3) */
+  .tile {
+    width: calc(var(--tile-size) + var(--gap));
+    height: calc(var(--tile-size) + var(--gap));
+    position: relative;
+    isolation: isolate;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    font-size: max(12px, calc(var(--tile-size) * .35));
+  }
+  .tile[data-state] { background: none; } /* beats the desktop state rules (0,2,0) */
+  .tile::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--gap) / 2);
+    z-index: -1;
+    background: var(--tile);
+    border: 2px solid var(--tile-edge);
+    box-shadow: 2px 2px 0 var(--tile-shadow);
+  }
+  .tile[data-state="selected"]::before { background: var(--orange); border-color: var(--frame); }
+  .tile[data-state="rejected"]::before { background: var(--red); border-color: var(--frame); }
+  .tile:focus-visible { outline-offset: calc(var(--gap) / -2); }
+  /* press feedback moves only the drawn tile: moving the button would let a press near its edge end on
+     the neighbour, and the browser then fires no click at all */
+  .tile:active:not(:disabled)::before { transform: translate(2px, 2px); box-shadow: none; }
+  .grid[data-dense="true"] .tile { letter-spacing: 0; }
+
+  .won { margin: 8px 12px 0; padding: 4px 4px 4px 10px; gap: 8px; }
+  .won svg { width: 18px; height: 18px; }
+  .won-text strong { font-size: 14px; }
+  .won-text span { display: none; } /* one line on phones */
+  .won-close {
+    margin-left: auto;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    color: inherit;
+  }
+  .won-close svg { width: 18px; height: 18px; }
+
+  /* action area: row A the preview (no chips), row B End (small, far left), Clear, Submit (wide) */
+  #screen-game .solution {
+    min-height: 0;
+    flex-wrap: wrap;
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+  #screen-game .solution-word { flex: 1 0 100%; min-height: 28px; }
+  #screen-game #chips { display: none; }
+  #screen-game .preview { margin-left: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  #screen-game .solution .button { min-height: 48px; }
+  #screen-game [data-testid="end"] { padding: 0 10px; font-size: 13px; }
+  #screen-game [data-testid="submit"] { flex: 1; }
+
   /* press feedback replaces the tap highlight: the pressed offset, without the shadow */
-  .button:active:not(:disabled), .icon-button:active, .tile:active:not(:disabled) {
+  .button:active:not(:disabled), .icon-button:active {
     transform: translate(2px, 2px);
     box-shadow: none;
   }

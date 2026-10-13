@@ -497,9 +497,9 @@ It can start any time after checkpoint H.
 - `python -m scripts.mobile_shots` (`--device`, `--screen`, `--theme`, `--out`, `--list`, `--help`) saves screenshots to `var/shots/<sha>/<device>/<screen>-<theme>.png`. It reuses `devices.py` and the screen recipes.
 
 **Acceptance criteria:**
-- [ ] Both jobs are green, and `test_static.py`'s workflow checks cover the new jobs
+- [x] Both jobs are green, and `test_static.py`'s workflow checks cover the new jobs
 - [x] `python -m scripts.mobile_shots --list` prints the device ids, and `--help` documents every option
-- [ ] The push wall time stays under 5 minutes
+- [x] The push wall time stays under 5 minutes (1 min 46 s on 2026-10-13, phones in 8 parallel jobs; WebKit run green)
 **Dependencies:** P1 (the full value comes after checkpoint I) · **Files:** .github/workflows/tests.yml, scripts/mobile_shots.py, tests/e2e/test_shots.py, tests/test_mobile_shots.py · **Scope:** M
 
 ### P16: Real-device check and docs close-out

@@ -282,9 +282,9 @@ Browser B ◄──SSE /api/match/stream┤ api.py (async match routes)         
 - `GET /api/match/stream` sends `text/event-stream` with `Cache-Control: no-store` and `X-Accel-Buffering: no`. The CSP `default-src 'self'` already allows a same-origin `EventSource`.
 - A `: ping` comment goes out every 5 s. It keeps proxies from closing the stream and shows within 5 s that a stream is gone.
 - **Opening the stream:**
-  - The route subscribes to the `Hub` and puts the `snapshot` first in the stream's queue, with no `await` in between, so no event can be lost or doubled.
-  - When the player is idle, the route returns **204**, which tells `EventSource` not to reconnect.
-- **Closing the stream:** the server closes it after `end`, `queue_timeout`, `server_busy`, `match_cancelled` and `replaced`. The browser also calls `close()` on each of these, so a forgotten tab never reconnects.
+  - The route calls `Lobby.connect`, which subscribes to the `Hub` and puts the `snapshot` first in the stream's queue, with no `await` in between, so no event can be lost or doubled.
+  - When the player is idle, `connect` returns None and the route returns **204**, which tells `EventSource` not to reconnect.
+- **Closing the stream:** the server closes it after `end`, `queue_timeout`, `server_busy`, `match_cancelled` and `replaced` (`lobby.TERMINAL`), and without an event when the player leaves the queue (`Hub.close`). The browser also calls `close()` on each of these, so a forgotten tab never reconnects.
 - **Middleware:** every middleware must be pure ASGI, as `BodySizeLimit` already is. `BaseHTTPMiddleware` passes streaming responses through an extra task and memory stream, which gets in the way of disconnect detection and cancellation. This applies to `SecurityHeaders`.
 
 ### 6.3 Modules
@@ -330,19 +330,22 @@ def results(rec: MatchRecord) -> ResultsData            # place (RANK), user_id,
 **New: `trur/lobby.py`.** The queue, running matches, live streams and ticker. It uses stdlib plus `asyncio`:
 
 ```python
+TERMINAL = {"end", "queue_timeout", "server_busy", "match_cancelled", "replaced"}  # the stream closes after these
 class Hub:                                    # one asyncio.Queue per open stream, keyed by user_id
-    def subscribe(self, user_id, now) -> asyncio.Queue    # an older stream of the same player gets `replaced`
+    def subscribe(self, user_id) -> asyncio.Queue         # an older stream of the same player gets `replaced`
     def unsubscribe(self, user_id, q, now) -> None        # only removes q if it is still the current one
-    def gone_since(self, user_id) -> datetime | None      # when the last stream closed; None while connected
-                                                          # (a player who never connected: the lobby uses the join time)
+    def connected(self, user_id) -> bool
+    def gone_since(self, user_id) -> datetime | None      # when the last stream closed; None while connected or never
     def publish(self, user_ids, event: str, data: dict) -> None
+    def close(self, user_ids) -> None                     # puts None: the stream ends without an event (a leave)
 class PickJob(NamedTuple): match_id: str
 class SaveJob(NamedTuple): record: MatchRecord
 class Lobby:
-    def __init__(self, lex, settings, hub)
-    def join(self, user_id, nickname, now) -> MatchView     # 409 in_match, 503 server_busy
+    def __init__(self, lex, settings, hub, rng)             # rng: candidate ids and ballot order
+    def join(self, user_id, nickname, sort_key, now) -> MatchView   # sort_key = nickname_key; 409 in_match, 503 server_busy
     def leave(self, user_id, now) -> None                   # idempotent; no-op outside the queue
     def view(self, user_id, now) -> MatchView
+    def connect(self, user_id, now) -> asyncio.Queue | None # subscribe + snapshot first; None when idle (→ 204)
     def submit(self, user_id, match_id, tiles, now) -> SubmitOutcome   # 404 if not a player of that match
     def display(self, user_id, match_id, tiles, now) -> DisplayOutcome # 404 if not a player of that match
     def vote(self, user_id, match_id, ranking, now) -> None # 404 likewise; ends the vote if everyone is now done
@@ -350,17 +353,24 @@ class Lobby:
     def pair_picked(self, match_id, pair, now) -> None      # forming → countdown
     def pick_failed(self, match_id, now) -> None            # forming → idle, `match_cancelled`
     def saved(self, match_id, ok: bool, now) -> None        # drop from memory; on failure keep results 10 min
-    def results(self, match_id) -> ResultsData | None       # in memory until saved, else None (→ DB)
-async def run(lobby, clock, rng, pick, save, stop: asyncio.Event, tick_s: float) -> None
+    def results(self, match_id, user_id) -> ResultsData | None  # in memory until saved, else None (→ DB);
+                                                            # None for non-players, like db.match_results
+def public_results(results) -> ResultsData                  # without user_ids: the `end` event and the API
+async def run(lobby, clock, pick, save, stop: asyncio.Event, tick_s: float) -> None
     # every tick_s: jobs = lobby.tick(clock.now()) inside try/except (log, never die);
     # each job runs as asyncio.to_thread(pick|save) in a task kept in a set (strong reference),
-    # and its result is fed back through pair_picked / pick_failed / saved.
-    # On stop: wait up to 2 s for pending saves (2 s stream cut + 2 s < Fly's default kill_timeout of 5 s).
+    # and its result is fed back through pair_picked / pick_failed / saved. Any pick error cancels
+    # the match; only a LookupError (no board qualifies) goes unlogged.
+    # On stop: one last tick (a vote that ended since the last one still gets saved), then up to
+    # 2 s for pending saves (2 s stream cut + 2 s < Fly's default kill_timeout of 5 s).
 ```
 
 - **`tick()` is fully synchronous** and does all the waiting-for-a-thread work through the jobs it returns.
   - Lobby unit tests call `tick()`, `pair_picked()` and `saved()` directly with a `FakeClock`. That needs no event loop, no sleeps and no threads.
   - `asyncio.Queue.put_nowait` works without a running loop.
+  - **Every transition happens in `tick()`**, including forming: the 6th player is grouped at the next tick, at most `MATCH_TICK_MS` later, and a vote that ends on a ballot hands its `SaveJob` to the next tick. `join`, `submit`, `display` and `vote` only change their own player's state and publish.
+- **Errors:** the lobby raises `ApiError` with the codes in [§6.4](#64-api-contract), so the routes stay thin. A rule refusal from `match.py` is mapped once, in the lobby.
+- **The pick** is `games.pick_match_pair(conn, lex, s, rng, today)` ([§3.5](#35-picking-the-board)). It lives in `games.py` because it reads the daily pairs, which `lobby.py` may not import. `run()` gets it as a closure with its own connection and `rng`, built by the lifespan (M5).
 - **The results path:** results are served from memory until the save has finished, then from the DB snapshot. If the save fails, they stay in memory for 10 minutes and the error is logged.
 
 **Changed:**
@@ -518,7 +528,7 @@ ALTER TABLE events ADD COLUMN match_id TEXT REFERENCES matches(id) ON DELETE CAS
 
 ### 6.7 Configuration
 
-Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)). The constants in `match.py` (3-s countdown, 60-s match, 10-s warning, 60-s vote limit, 300-ms grace, 5/3/1 vote points, bonus scale 1) are rules, not settings. Tests drive time through `FakeClock`, so they don't need shorter values.
+Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)): the lobby's in step M4 (`MATCH_MIN_PLAYERS` to `MATCH_MAX_QUEUE`, and `MIN_MATCH_WORDS`), the rest with the routes in M5. The constants in `match.py` (3-s countdown, 60-s match, 10-s warning, 60-s vote limit, 300-ms grace, 5/3/1 vote points, bonus scale 1) are rules, not settings. Tests drive time through `FakeClock`, so they don't need shorter values.
 
 | Variable | Default | Test | Note |
 | --- | --- | --- | --- |
@@ -626,7 +636,7 @@ What the design does to stay testable:
 - **Stream, concurrency and E2E tests** run on `live_match_server`, a server in a thread of the test process with a shared `FakeClock`. Starlette's `TestClient` can't consume an endless stream.
 - **Tiles carry `data-pct` and `data-locked`** ([§8](#8-layout-claude-design)), so E2E tests don't depend on colours.
 - **`match.py` takes the rng as an argument**, so candidate ids and ballot order are seeded in tests.
-- **Coverage:** 100 % branch for `match.py`, and for `lobby.py` except `run()`.
+- **Coverage:** 100 % branch for `match.py` and `lobby.py`, `run()` included.
 
 ## 10. Implementation plan
 
@@ -658,6 +668,7 @@ The display word and vote are **built inside M1–M6**, not as a later step. The
 4. **M4 – Lobby.** `Hub`, `Lobby`, `run()` and the state table from [§4](#4-quick-match-and-match-states).
    - *Security:* stream and queue limits, `server_busy` (M5).
    - *Done when:* the step M4 tests pass, with no real sleep anywhere in them.
+   - **Done (2026-10-14).** `games.pick_match_pair` picks the board; `match.py` and `lobby.py` are held at 100 % branch coverage in CI, `run()` included.
 5. **M5 – API and stream.** The routes, the SSE endpoint, the lifespan start and stop, the settings, and `--timeout-graceful-shutdown 2`.
    - *Security:* player checks (M1), payload allow-lists (M2), submit gap and rate limit (M3, M5), injection test extended (M4).
    - *Done when:* the step M5 tests pass, including a full match between two `httpx` clients on `live_match_server`.

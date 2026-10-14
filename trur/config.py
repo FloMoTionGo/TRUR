@@ -1,6 +1,7 @@
 """Settings read from environment variables (docs/architecture.md §5).
 
-Tests build Settings(...) directly. Multiplayer settings are added with step M5.
+Tests build Settings(...) directly. Multiplayer: the lobby's settings came with step M4; the
+API's (submit gap, queue-join limit, tick, keepalive) come with M5 (docs/multiplayer.md §6.7).
 """
 
 import os
@@ -38,12 +39,22 @@ class Settings:
     plaus_min_cells: int = 49
     plaus_min_words: int = 5
     plaus_found_ratio: float = 0.9
+    match_min_players: int = 2  # multiplayer lobby (docs/multiplayer.md §6.7)
+    match_max_players: int = 6
+    match_fill_s: float = 10.0  # fill window after the 2nd player joins
+    match_queue_timeout_s: float = 120.0
+    match_stream_gone_s: float = 10.0  # queued: dropped after this without a stream; voting: counts as done
+    match_max_active: int = 8  # forming, countdown, running or voting
+    match_max_queue: int = 24
+    min_match_words: int = 60  # from step M2 (docs/spike-report.md)
 
     def __post_init__(self) -> None:
         if self.daily_json_source.lower().startswith("http://"):
             raise ValueError("DAILY_JSON_SOURCE must use https (S10)")
         if self.max_free_words < 0 or 0 < self.max_free_words < self.min_free_words:
             raise ValueError("MAX_FREE_WORDS must be 0 (off) or at least MIN_FREE_WORDS")
+        if not 2 <= self.match_min_players <= self.match_max_players <= 6:
+            raise ValueError("a match has 2 to 6 players: 2 <= MATCH_MIN_PLAYERS <= MATCH_MAX_PLAYERS <= 6")
 
     @property
     def db_path(self) -> Path:

@@ -2,6 +2,7 @@
 
 import ast
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -114,6 +115,41 @@ def test_sql_is_never_built_from_strings(path: Path) -> None:
     assert built_sql(path.read_text(encoding="utf-8")) == []
 
 
+# The multiplayer modules are stdlib-only, plus these trur modules (docs/architecture.md §2).
+STDLIB_SIDE = {
+    Path("trur/match.py"): {"trur.solver"},
+    Path("trur/lobby.py"): {"trur.match", "trur.solver", "trur.errors", "trur.config", "trur.clock"},
+}
+
+
+def outside_imports(source: str, allowed: set[str]) -> list[str]:
+    """Imports that are neither stdlib nor one of the `allowed` trur modules."""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names = [f"trur.{a.name}" for a in node.names] if node.module == "trur" else [node.module]
+        else:
+            continue
+        found += [
+            f"line {node.lineno}: {n}" for n in names
+            if n.split(".")[0] not in sys.stdlib_module_names and n not in allowed
+        ]
+    return found
+
+
+@pytest.mark.parametrize("path", sorted(STDLIB_SIDE), ids=str)
+def test_multiplayer_modules_are_stdlib_only(path: Path) -> None:
+    assert outside_imports((ROOT / path).read_text(encoding="utf-8"), STDLIB_SIDE[path]) == []
+
+
+@pytest.mark.parametrize("name", ["test_match.py", "test_lobby.py"])
+def test_match_tests_never_sleep(name: str) -> None:
+    """Lobby and rules tests drive time with the FakeClock (docs/test-strategy.md §6)."""
+    assert "sleep" not in (ROOT / "tests" / name).read_text(encoding="utf-8")
+
+
 def test_guards_catch_planted_code() -> None:
     planted = (
         "import datetime, time, random\n"
@@ -129,6 +165,10 @@ def test_guards_catch_planted_code() -> None:
     assert len(time_reads(planted)) == 4
     assert len(global_random(planted)) == 2  # random.choice and `from random import choice`; Random(1) is fine
     assert len(framework_imports(planted)) == 1
+    assert outside_imports(planted, set()) == ["line 4: fastapi"]
+    assert outside_imports("from trur import db, match\nfrom trur.solver import Tile\n", {"trur.match"}) == [
+        "line 1: trur.db", "line 2: trur.solver",
+    ]
     sql = (
         "conn.execute(f'SELECT * FROM users WHERE nickname = {nick}')\n"
         "conn.execute('SELECT * FROM games WHERE id = ' + game_id)\n"
@@ -233,6 +273,14 @@ def test_daily_challenge_workflow() -> None:
 def test_ci_dry_runs_pick_daily() -> None:
     steps = _workflow(ROOT / ".github" / "workflows" / "tests.yml")["jobs"]["test"]["steps"]
     assert any(s.get("run") == "python -m scripts.pick_daily --dry-run" for s in steps)
+
+
+def test_ci_gates_match_and_lobby_at_full_coverage() -> None:
+    """--cov-fail-under only sets the overall gate (docs/test-strategy.md §6 Coverage)."""
+    steps = _workflow(ROOT / ".github" / "workflows" / "tests.yml")["jobs"]["test"]["steps"]
+    runs = [s.get("run", "") for s in steps]
+    gate = next(i for i, r in enumerate(runs) if "--include=trur/match.py,trur/lobby.py --fail-under=100" in r)
+    assert runs[gate].startswith("coverage report") and gate > next(i for i, r in enumerate(runs) if "--cov " in r)
 
 
 def test_ci_runs_every_phone_device() -> None:

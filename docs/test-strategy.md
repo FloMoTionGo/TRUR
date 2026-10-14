@@ -428,9 +428,9 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - **`make_match(word1, word2, answers, players, starts_at)`** builds a running `Match` without the lobby.
 - **`rng = random.Random(0)`** is passed to `close_play` and `ballot_for`, so candidate ids and ballot order are fixed.
 - **`tile("GE")`** returns a tile's coordinates in the current grid. It raises if the text occurs more than once; pass coordinates then.
-- **`drive(lobby, clock, picks=…, saves=…)`** calls `lobby.tick(clock.now())` and resolves the jobs it returns, synchronously:
+- **`drive(lobby, clock, pick=…, saves=…)`** calls `lobby.tick(clock.now())` and resolves the jobs it returns, synchronously:
   - a `PickJob` with a given pair, or with `LookupError`
-  - a `SaveJob` with success, or with an exception
+  - a `SaveJob` with success (`True`), failure (`False`), or not at all (`None`, the default), so a test can still read the results from memory
 
   It returns the jobs, so a test can inspect the `SaveJob` record.
 - **`RecordingHub`:** a real `Hub` that also records `(user_ids, event, data)` for every publish.
@@ -554,9 +554,16 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - Rejected and duplicate submits publish nothing.
 - `snapshot` is always the first item in a new stream's queue.
 
-**Board picking:**
-- Over seeds 0–49, neither today's nor tomorrow's daily word appears in a match pair.
+**Board picking** (`games.pick_match_pair`):
+- Over seeds 0–49, neither today's nor tomorrow's daily word appears in a match pair. Tomorrow's is imported for the check when it's missing; if it isn't picked at all, only today's words are left out.
 - A pair with exactly `MIN_MATCH_WORDS` answers is accepted, and one with one fewer is rejected.
+
+**`run()`**, the real ticker with a 1-ms tick around an `asyncio.run` scenario. The scenario waits for stream events with a 2-s timeout and never sleeps:
+- a full match is picked, played, ended and saved, and is gone from memory when `run()` returns
+- a vote that ends on a ballot just before `stop` is still saved
+- no board (`LookupError`) cancels the match without a log line; any other pick error cancels it and is logged
+- a failed save is logged, and its results stay in memory for 10 minutes
+- a tick that raises is logged, and the next tick runs
 
 ### Step M5: API and stream (`test_match_api.py`)
 
@@ -622,7 +629,7 @@ These are written with M8, once the open questions in [multiplayer.md §13](mult
 
 ### Coverage
 
-- 100 % branch coverage for `trur/match.py`, and for `trur/lobby.py` except the `run()` loop.
+- 100 % branch coverage for `trur/match.py` and `trur/lobby.py`, the `run()` loop included (step M4 drives it for real).
 - `--cov-fail-under` only sets the overall gate, so CI runs an extra step (§8).
 
 ## 7. Phones
@@ -900,7 +907,7 @@ Runs on every push and pull request.
   - **Environment:** ubuntu, the production Python version, `TZ=Pacific/Kiritimati`, and a pip cache keyed on the lockfile.
   - **Runs:**
     - `pytest -m "not e2e and not smoke" --cov --cov-fail-under=85`
-    - once multiplayer exists: `coverage report --include=trur/match.py,trur/lobby.py --fail-under=100`
+    - `coverage report --include=trur/match.py,trur/lobby.py --fail-under=100` (from step M4; `test_static.py` checks the step is there)
     - `python -m scripts.pick_daily --dry-run` against the real data
     - the `git ls-files` database check
     - `pip-audit`

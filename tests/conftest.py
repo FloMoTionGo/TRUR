@@ -111,6 +111,7 @@ def make_settings(data_dir: Path, **overrides: object) -> Settings:
         allowed_origins=(ORIGIN,),
         min_free_words=1,
         max_free_words=0,
+        min_match_words=1,
         submit_min_gap_s=0.0,
         rl_new_players_per_ip_hour=0,
         rl_games_per_player_hour=0,

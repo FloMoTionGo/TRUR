@@ -304,9 +304,18 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Acceptance criteria:**
 - [x] Migration 2 applies on a fixture DB built at `user_version` 1
 - [x] TS §6 step M3 cases pass: snapshot, rows, display words, votes, events, a player deleted during the match, `delete-player`, injection strings on `match_results`
-- [ ] A failed save is logged and its results stay in memory for 10 min: moves to **M4**, where `run()` and `Lobby.saved()` exist
+- [x] A failed save is logged and its results stay in memory for 10 min: done in **M4**, where `run()` and `Lobby.saved()` exist
 - [ ] S1 injection on the new routes: moves to **M5** with the routes
 **Dependencies:** M1 · **Files:** trur/db.py, tests/test_match_db.py, tests/test_db.py · **Scope:** S
+
+### M4: Lobby
+**Description:** `trur/lobby.py` (multiplayer.md §4, §6.3): `Hub` (one queue per open stream), `Lobby` (queue, fill window, timeouts, match states, submit, display word, vote, results in memory until saved) and `run()` (the ticker, picks and saves in threads). The lobby's settings join `config.py`, and `games.pick_match_pair` picks a board that keeps today's and tomorrow's daily words out (§3.5). Routes, SSE and the lifespan wiring are **M5**.
+**Acceptance criteria:**
+- [x] TS §6 step M4 cases pass: queue, states, vote, grace window, Hub, board picking, and `run()` with the real ticker
+- [x] From M3: a failed save is logged and its results stay in memory for 10 min, while the lobby keeps forming matches
+- [x] No `sleep` in `test_match.py` or `test_lobby.py`, and `match.py`/`lobby.py` import only the stdlib and their allowed trur modules (static checks)
+- [x] 100 % branch coverage on `match.py` and `lobby.py`, `run()` included, as a CI step
+**Dependencies:** M1, M3 · **Files:** trur/lobby.py, trur/config.py, trur/games.py, tests/test_lobby.py, tests/test_config.py, tests/test_static.py, tests/conftest.py, .github/workflows/tests.yml · **Scope:** M
 
 The remaining steps follow [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups. **M6 starts after checkpoint I (phase 9)** so the match screens are built phone-ready (owner, 2026-10-13). M2–M5 can run alongside phase 9.
 

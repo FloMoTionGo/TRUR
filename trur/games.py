@@ -9,7 +9,7 @@ import json
 import random
 import sqlite3
 import uuid
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal, TypedDict
 
 from trur import daily, db, rankings
@@ -225,6 +225,32 @@ def log_client_events(conn: sqlite3.Connection, user_id: str, events: list[dict]
         for e in events:
             payload = {k: v for k, v in e.items() if k not in ("type", "game_id")}
             _log_event(conn, user_id, e["game_id"], e["type"], payload, now)
+
+
+def pick_match_pair(
+    conn: sqlite3.Connection, lex: Lexicon, s: Settings, rng: random.Random, today: date
+) -> tuple[str, str, tuple[str, ...]]:
+    """A multiplayer board (docs/multiplayer.md §3.5): at least MIN_MATCH_WORDS answers, and neither
+    word one of today's or tomorrow's daily words, because match results list every word and
+    tomorrow's pair is public about 3 hours early. LookupError if no pair qualifies.
+
+    Tomorrow's pair comes from the DB, after an import if it's missing; if it hasn't been picked at
+    all, there's nothing to exclude.
+    """
+    excluded: set[str] = set()
+    try:
+        todays = daily.ensure_daily_pair(conn, lex, s, rng, today)
+        excluded |= {todays.word1, todays.word2}
+    except ApiError:
+        pass  # no daily pair to protect
+    tomorrow = today + timedelta(days=1)
+    entry = daily.get_daily_pair(conn, tomorrow)
+    if entry is None:
+        daily.import_daily(conn, lex, s)
+        entry = daily.get_daily_pair(conn, tomorrow)
+    if entry is not None:
+        excluded |= {entry.word1, entry.word2}
+    return pick_pair(lex, rng, lambda w1, w2, answers: not {w1, w2} & excluded and len(answers) >= s.min_match_words)
 
 
 # --- private helpers ---

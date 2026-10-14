@@ -95,7 +95,7 @@ auth ◄─ db, errors           rankings ◄─ db            ◄── scripts
 daily ◄─ solver, db, errors, config, clock
 games ◄─ solver, daily, rankings, db, errors, config, clock
 match ◄─ solver                                         (multiplayer)
-lobby ◄─ match, solver, errors, config                  (multiplayer)
+lobby ◄─ match, solver, errors, config, clock           (multiplayer)
 security ◄─ config, errors, clock
 api ◄─ auth, games, daily, rankings, lobby, security, db, errors
 app ◄─ api, security, db, daily, games, lobby, solver, config, clock
@@ -213,6 +213,8 @@ def sweep_abandoned(conn, lex, s, now: datetime, user_id: str | None = None) -> 
     #   open daily games with daily_date < today, and open free games whose started_at date < today (UTC)
 def log_client_events(conn, user_id: str, events: list[dict], now: datetime) -> None  # 404 if any game not owned
 def is_implausible(found: int, total: int, cells: int, minutes: float, s: Settings) -> bool  # §8 item 9
+def pick_match_pair(conn, lex, s, rng, today: date) -> tuple[str, str, tuple[str, ...]]
+    # a multiplayer board: ≥ MIN_MATCH_WORDS answers, no daily word of today or tomorrow (multiplayer.md §3.5)
 # private: _load_owned (→404), _day_over(game, today), _end(conn, lex, s, game, reason, now)
 #          [UPDATE ended_at+flagged, recompute_ranking for each period, log game_ended], _state, _log_event
 

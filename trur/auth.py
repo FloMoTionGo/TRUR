@@ -90,4 +90,4 @@ def create_user(conn: sqlite3.Connection, nickname: str, now: datetime) -> str:
 def user_for_token(conn: sqlite3.Connection, token: str | None) -> sqlite3.Row | None:
     if not token:
         return None
-    return conn.execute("SELECT id, nickname FROM users WHERE token_hash = ?", (hash_token(token),)).fetchone()
+    return conn.execute("SELECT id, nickname, nickname_key FROM users WHERE token_hash = ?", (hash_token(token),)).fetchone()

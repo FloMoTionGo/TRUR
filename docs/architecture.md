@@ -179,7 +179,7 @@ def check_nickname(nick: str, blocklist: frozenset[str]) -> str  # ApiError 422 
 def load_blocklist(data_dir: Path) -> frozenset[str]
 def hash_token(token: str) -> str                 # sha256 hex
 def create_user(conn, nickname: str, now: datetime) -> str  # returns token (secrets.token_urlsafe(32)); 409 nickname_taken
-def user_for_token(conn, token: str | None) -> sqlite3.Row | None
+def user_for_token(conn, token: str | None) -> sqlite3.Row | None  # id, nickname, nickname_key
 
 # trur/daily.py
 def import_daily(conn, lex, s: Settings) -> list[DailyEntry]   # read source (https URL via urllib, timeout, read(max+1) cap;

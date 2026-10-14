@@ -305,7 +305,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 - [x] Migration 2 applies on a fixture DB built at `user_version` 1
 - [x] TS §6 step M3 cases pass: snapshot, rows, display words, votes, events, a player deleted during the match, `delete-player`, injection strings on `match_results`
 - [x] A failed save is logged and its results stay in memory for 10 min: done in **M4**, where `run()` and `Lobby.saved()` exist
-- [ ] S1 injection on the new routes: moves to **M5** with the routes
+- [x] S1 injection on the new routes: done in **M5** (`test_injection.py`)
 **Dependencies:** M1 · **Files:** trur/db.py, tests/test_match_db.py, tests/test_db.py · **Scope:** S
 
 ### M4: Lobby
@@ -316,6 +316,17 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 - [x] No `sleep` in `test_match.py` or `test_lobby.py`, and `match.py`/`lobby.py` import only the stdlib and their allowed trur modules (static checks)
 - [x] 100 % branch coverage on `match.py` and `lobby.py`, `run()` included, as a CI step
 **Dependencies:** M1, M3 · **Files:** trur/lobby.py, trur/config.py, trur/games.py, tests/test_lobby.py, tests/test_config.py, tests/test_static.py, tests/conftest.py, .github/workflows/tests.yml · **Scope:** M
+
+### M5: API and live stream
+**Description:** The eight match routes and `GET /api/match/stream` in `api.py` (multiplayer.md §6.4–§6.5), `async def` with the player read from a short-lived connection. The lifespan creates the `Hub` and `Lobby` and runs `run()` unless `MATCH_TICK_MS` is 0. M5's settings join `config.py`: `MATCH_SUBMIT_MIN_GAP_S`, `RL_QUEUE_JOINS_PER_PLAYER_HOUR`, `MATCH_TICK_MS` and `SSE_KEEPALIVE_S`. Plus the `live_match_server` fixture. The Dockerfile already had `--timeout-graceful-shutdown 2`; a static test now keeps it there.
+**Acceptance criteria:**
+- [x] TS §6 step M5 cases pass (`test_match_api.py`):
+  - in process: auth and 404s, the contract, the shared submit gap, the queue-join limit, the vote errors, and the payload allow-lists in every state
+  - live: a full match between two `httpx` clients, the three races, the stream (snapshot, `replaced`, keepalive, closing after `end`, a closed stream counting as gone), and a shutdown within 4 s that finishes a pending save
+- [x] The S11 route inventory, the S2 user-id check and the S1 injection suite cover the new routes, and the daily leak sweep calls them
+- [x] `match.py` and `lobby.py` stay at 100 % branch coverage (CI gate); `api.py` and `app.py` are at 100 % too
+- [ ] Restart detection ("Match cancelled" after a restart): moves to **M6** with `stream.js`
+**Dependencies:** M4 · **Files:** trur/{api,app,auth,config,lobby}.py, tests/{conftest,test_match_api,test_config,test_prod,test_security,test_injection,test_daily}.py, docs/{multiplayer,test-strategy,architecture}.md · **Scope:** M
 
 The remaining steps follow [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups. **M6 starts after checkpoint I (phase 9)** so the match screens are built phone-ready (owner, 2026-10-13). M2–M5 can run alongside phase 9.
 

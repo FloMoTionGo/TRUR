@@ -18,7 +18,8 @@ FLY = tomllib.loads((ROOT / "fly.toml").read_text(encoding="utf-8"))
 DOCKERFILE = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 DOCKERIGNORE = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
 
-# docs/architecture.md §3 plus /healthz. A new route has to be added here on purpose (S11).
+# docs/architecture.md §3 plus /healthz, and the multiplayer routes (docs/multiplayer.md §6.4).
+# A new route has to be added here on purpose (S11).
 ROUTES = {
     ("GET", "/healthz"),
     ("POST", "/api/users"),
@@ -31,6 +32,14 @@ ROUTES = {
     ("GET", "/api/daily/{day}/answers"),
     ("GET", "/api/rankings"),
     ("GET", "/api/rankings/daily"),
+    ("POST", "/api/match/queue"),
+    ("POST", "/api/match/queue/leave"),
+    ("GET", "/api/match/current"),
+    ("GET", "/api/match/stream"),
+    ("POST", "/api/match/{match_id}/submit"),
+    ("POST", "/api/match/{match_id}/display"),
+    ("POST", "/api/match/{match_id}/vote"),
+    ("GET", "/api/match/{match_id}/results"),
 }
 
 
@@ -95,6 +104,7 @@ def test_dockerfile_installs_the_lock_and_runs_one_worker() -> None:
     assert "FROM python:3.12-slim" in DOCKERFILE
     assert "pip install --no-cache-dir --require-hashes -r requirements.txt" in DOCKERFILE
     assert '"--workers","1"' in DOCKERFILE and '"--no-server-header"' in DOCKERFILE
+    assert '"--timeout-graceful-shutdown","2"' in DOCKERFILE  # open match streams can't hold up a deploy
     copied = {line.split()[1] for line in DOCKERFILE.splitlines() if line.startswith("COPY ")}
     assert copied == {"requirements.txt", "trur", "web", "data", "scripts"}  # never tests/, var/ or the DB
 

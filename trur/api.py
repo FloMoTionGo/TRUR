@@ -1,28 +1,35 @@
 """Routes, dependencies and exception handlers (docs/architecture.md §2–§3).
 
-All routes are plain `def`: sqlite3 blocks, so they run in the threadpool. Time comes from
-app.state.clock and randomness from app.state.rng, never from the system directly.
+Routes are plain `def`: sqlite3 blocks, so they run in the threadpool. The exception are the
+multiplayer routes, which are `async def` so that match state only changes on the event loop;
+they never call sqlite3 themselves (§8 item 24). Time comes from app.state.clock and randomness
+from app.state.rng, never from the system directly.
 """
 
+import asyncio
+import json
 import random
 import re
 import sqlite3
-from collections.abc import Iterator
+import uuid
+from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import date, datetime
 from http import HTTPStatus
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import Receive, Scope, Send
 
-from trur import auth, daily, db, games, rankings
+from trur import auth, daily, db, games, match, rankings
 from trur.config import Settings
 from trur.errors import ApiError
+from trur.lobby import TERMINAL, Item, Lobby, public_results
 from trur.security import RateLimiter, check_post, client_ip
-from trur.solver import Lexicon
+from trur.solver import Lexicon, Tile
 
 # --- dependencies ---
 
@@ -285,6 +292,171 @@ def events(body: EventBatch, conn: Conn, s: Cfg, player: Player, now: Now, limit
     limiter.check(f"events:{player['id']}", s.rl_events_per_player_s, 1)
     games.log_client_events(conn, player["id"], [e.model_dump() for e in body.events], now)
     return Response(status_code=204)
+
+
+# --- multiplayer (docs/multiplayer.md §6.1, §6.4, §6.5) ---
+#
+# async def: each route reads the clock and changes match state with no await in between, so
+# submits and ballots are handled one at a time in arrival order, without locks (§7 M3). The lobby
+# raises the API errors itself.
+
+def get_match_player(request: Request) -> sqlite3.Row:
+    """The player, from a connection that is closed before the route runs, so a stream never holds one."""
+    conn = db.connect(request.app.state.settings.db_path)
+    try:
+        return get_player(request, conn)
+    finally:
+        conn.close()
+
+
+MatchPlayer = Annotated[sqlite3.Row, Depends(get_match_player)]
+
+
+class NoInput(Strict):
+    """{}: the route takes no input."""
+
+
+class Ballot(Strict):
+    """Candidate ids from the caller's ballot, best first. The lobby judges them, so a bad ballot of
+    any kind (no entry or more than three, a repeated or unknown id, your own word) is 422 invalid_ballot."""
+
+    ranking: list[str]
+
+
+def _lobby(request: Request) -> Lobby:
+    return request.app.state.lobby
+
+
+def _now(request: Request) -> datetime:
+    """Read inside the route, never in a dependency: those run in the threadpool, so the time could be stale."""
+    return request.app.state.clock.now()
+
+
+def _match_id(raw: str) -> str:
+    """A canonical UUID, or 404 before any lookup (§6.4)."""
+    try:
+        if str(uuid.UUID(raw)) == raw:
+            return raw
+    except ValueError:
+        pass
+    raise ApiError(404, "not_found", "There is no such match.")
+
+
+@router.post("/api/match/queue", dependencies=POST)
+async def match_queue(body: NoInput, request: Request, player: MatchPlayer) -> dict:
+    s: Settings = request.app.state.settings
+    request.app.state.limiter.check(f"queue:{player['id']}", s.rl_queue_joins_per_player_hour, 3600)
+    return _lobby(request).join(player["id"], player["nickname"], player["nickname_key"], _now(request))
+
+
+@router.post("/api/match/queue/leave", status_code=204, dependencies=POST)
+async def match_leave(body: NoInput, request: Request, player: MatchPlayer) -> Response:
+    _lobby(request).leave(player["id"], _now(request))
+    return Response(status_code=204)
+
+
+@router.get("/api/match/current")
+async def match_current(request: Request, player: MatchPlayer) -> dict:
+    return _lobby(request).view(player["id"], _now(request))
+
+
+class EventStream(StreamingResponse):
+    """text/event-stream that runs `closed` however it ends: after a terminal event, when the
+    browser goes away, or when a shutdown cuts it. A generator's own `finally` wouldn't run if the
+    browser left before the first chunk."""
+
+    def __init__(self, content: AsyncIterator[str], closed: Callable[[], None]) -> None:
+        super().__init__(content, media_type="text/event-stream", headers={"X-Accel-Buffering": "no"})
+        self.closed = closed
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self.closed()
+
+
+async def _events(q: asyncio.Queue[Item], keepalive_s: float) -> AsyncIterator[str]:
+    """The stream's events as SSE, with a ": ping" after keepalive_s without one. It ends after a
+    terminal event, or without an event when the player leaves the queue (None)."""
+    while True:
+        try:
+            item = await asyncio.wait_for(q.get(), keepalive_s)
+        except TimeoutError:
+            yield ": ping\n\n"
+            continue
+        if item is None:
+            return
+        event, data = item
+        yield f"event: {event}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
+        if event in TERMINAL:
+            return
+
+
+@router.get("/api/match/stream")
+async def match_stream(request: Request, player: MatchPlayer) -> Response:
+    lobby, clock, uid = _lobby(request), request.app.state.clock, player["id"]
+    q = lobby.connect(uid, clock.now())
+    if q is None:
+        return Response(status_code=204)  # idle: EventSource doesn't reconnect after a 204
+    keepalive_s = request.app.state.settings.sse_keepalive_s
+    return EventStream(_events(q, keepalive_s), lambda: lobby.hub.unsubscribe(uid, q, clock.now()))
+
+
+def _tiles(body: Submission) -> list[Tile]:
+    return [(row, col) for row, col in body.tiles]
+
+
+def _changes(changes: tuple[match.Change, ...]) -> list[dict]:
+    return [{"row": r, "col": c, "pct": pct} for (r, c), pct in changes]
+
+
+def _submit_gap(request: Request, player: sqlite3.Row) -> None:
+    """MATCH_SUBMIT_MIN_GAP_S between a player's submits and display words, checked before anything changes."""
+    gap = request.app.state.settings.match_submit_min_gap_s
+    request.app.state.limiter.check(f"match-submit:{player['id']}", 1, gap)
+
+
+@router.post("/api/match/{match_id}/submit", dependencies=POST)
+async def match_submit(match_id: str, body: Submission, request: Request, player: MatchPlayer) -> dict:
+    mid = _match_id(match_id)
+    _submit_gap(request, player)
+    out = _lobby(request).submit(player["id"], mid, _tiles(body), _now(request))
+    return {"status": out.status, "word": out.word, "changes": _changes(out.changes)}  # never the points
+
+
+@router.post("/api/match/{match_id}/display", dependencies=POST)
+async def match_display(match_id: str, body: Submission, request: Request, player: MatchPlayer) -> dict:
+    mid = _match_id(match_id)
+    _submit_gap(request, player)
+    out = _lobby(request).display(player["id"], mid, _tiles(body), _now(request))
+    return {"status": "displayed", "word": out.word, "changes": _changes(out.changes)}
+
+
+@router.post("/api/match/{match_id}/vote", status_code=204, dependencies=POST)
+async def match_vote(match_id: str, body: Ballot, request: Request, player: MatchPlayer) -> Response:
+    _lobby(request).vote(player["id"], _match_id(match_id), body.ranking, _now(request))
+    return Response(status_code=204)
+
+
+def _saved_results(s: Settings, match_id: str, user_id: str) -> dict | None:
+    conn = db.connect_ro(s.db_path)
+    try:
+        return db.match_results(conn, match_id, user_id)
+    finally:
+        conn.close()
+
+
+@router.get("/api/match/{match_id}/results")
+async def match_results(match_id: str, request: Request, player: MatchPlayer) -> dict:
+    """From memory until the save is done, then from the DB. Both check that the caller played."""
+    mid = _match_id(match_id)
+    res = _lobby(request).results(mid, player["id"])
+    if res is None:
+        res = await asyncio.to_thread(_saved_results, request.app.state.settings, mid, player["id"])
+    if res is None:
+        raise ApiError(404, "not_found", "There is no such match.")
+    return public_results(res)
 
 
 # --- the error envelope ---

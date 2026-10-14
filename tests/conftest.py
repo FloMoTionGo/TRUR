@@ -113,10 +113,14 @@ def make_settings(data_dir: Path, **overrides: object) -> Settings:
         max_free_words=0,
         min_match_words=1,
         submit_min_gap_s=0.0,
+        match_submit_min_gap_s=0.0,
+        match_tick_ms=0,  # no ticker: tests drive tick() themselves (docs/test-strategy.md §6)
+        sse_keepalive_s=0.2,
         rl_new_players_per_ip_hour=0,
         rl_games_per_player_hour=0,
         rl_events_per_player_s=0,
         rl_requests_per_ip_min=0,
+        rl_queue_joins_per_player_hour=0,
     )
     values.update(overrides)
     return Settings(**values)
@@ -178,12 +182,39 @@ class LiveServer(NamedTuple):
     base_url: str
     app: FastAPI
     clock: FakeClock
+    stop: Callable[[], None]  # shuts the server down as a deploy would; the fixture calls it too
 
 
 @pytest.fixture
 def live_overrides() -> dict[str, object]:
     """Extra settings for live_server; a test changes them with @pytest.mark.parametrize("live_overrides", [...])."""
     return {}
+
+
+def serve(db_path: Path, clock: FakeClock, seed: int, overrides: dict[str, object], **config: object) -> Iterator[LiveServer]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    base_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
+    settings = make_settings(db_path.parent, allowed_origins=(base_url,), **overrides)
+    app = create_app(settings, clock, random.Random(seed))
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on", **config))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        if not thread.is_alive() or time.monotonic() > deadline:
+            raise RuntimeError("live server did not start")
+        time.sleep(0.01)
+
+    def stop() -> None:
+        server.should_exit = True
+        thread.join(timeout=10)
+
+    try:
+        yield LiveServer(base_url, app, clock, stop)
+    finally:
+        stop()
+        sock.close()
 
 
 @pytest.fixture
@@ -195,22 +226,14 @@ def live_server(
     It serves plain http, so the Secure cookie isn't sent back by httpx's jar: tests pass the
     token in a Cookie header themselves (see live_player in test_games.py).
     """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("127.0.0.1", 0))
-    base_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
-    settings = make_settings(db_path.parent, allowed_origins=(base_url,), **live_overrides)
-    app = create_app(settings, clock, random.Random(garden_seed))
-    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
-    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 10
-    while not server.started:
-        if not thread.is_alive() or time.monotonic() > deadline:
-            raise RuntimeError("live server did not start")
-        time.sleep(0.01)
-    try:
-        yield LiveServer(base_url, app, clock)
-    finally:
-        server.should_exit = True
-        thread.join(timeout=10)
-        sock.close()
+    yield from serve(db_path, clock, garden_seed, live_overrides)
+
+
+@pytest.fixture
+def live_match_server(
+    db_path: Path, clock: FakeClock, garden_seed: int, live_overrides: dict[str, object],
+) -> Iterator[LiveServer]:
+    """live_server with the real lobby ticker every 10 ms, and streams cut 2 s into a shutdown, as
+    in the Dockerfile (docs/test-strategy.md §6). Its first match board is GARDEN × SUMMER: the
+    pick draws from the app's rng, like free play."""
+    yield from serve(db_path, clock, garden_seed, {"match_tick_ms": 10, **live_overrides}, timeout_graceful_shutdown=2)

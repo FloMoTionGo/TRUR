@@ -152,7 +152,7 @@ class Lobby:
         self.lex = lex
         self.s = settings
         self.hub = hub
-        self.rng = rng  # candidate ids and ballot order; the pick has its own
+        self.rng = rng  # candidate ids and ballot order
         self.queue: dict[str, Waiting] = {}  # in join order
         self.fill_ends_at: datetime | None = None  # set exactly while 2 or more wait
         self.rooms: dict[str, Room] = {}

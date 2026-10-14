@@ -1,9 +1,10 @@
 """The app factory: lifespan, middleware, routes and the static mount (docs/architecture.md §2).
 
 Run with `uvicorn trur.app:create_app --factory --workers 1`. One worker, because the rate
-limiter and the daily lock live in memory.
+limiter, the daily lock and the multiplayer matches live in memory.
 """
 
+import asyncio
 import logging
 import random
 import sqlite3
@@ -14,7 +15,7 @@ from datetime import timedelta
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from trur import auth, daily, db, games
+from trur import auth, daily, db, games, lobby, match
 from trur.api import install_error_handlers, router
 from trur.clock import Clock, SystemClock
 from trur.config import Settings, load_settings
@@ -52,13 +53,53 @@ def _startup(app: FastAPI) -> None:
     app.state.blocklist = blocklist
 
 
+def _start_lobby(app: FastAPI, stop: asyncio.Event) -> asyncio.Task | None:
+    """The multiplayer lobby, and its ticker unless MATCH_TICK_MS is 0 (docs/multiplayer.md §6.3).
+
+    The board pick and the save each get a connection of their own in the ticker's threads. The
+    pick draws from the app's rng, as free play does; random.Random is safe to share between threads.
+    """
+    s: Settings = app.state.settings
+    clock: Clock = app.state.clock
+    rng: random.Random = app.state.rng
+    lex = app.state.lexicon
+    app.state.lobby = lobby.Lobby(lex, s, lobby.Hub(), rng)
+    if s.match_tick_ms == 0:
+        return None
+
+    def pick() -> lobby.Pair:
+        conn = db.connect(s.db_path)
+        try:
+            return games.pick_match_pair(conn, lex, s, rng, clock.now().date())
+        finally:
+            conn.close()
+
+    def save(record: match.MatchRecord) -> None:
+        conn = db.connect(s.db_path)
+        try:
+            db.save_match(conn, record)
+        finally:
+            conn.close()
+
+    return asyncio.create_task(lobby.run(app.state.lobby, clock, pick, save, stop, s.match_tick_ms / 1000))
+
+
 def create_app(settings: Settings | None = None, clock: Clock | None = None, rng: random.Random | None = None) -> FastAPI:
     settings = settings or load_settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _startup(app)
-        yield
+        stop = asyncio.Event()
+        ticker = _start_lobby(app, stop)
+        try:
+            yield
+        finally:
+            # uvicorn gets here once open streams are closed or cut (--timeout-graceful-shutdown 2).
+            # The ticker's last tick saves a vote that just ended, then pending saves get up to 2 s.
+            stop.set()
+            if ticker is not None:
+                await ticker
 
     docs = settings.debug
     app = FastAPI(

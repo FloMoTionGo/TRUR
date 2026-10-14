@@ -285,6 +285,7 @@ Browser B ◄──SSE /api/match/stream┤ api.py (async match routes)         
   - The route calls `Lobby.connect`, which subscribes to the `Hub` and puts the `snapshot` first in the stream's queue, with no `await` in between, so no event can be lost or doubled.
   - When the player is idle, `connect` returns None and the route returns **204**, which tells `EventSource` not to reconnect.
 - **Closing the stream:** the server closes it after `end`, `queue_timeout`, `server_busy`, `match_cancelled` and `replaced` (`lobby.TERMINAL`), and without an event when the player leaves the queue (`Hub.close`). The browser also calls `close()` on each of these, so a forgotten tab never reconnects.
+- **When it closes:** the response itself (`api.EventStream`) calls `Hub.unsubscribe`, however the stream ends: a terminal event, the browser going away, or the shutdown cut. The generator's own `finally` wouldn't run if the browser left before the first chunk.
 - **Middleware:** every middleware must be pure ASGI, as `BodySizeLimit` already is. `BaseHTTPMiddleware` passes streaming responses through an extra task and memory stream, which gets in the way of disconnect detection and cancellation. This applies to `SecurityHeaders`.
 
 ### 6.3 Modules
@@ -370,7 +371,8 @@ async def run(lobby, clock, pick, save, stop: asyncio.Event, tick_s: float) -> N
   - `asyncio.Queue.put_nowait` works without a running loop.
   - **Every transition happens in `tick()`**, including forming: the 6th player is grouped at the next tick, at most `MATCH_TICK_MS` later, and a vote that ends on a ballot hands its `SaveJob` to the next tick. `join`, `submit`, `display` and `vote` only change their own player's state and publish.
 - **Errors:** the lobby raises `ApiError` with the codes in [§6.4](#64-api-contract), so the routes stay thin. A rule refusal from `match.py` is mapped once, in the lobby.
-- **The pick** is `games.pick_match_pair(conn, lex, s, rng, today)` ([§3.5](#35-picking-the-board)). It lives in `games.py` because it reads the daily pairs, which `lobby.py` may not import. `run()` gets it as a closure with its own connection and `rng`, built by the lifespan (M5).
+- **The pick** is `games.pick_match_pair(conn, lex, s, rng, today)` ([§3.5](#35-picking-the-board)). It lives in `games.py` because it reads the daily pairs, which `lobby.py` may not import. `run()` gets it as a closure built by the lifespan, with its own connection.
+  - **The rng (decided in M5):** the pick and the lobby both draw from the app's `rng`, as free play does. `random.Random` is safe to share between threads, and one seeded rng keeps the first board of a live test fixed (GARDEN × SUMMER), as for free play.
 - **The results path:** results are served from memory until the save has finished, then from the DB snapshot. If the save fails, they stay in memory for 10 minutes and the error is logged.
 
 **Changed:**
@@ -398,7 +400,7 @@ The conventions in [architecture.md §3](architecture.md#3-api-contract) apply: 
 | `GET /api/match/stream` | – | 200 `text/event-stream`, starting with `snapshot`; **204** when idle | 401 |
 | `POST /api/match/{id}/submit` | `{"tiles":[[row,col],…]}`, the same shape and limits as solo | 200 `{"status":"accepted"\|"duplicate"\|"rejected","word","changes":[{"row","col","pct"}]}`. **No points**; `changes` is empty unless accepted | 401; 404 (unknown, not a player, or already saved and dropped from memory); 409 `match_not_running` (countdown, or over but not yet saved); 409 `tile_locked`; 422 `invalid_tiles`; 429 under `MATCH_SUBMIT_MIN_GAP_S` since your last submit |
 | `POST /api/match/{id}/display` | `{"tiles":[[row,col],…]}`, as for submit | 200 `{"status":"displayed","word","changes":[{"row","col","pct"}]}` | the same as submit; the submit gap is shared between the two |
-| `POST /api/match/{id}/vote` | `{"ranking":["c3","c1"]}`, candidate ids from the ballot, best first, 1–3 entries | 204 | 401; 404; 409 `match_not_voting`; 409 `already_voted`; 422 `invalid_ballot` (unknown or repeated id, your own word, too many) |
+| `POST /api/match/{id}/vote` | `{"ranking":["c3","c1"]}`, candidate ids from the ballot, best first, 1–3 entries | 204 | 401; 404; 409 `match_not_voting`; 409 `already_voted`; 422 `invalid_ballot` (no entry or too many, an unknown or repeated id, your own word) |
 | `GET /api/match/{id}/results` | – | 200 Results, from memory until saved, then from the DB snapshot | 401; 404 (unknown, not a player, or not over yet, including during the vote) |
 
 New error codes: 409 `in_match`, `match_not_running`, `tile_locked`, `match_not_voting`, `already_voted`; 422 `invalid_ballot`; 503 `server_busy`.
@@ -556,6 +558,7 @@ Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)): th
   - uvicorn runs the lifespan shutdown only after open connections have closed, so open streams would hold up a deploy until Fly kills the machine.
   - The Dockerfile CMD gets **`--timeout-graceful-shutdown 2`**: streams are cut after 2 s, and pending saves get up to 2 s more in the lifespan shutdown. Together that stays under Fly's default `kill_timeout` of 5 s, after which Fly kills the machine.
   - Running matches are lost, and the browsers show "Match cancelled" on reconnect ([§6.5](#65-stream-events)). Deploy at quiet times.
+  - uvicorn logs each stream it cuts as an error: "Cancel N running task(s), timeout graceful shutdown exceeded", then one traceback per stream. On a deploy with open streams that's expected, not a fault.
 
 ## 7. Security
 
@@ -672,6 +675,7 @@ The display word and vote are **built inside M1–M6**, not as a later step. The
 5. **M5 – API and stream.** The routes, the SSE endpoint, the lifespan start and stop, the settings, and `--timeout-graceful-shutdown 2`.
    - *Security:* player checks (M1), payload allow-lists (M2), submit gap and rate limit (M3, M5), injection test extended (M4).
    - *Done when:* the step M5 tests pass, including a full match between two `httpx` clients on `live_match_server`.
+   - **Done (2026-10-14).** The eight routes and the stream are in `api.py`, and the lifespan runs the ticker. The Dockerfile already had `--timeout-graceful-shutdown 2`. In a test, a shutdown with an open stream and a slow save finishes in about 2.5 s. Restart detection needs `stream.js`, so it moves to M6.
 6. **M6 – Design, then frontend.** Starts after checkpoint I of the phone tasks (tasks/todo.md P1–P13, owner 2026-10-13), so the match screens are phone-ready from the start.
    - First design the screens in [§8](#8-layout-claude-design) in Claude Design, at 640×640 and in the phone sizes.
    - Then build `web/js/match.js` (queue, countdown, match with the Display word button, vote, results, results link) and `web/js/stream.js` (EventSource wrapper: snapshot handling, `close()` on terminal events, "match cancelled" detection through `GET /api/match/current` when the stream closes without a terminal event). Share the grid rendering with `game.js` instead of copying it: use `web/js/grid.js` (render, measured sizing) and `web/js/sheet.js`.

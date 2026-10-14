@@ -464,6 +464,11 @@ def test_another_players_game_looks_like_a_missing_one(player: Player, db_path: 
         ("/api/games/{gid}/submit", {"tiles": GEAR}),
         ("/api/games/{gid}/end", {}),
         ("/api/events", {"events": [{"type": "selection_cleared", "game_id": "{gid}", "client_ms": 0}]}),
+        ("/api/match/queue", {}),
+        ("/api/match/queue/leave", {}),
+        ("/api/match/{gid}/submit", {"tiles": GEAR}),  # any UUID: the body is checked first
+        ("/api/match/{gid}/display", {"tiles": GEAR}),
+        ("/api/match/{gid}/vote", {"ranking": ["c1"]}),
     ],
 )
 def test_user_id_in_any_body_is_422(app: FastAPI, player: Player, db_path: Path, path: str, body: dict) -> None:

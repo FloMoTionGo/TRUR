@@ -434,10 +434,12 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 
   It returns the jobs, so a test can inspect the `SaveJob` record.
 - **`RecordingHub`:** a real `Hub` that also records `(user_ids, event, data)` for every publish.
-- **`parse_sse()`:** turns `text/event-stream` lines into `(event, data)` pairs. It counts `: ping` comments but doesn't return them.
+- **`Stream`** (`test_match_api.py`): reads an open `text/event-stream` as `(event, data)` pairs, each within 2 s, and skips `: ping` comments; `ping()` waits for one.
 - **`live_match_server`:**
   - uvicorn in a thread of the test process, so coverage is still measured
   - a `FakeClock` shared with the test, and the real `run()` ticker every 10 ms
+  - `timeout_graceful_shutdown=2`, as in the Dockerfile, so a shutdown cuts open streams
+  - its first board is GARDEN × SUMMER: the pick draws from the app's seeded rng, like free play
   - a test advances the clock, then waits for the expected event with a 2 s timeout. It never sleeps for a fixed time.
   - a full match takes seconds instead of 75
 
@@ -568,7 +570,7 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 ### Step M5: API and stream (`test_match_api.py`)
 
 **In-process (`TestClient`):**
-- **Auth:** every match route without a cookie → 401. A non-player → 404 on submit, stream and results, the same as for an unknown match. A non-UUID match ID → 404.
+- **Auth:** every match route without a cookie → 401. A non-player → 404 on submit, display, vote and results, the same as for an unknown match. The stream names no match, so for a non-player it's the idle 204. A match ID that isn't a canonical UUID → 404, even for a player of that match.
 - **Contract:** status codes and the error envelope follow the [multiplayer.md §6.4](multiplayer.md#64-api-contract) table.
   - The submit response contains no points.
   - `{"score": …}` in a body → 422.
@@ -594,8 +596,9 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
   - a second stream sends `replaced` to the first
   - the keepalive arrives
   - the stream closes after `end`, and the next GET returns 204
-- **Shutdown:** with streams open, the server stops within 4 s, and a pending save completes.
-- **Restart detection** (`stream.js`, E2E on `live_match_server`): stop the server mid-match and start it again. The page shows "Match cancelled" and doesn't keep reconnecting.
+  - a stream the browser closes counts as gone: the queued player is dropped 10 s later
+- **Shutdown:** with streams open, the server stops within 4 s, and a pending save completes. The lobby has dropped the match by then, so the lifespan waited for the ticker.
+- **Restart detection** (`stream.js`, E2E on `live_match_server`; with M6, which builds `stream.js`): stop the server mid-match and start it again. The page shows "Match cancelled" and doesn't keep reconnecting.
 
 ### Step M6: frontend (E2E flow 10)
 

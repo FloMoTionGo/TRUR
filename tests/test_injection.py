@@ -3,7 +3,7 @@
 Each payload goes into each input. Nothing may return a 500 or mention SQL, and the schema,
 the row counts and PRAGMA integrity_check must be unchanged afterwards.
 
-The board mode, month and date joined with T26.
+The board mode, month and date joined with T26; the match id, tiles and ballot with step M5.
 """
 
 import sqlite3
@@ -122,6 +122,28 @@ def test_answers_date_in_the_path(alice: TestClient, db_path: Path, payload: str
     r = alice.get(f"/api/daily/{quote(payload, safe='')}/answers")
     assert r.status_code in (404, 422), r.text
     assert_harmless(r, db_path, before)
+
+
+NO_MATCH = "7b0c5a0e-3d2f-4c1e-9a77-1f6e2b9d8c40"
+
+
+@pytest.mark.parametrize("payload", PAYLOADS)
+def test_match_id_tiles_and_ballot(alice: TestClient, db_path: Path, payload: str) -> None:
+    before = db_snapshot(db_path)
+    match_id = quote(payload, safe="")  # as sent on the wire
+    for r in (
+        alice.post(f"/api/match/{match_id}/submit", json={"tiles": [[4, 0], [5, 1]]}),
+        alice.post(f"/api/match/{match_id}/display", json={"tiles": [[4, 0], [5, 1]]}),
+        alice.post(f"/api/match/{match_id}/vote", json={"ranking": ["c1"]}),
+        alice.get(f"/api/match/{match_id}/results"),
+    ):
+        assert r.status_code in (404, 405), r.text
+        assert_harmless(r, db_path, before)
+    for action in ("submit", "display"):
+        for tiles in ([[payload, 0], [5, 1]], [payload, [5, 1]], payload):
+            assert_harmless(alice.post(f"/api/match/{NO_MATCH}/{action}", json={"tiles": tiles}), db_path, before)
+    for ranking in ([payload], payload):
+        assert_harmless(alice.post(f"/api/match/{NO_MATCH}/vote", json={"ranking": ranking}), db_path, before)
 
 
 def test_sql_lookalike_nickname_is_stored_verbatim(client: TestClient, db_path: Path) -> None:

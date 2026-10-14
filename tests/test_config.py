@@ -38,8 +38,9 @@ def test_match_defaults_are_multiplayer_6_7() -> None:
     assert (s.match_min_players, s.match_max_players, s.match_max_active, s.match_max_queue) == (2, 6, 8, 24)
     assert (s.match_fill_s, s.match_queue_timeout_s, s.match_stream_gone_s) == (10, 120, 10)
     assert s.min_match_words == 60  # step M2 (docs/spike-report.md)
-    s = load_settings({"MATCH_MIN_PLAYERS": "3", "MATCH_FILL_S": "2.5", "MIN_MATCH_WORDS": "1"})
-    assert (s.match_min_players, s.match_fill_s, s.min_match_words) == (3, 2.5, 1)
+    assert (s.match_submit_min_gap_s, s.rl_queue_joins_per_player_hour, s.match_tick_ms, s.sse_keepalive_s) == (0.5, 30, 200, 5)
+    s = load_settings({"MATCH_MIN_PLAYERS": "3", "MATCH_FILL_S": "2.5", "MIN_MATCH_WORDS": "1", "MATCH_TICK_MS": "0"})
+    assert (s.match_min_players, s.match_fill_s, s.min_match_words, s.match_tick_ms) == (3, 2.5, 1, 0)
 
 
 @pytest.mark.parametrize("env", [
@@ -50,6 +51,8 @@ def test_match_defaults_are_multiplayer_6_7() -> None:
     {"MATCH_MIN_PLAYERS": "1"},  # a match has 2–6 players (the matches.player_count CHECK)
     {"MATCH_MAX_PLAYERS": "7"},
     {"MATCH_MIN_PLAYERS": "4", "MATCH_MAX_PLAYERS": "3"},
+    {"MATCH_TICK_MS": "-1"},
+    {"SSE_KEEPALIVE_S": "0"},  # a ping on every loop
 ])
 def test_bad_values_fail_at_startup(env: dict[str, str]) -> None:
     with pytest.raises(ValueError):

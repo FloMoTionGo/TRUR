@@ -521,6 +521,10 @@ def test_a_past_day_without_a_pair_is_404(client: TestClient) -> None:
     assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
 
 
+MATCH = "/api/match"
+NO_MATCH = "7b0c5a0e-3d2f-4c1e-9a77-1f6e2b9d8c40"
+
+
 def test_no_route_leaks_todays_unfound_words(player: Player, client: TestClient, lex: Lexicon) -> None:
     """With today's daily game open, call every API route; no body may hold a word not yet found."""
     alice = player("Alice")
@@ -539,6 +543,15 @@ def test_no_route_leaks_todays_unfound_words(player: Player, client: TestClient,
         ("GET", "/api/daily/{day}/answers"): [alice.get(answers_url("2026-10-11")), alice.get(answers_url("2026-10-10"))],
         ("GET", "/api/rankings"): [client.get("/api/rankings?mode=daily"), client.get("/api/rankings?mode=free")],
         ("GET", "/api/rankings/daily"): [client.get("/api/rankings/daily")],
+        # Match boards never use today's words (games.pick_match_pair); the sweep reaches every match route.
+        ("POST", "/api/match/queue"): [alice.post(f"{MATCH}/queue", json={})],
+        ("GET", "/api/match/current"): [alice.get(f"{MATCH}/current")],
+        ("POST", "/api/match/queue/leave"): [alice.post(f"{MATCH}/queue/leave", json={})],
+        ("GET", "/api/match/stream"): [alice.get(f"{MATCH}/stream")],  # idle by now: 204
+        ("POST", "/api/match/{match_id}/submit"): [alice.post(f"{MATCH}/{NO_MATCH}/submit", json={"tiles": DEMOCRATIC})],
+        ("POST", "/api/match/{match_id}/display"): [alice.post(f"{MATCH}/{NO_MATCH}/display", json={"tiles": DEMOCRATIC})],
+        ("POST", "/api/match/{match_id}/vote"): [alice.post(f"{MATCH}/{NO_MATCH}/vote", json={"ranking": ["c1"]})],
+        ("GET", "/api/match/{match_id}/results"): [alice.get(f"{MATCH}/{NO_MATCH}/results")],
         ("POST", "/api/games/{game_id}/end"): [alice.post(f"{GAMES}/{gid}/end", json={})],  # last: it ends the game
     }
     routes = {(m, r.path) for r in api_router.routes if isinstance(r, APIRoute) for m in r.methods}

@@ -400,7 +400,8 @@ function render() {
   const preview = $("m-preview");
   preview.dataset.empty = String(!word);
   const touch = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
-  setText(preview, word ? `→ ${word}` : touch ? "Tap tiles to build a word" : "Click tiles to build a word");
+  // Phones give the preview a row of its own; on desktop it shares the bar with three buttons.
+  setText(preview, word ? `→ ${word}` : touch ? "Tap tiles to build a word" : "Click tiles");
 
   const open = phase === "running";
   byTestId("m-submit").disabled = busy || !open || selection.length < MIN_TILES;

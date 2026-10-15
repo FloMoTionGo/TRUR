@@ -10,7 +10,7 @@ A game unlike Wordle, but like Wordle.
 
 The logo is the smallest TRUR grid: TU across the top, RR down the side. The marked tiles read TR + UR = **TRUR**.
 
-> **Status: planning.** The rules, architecture, tests and security audit are written down. No code exists yet. The build starts with step 1 of the [build order](docs/plan.md#build-order).
+> **Status: live at https://trur.fly.dev (since 2026-10-15).** Free play, the daily challenge and the rankings are deployed. The multiplayer backend (M1–M5) is built and tested but its screens aren't, and phone layouts are in progress. See [tasks/todo.md](tasks/todo.md).
 
 ## How to play
 

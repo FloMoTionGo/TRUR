@@ -43,7 +43,8 @@ def test_page_has_every_security_header(site: httpx.Client) -> None:
     assert r.headers["x-content-type-options"] == "nosniff"
     assert r.headers["referrer-policy"] == "no-referrer"
     assert "max-age=" in r.headers["strict-transport-security"]
-    assert "server" not in r.headers
+    # Fly's edge adds its own "server: Fly/..."; the app (--no-server-header) must not add uvicorn's
+    assert "uvicorn" not in r.headers.get("server", "").lower()
 
 
 @pytest.mark.parametrize("path", ["/trur.db", "/data/trur.db", "/docs", "/redoc", "/openapi.json"])
@@ -54,7 +55,7 @@ def test_no_database_or_docs(site: httpx.Client, path: str) -> None:
 def test_http_redirects_to_https(site: httpx.Client) -> None:
     if not str(site.base_url).startswith("https://"):
         pytest.skip("only for an https deploy")
-    r = httpx.get(str(site.base_url.copy_with(scheme="http")) + "healthz", timeout=COLD_START_S)
+    r = httpx.get(str(site.base_url.copy_with(scheme="http")).rstrip("/") + "/healthz", timeout=COLD_START_S)
     assert r.status_code in (301, 302, 307, 308)
     assert r.headers["location"].startswith("https://")
 

@@ -65,6 +65,12 @@ def test_post_from_another_origin_is_refused(site: httpx.Client) -> None:
     assert r.status_code == 403
 
 
+@pytest.mark.parametrize("path", ["/api/match/current", "/api/match/stream"])
+def test_match_routes_need_a_player(site: httpx.Client, path: str) -> None:
+    """TS §6 step M7: multiplayer is deployed, and it refuses callers without a cookie."""
+    assert site.get(path).status_code == 401
+
+
 def test_monthly_board_rows(site: httpx.Client, today: datetime) -> None:
     month = today.strftime("%Y-%m")
     r = site.get("/api/rankings", params={"mode": "free", "month": month})

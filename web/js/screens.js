@@ -2,7 +2,9 @@
 
 import { closeSheet } from "./sheet.js";
 
-const SCREENS = ["loading", "nickname", "game", "over", "answers", "boards"];
+const SCREENS = ["loading", "nickname", "game", "over", "answers", "boards", "lobby", "match", "vote", "results"];
+// The Free | Daily | Multi switch: not during a match or its vote, so a stray tap can't leave it.
+const MODE_SCREENS = new Set(["game", "over", "lobby", "results"]);
 
 export function showScreen(name) {
   closeSheet(); // a screen change never leaves the found sheet open over it
@@ -10,6 +12,8 @@ export function showScreen(name) {
     document.getElementById(`screen-${screen}`).hidden = screen !== name;
   }
   for (const el of document.querySelectorAll("[data-game-only]")) el.hidden = name !== "game";
+  for (const el of document.querySelectorAll("[data-match-only]")) el.hidden = name !== "match" && name !== "vote";
+  for (const el of document.querySelectorAll("[data-modes-only]")) el.hidden = !MODE_SCREENS.has(name);
   for (const el of document.querySelectorAll("[data-play-only]")) el.hidden = name !== "game" && name !== "over";
   for (const el of document.querySelectorAll("[data-answers-only]")) el.hidden = name !== "answers";
   for (const el of document.querySelectorAll("[data-boards-only]")) el.hidden = name !== "boards";

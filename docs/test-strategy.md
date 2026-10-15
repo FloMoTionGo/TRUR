@@ -614,6 +614,8 @@ Two `browser.new_context()` on `live_match_server`, with separate cookies and ni
 - Both see the same results, with each showcase word, its votes and the bonus, and reloading the results link shows them again.
 - No `/stream` request is made within 5 s after `end`.
 - Timer text isn't asserted, because the fake clock and the browser's own clock differ.
+- **As built (2026-10-15, `tests/e2e/test_match_flow.py`):** each player's first free game draws from the same seeded rng, so the match board isn't GARDEN × SUMMER. The test reads the board off the page and plays the solver's shortest answer, so it is still the same board on every run. Joining waits for the stream's response, because a queued player without a stream is dropped once the fake clock jumps 10 s. The clock moves 1 s after the close before the ballots, which count only after it. Player 2 runs once on a desktop and once on `se-bars`.
+- **Restart detection** is the same file's second test: the live server stops mid-match and a new one starts on the same port (`serve(..., port=)`).
 
 ### Step M7: release
 

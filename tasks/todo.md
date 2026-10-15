@@ -325,10 +325,26 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
   - live: a full match between two `httpx` clients, the three races, the stream (snapshot, `replaced`, keepalive, closing after `end`, a closed stream counting as gone), and a shutdown within 4 s that finishes a pending save
 - [x] The S11 route inventory, the S2 user-id check and the S1 injection suite cover the new routes, and the daily leak sweep calls them
 - [x] `match.py` and `lobby.py` stay at 100 % branch coverage (CI gate); `api.py` and `app.py` are at 100 % too
-- [ ] Restart detection ("Match cancelled" after a restart): moves to **M6** with `stream.js`
+- [x] Restart detection ("Match cancelled" after a restart): done in **M6** with `stream.js` (`test_restart_mid_match_shows_match_cancelled`)
 **Dependencies:** M4 · **Files:** trur/{api,app,auth,config,lobby}.py, tests/{conftest,test_match_api,test_config,test_prod,test_security,test_injection,test_daily}.py, docs/{multiplayer,test-strategy,architecture}.md · **Scope:** M
 
-The remaining steps follow [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan): M1 rules engine → M2 spike → M3 schema → M4 lobby → M5 API and SSE → M6 design and frontend → M7 release → M8 power-ups. **M6 starts after checkpoint I (phase 9)** so the match screens are built phone-ready (owner, 2026-10-13). M2–M5 can run alongside phase 9.
+### M6: Frontend (built 2026-10-15, before the design pass)
+**Description:** The owner asked for multiplayer now (2026-10-15), ahead of checkpoint I and the Claude Design pass, with "make assumptions for all outstanding decisions". `web/js/match.js` (queue, match found + 3-2-1, the match with the Showcase word button, the vote, results and the `#match/<id>` link) and `web/js/stream.js` (EventSource wrapper, terminal events, restart detection), a third mode button **Multi**, and the four screens in index.html. The grid comes from `grid.js`, so the source-word tiles and phone sizing apply. The assumptions are listed in [multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan), step 6.
+**Acceptance criteria:**
+- [x] E2E flow 10 passes, with player 2 on a desktop and on a phone (`se-bars`) (`tests/e2e/test_match_flow.py`)
+- [x] A server restart mid-match shows "Match cancelled", and the page stops asking for the stream
+- [x] Every solo test, D1, D3 and the full phone matrix pass; the header keeps one 48-px row with three mode buttons from 320 px up
+- [ ] The Claude Design pass for screens 7–11 (multiplayer.md §8), then apply it
+**Dependencies:** M5 · **Files:** web/index.html, web/css/app.css, web/js/{api,main,match,screens,stream}.js, tests/e2e/{conftest,test_match_flow}.py, tests/conftest.py · **Scope:** M
+
+### M7: Release
+**Acceptance criteria:**
+- [x] Static: the stream budget fits `fly.toml`'s `hard_limit`, and the Dockerfile keeps `--timeout-graceful-shutdown` (`test_prod.py`)
+- [x] Smoke: `/api/match/current` and `/api/match/stream` without a cookie → 401
+- [ ] By hand: one match between two devices on production
+- [ ] By hand: a redeploy during a test match finishes within seconds and both browsers show "Match cancelled"; the machine auto-stops afterwards
+
+The remaining step is M8 power-ups ([multiplayer.md §10](../docs/multiplayer.md#10-implementation-plan)), after the open questions in §13.
 
 ---
 

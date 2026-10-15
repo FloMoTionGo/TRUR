@@ -39,6 +39,14 @@ export const api = {
   submit: (gameId, tiles) => request("POST", `/api/games/${encodeURIComponent(gameId)}/submit`, { tiles }),
   end: (gameId) => request("POST", `/api/games/${encodeURIComponent(gameId)}/end`, {}),
   events: (events) => request("POST", "/api/events", { events }),
+  // multiplayer (docs/multiplayer.md §6.4); the live updates come over js/stream.js
+  matchQueue: () => request("POST", "/api/match/queue", {}),
+  matchLeave: () => request("POST", "/api/match/queue/leave", {}),
+  matchCurrent: () => request("GET", "/api/match/current"),
+  matchSubmit: (id, tiles) => request("POST", `/api/match/${encodeURIComponent(id)}/submit`, { tiles }),
+  matchShowcase: (id, tiles) => request("POST", `/api/match/${encodeURIComponent(id)}/showcase`, { tiles }),
+  matchVote: (id, ranking) => request("POST", `/api/match/${encodeURIComponent(id)}/vote`, { ranking }),
+  matchResults: (id) => request("GET", `/api/match/${encodeURIComponent(id)}/results`),
   answers: (day) => request("GET", `/api/daily/${encodeURIComponent(day)}/answers`),
   // month / day null → the server's current month / today (UTC)
   monthlyBoard: (mode, month) =>

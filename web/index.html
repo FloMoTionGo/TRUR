@@ -31,6 +31,10 @@
         <span class="dot" data-full="true"></span><span class="dot" data-full="true"></span><span class="dot" data-full="true"></span>
       </div>
     </div>
+    <div class="stat" data-match-only hidden>
+      <span class="stat-label">Time</span>
+      <span class="stat-value" id="m-timer" data-testid="m-timer">1:00</span>
+    </div>
     <button type="button" class="found-open" id="found-open" data-testid="found-open" aria-haspopup="dialog" data-game-only hidden><span class="found-count">Found 0 of 0</span><span class="found-flash" aria-hidden="true"></span></button>
     <div class="bar-end">
       <button type="button" class="icon-button" data-testid="theme-toggle" aria-label="Switch to dark mode">
@@ -42,9 +46,10 @@
       </button>
       <button type="button" class="button bar-back" data-testid="answers-back" data-answers-only hidden>Back to game</button>
       <button type="button" class="button bar-back" data-testid="boards-back" data-boards-only hidden>Back to game</button>
-      <nav class="modes" aria-label="Mode" data-play-only hidden>
+      <nav class="modes" aria-label="Mode" data-modes-only hidden>
         <button type="button" data-mode="free" aria-current="page">Free</button>
         <button type="button" data-mode="daily" data-testid="mode-daily">Daily</button>
+        <button type="button" data-mode="match" data-testid="mode-match">Multi</button>
       </nav>
     </div>
   </header>
@@ -195,6 +200,79 @@
         </table>
         <p class="boards-empty" data-testid="boards-empty" hidden></p>
       </div>
+    </div>
+  </section>
+
+  <!-- multiplayer (docs/multiplayer.md §8): queue, match found and 3-2-1, and the notes -->
+  <section class="screen screen-center" id="screen-lobby" hidden>
+    <h1 class="lobby-title" id="lobby-title" data-testid="lobby-title">Looking for players…</h1>
+    <ul class="lobby-players" id="lobby-players" data-testid="lobby-players" aria-label="Players in this match" hidden></ul>
+    <div class="lobby-count" id="lobby-count" data-testid="lobby-count" aria-hidden="true" hidden>3</div>
+    <p class="lobby-text" id="lobby-text" data-testid="lobby-text"></p>
+    <div class="lobby-actions">
+      <button type="button" class="button" id="lobby-cancel" data-testid="lobby-cancel">Cancel</button>
+      <button type="button" class="button button-primary" id="lobby-again" data-testid="lobby-again" hidden>Find a match</button>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-match" hidden>
+    <div class="game-main">
+      <div class="grid-area" aria-label="Grid">
+        <div class="grid" id="m-grid" data-testid="m-grid" role="group"></div>
+      </div>
+      <aside class="m-side" aria-label="Your words">
+        <div class="found-head">Your words</div>
+        <div class="m-showcase" data-testid="m-showcase-box" hidden>
+          <span>Showcase word</span>
+          <strong id="m-showcase" data-testid="m-showcase"></strong>
+        </div>
+        <ul class="found-list" id="m-found-list" data-testid="m-found-list"></ul>
+      </aside>
+    </div>
+    <div class="m-words" id="m-words" data-testid="m-words"></div>
+    <ul class="popups" id="m-popups" data-testid="m-popups"></ul>
+    <div class="solution">
+      <div class="solution-word">
+        <span class="preview" id="m-preview" data-testid="m-preview" data-empty="true">Click tiles to build a word</span>
+      </div>
+      <button type="button" class="button button-showcase" data-testid="m-showcase-button">Showcase word</button>
+      <button type="button" class="button" data-testid="m-clear">Clear</button>
+      <button type="button" class="button button-primary" data-testid="m-submit">Submit</button>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-vote" hidden>
+    <div class="vote-main">
+      <div>
+        <h1 class="over-title">Creativity vote</h1>
+        <p class="over-sub" id="vote-sub" data-testid="vote-sub"></p>
+      </div>
+      <ul class="vote-cands" id="vote-cands" data-testid="vote-cands" aria-label="The others’ showcase words"></ul>
+      <ol class="vote-slots" id="vote-slots" data-testid="vote-slots" aria-label="Your ranking"></ol>
+    </div>
+    <div class="solution">
+      <span class="over-note" id="vote-status" data-testid="vote-status"></span>
+      <button type="button" class="button" data-testid="vote-reset">Reset</button>
+      <button type="button" class="button button-primary" data-testid="vote-send">Send vote</button>
+    </div>
+  </section>
+
+  <section class="screen" id="screen-results" hidden>
+    <div class="res-main">
+      <div>
+        <h1 class="over-title">Results</h1>
+        <p class="over-sub" id="res-sub" data-testid="res-sub"></p>
+      </div>
+      <ol class="res-players" id="res-players" data-testid="res-players"></ol>
+      <section class="res-missed" aria-labelledby="res-missed-head">
+        <h2 class="over-head" id="res-missed-head">Words nobody found</h2>
+        <ul class="over-grid" id="res-missed" data-testid="res-missed"></ul>
+      </section>
+    </div>
+    <div class="solution">
+      <span class="over-note">Only this match’s players can open this page’s link.</span>
+      <button type="button" class="button" data-testid="res-solo">Play solo</button>
+      <button type="button" class="button button-primary" data-testid="res-again">Play again</button>
     </div>
   </section>
 

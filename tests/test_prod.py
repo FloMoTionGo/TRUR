@@ -64,6 +64,15 @@ def test_fly_toml() -> None:
     assert FLY["env"]["DATA_DIR"] == "/data"
 
 
+def test_match_streams_fit_flys_request_limit() -> None:
+    """TS §6 step M7: every open stream is a request to Fly, so full matches, a full queue and 25 requests
+    of headroom must stay under hard_limit (docs/multiplayer.md §6.8)."""
+    s = load_settings(FLY["env"])
+    budget = s.match_max_active * s.match_max_players + s.match_max_queue + 25
+    assert budget <= FLY["http_service"]["concurrency"]["hard_limit"], budget
+    assert "--timeout-graceful-shutdown" in DOCKERFILE
+
+
 def test_fly_env_is_the_production_column() -> None:
     s = load_settings(FLY["env"])
     assert s.db_path == Path("/data/trur.db")

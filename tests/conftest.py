@@ -2,6 +2,7 @@ import random
 import shutil
 import socket
 import sqlite3
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -191,9 +192,14 @@ def live_overrides() -> dict[str, object]:
     return {}
 
 
-def serve(db_path: Path, clock: FakeClock, seed: int, overrides: dict[str, object], **config: object) -> Iterator[LiveServer]:
+def serve(
+    db_path: Path, clock: FakeClock, seed: int, overrides: dict[str, object], port: int = 0, **config: object,
+) -> Iterator[LiveServer]:
+    """port: 0 picks a free one; a test restarts a stopped server on its old port, as a deploy would."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("127.0.0.1", 0))
+    if port and sys.platform != "win32":
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # the old server's connections may be in TIME_WAIT
+    sock.bind(("127.0.0.1", port))
     base_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
     settings = make_settings(db_path.parent, allowed_origins=(base_url,), **overrides)
     app = create_app(settings, clock, random.Random(seed))

@@ -2,6 +2,7 @@
 
 import { api, ApiError } from "./api.js";
 import { notify, startGame } from "./game.js";
+import { leaveMatch, openMatch, resumeMatch } from "./match.js";
 import { showScreen, showStatus } from "./screens.js";
 
 const THEME_KEY = "trur-theme";
@@ -69,11 +70,13 @@ async function play() {
   await startGame("free");
 }
 
-// --- the Free | Daily switch ---
+// --- the Free | Daily | Multi switch ---
 
 for (const button of document.querySelectorAll(".modes button")) {
   button.addEventListener("click", async () => {
+    if (button.dataset.mode === "match") return openMatch();
     try {
+      await leaveMatch(); // leaves the queue; a running match goes on and Multi returns to it
       await startGame(button.dataset.mode);
     } catch (err) {
       notify(`Couldn’t open ${button.textContent}`, err instanceof ApiError ? err.message : "Something went wrong.");
@@ -95,6 +98,7 @@ async function boot() {
     return showStatus(err.message);
   }
   try {
+    if (await resumeMatch()) return; // a results link, or a queue or match still running after a reload
     await play();
   } catch (err) {
     showStatus(err instanceof ApiError ? err.message : "Something went wrong.");

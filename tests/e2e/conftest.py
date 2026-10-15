@@ -98,6 +98,8 @@ class FakeApi:
             return route.fulfill(status=201, json={"nickname": self.nickname})
         if request.method == "GET" and path == "/api/games/current":
             return route.fulfill(json={"game": None})
+        if request.method == "GET" and path == "/api/match/current":  # boot asks, to resume a match after a reload
+            return route.fulfill(json={"state": "idle", "queue": None, "match": None})
         if request.method == "POST" and path == "/api/games":
             return route.fulfill(status=201, json=self.state())
         if request.method == "POST" and path.endswith("/submit"):

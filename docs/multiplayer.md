@@ -681,6 +681,18 @@ The showcase word and vote are **built inside M1–M6**, not as a later step. Th
    - Then build `web/js/match.js` (queue, countdown, match with the Showcase word button, vote, results, results link) and `web/js/stream.js` (EventSource wrapper: snapshot handling, `close()` on terminal events, "match cancelled" detection through `GET /api/match/current` when the stream closes without a terminal event). Share the grid rendering with `game.js` instead of copying it: use `web/js/grid.js` (render, measured sizing) and `web/js/sheet.js`.
    - **Phones:** the stream stops when the phone locks or the tab goes to the background. On `visibilitychange` back to visible, reopen it if it's closed and rebuild from the snapshot ([§6.5](#65-stream-events)). With `MATCH_STREAM_GONE_S` at 10 s, a player who glances at a notification during the vote counts as "done"; see [§13](#13-open-questions) question 7.
    - *Done when:* the design is approved, and E2E flow 10 passes.
+   - **Built 2026-10-15, ahead of checkpoint I and of the design pass** (owner: "I need multiplayer now", and "make assumptions for all outstanding decisions"). E2E flow 10 passes on desktop and phone, and restart detection works. The assumptions, each open to change in the design pass:
+     1. **Multi joins the queue at once.** There's no separate lobby screen with a Join button; Cancel leaves the queue and goes back to free play.
+     2. **The Free | Daily | Multi switch** shows on the game, game-over, queue and results screens, not during a match or its vote, so a stray tap can't leave a race. Leaving with Free or Daily while queued leaves the queue; inside a match the player stays in it and Multi brings them back (§4).
+     3. **Phone header:** below 440 px the mode buttons are compact (13 px, 8 px padding), which keeps one 48-px row from 320 px up and leaves the wordmark rule (400 px) alone. This stands in for the P9 overflow solution.
+     4. **Tiles:** the fill fades from olive toward the panel colour with the percentage (`color-mix`); at 50 % or less the letters switch to the ink colour for contrast. The percentage shows in the corner from 36-px tiles up. Tiles you used are hatched with a dashed edge and `aria-disabled`, and their accessible name says "used by you".
+     5. **Popups:** on desktop a stack of up to four over the foot of the side panel, never over the grid; on phones only the newest, on one line over the preview row, so Submit and Clear stay visible. Each stays 3.5 s and goes to the screen reader. Bursts are not collapsed yet.
+     6. **The 10-s warning** turns the timer red and shows a warning popup; there's no separate banner, so the grid never moves.
+     7. **Your words during play:** the side panel on desktop (showcase word on top), a one-line strip above the action area on phones.
+     8. **Showcase word button:** olive, at the left of Clear and Submit, without a confirm step.
+     9. **Vote:** tap words in order to fill 1st, 2nd, 3rd (tap again to take one out), Reset, Send vote. After sending: "Waiting for the others (n of m voted)".
+     10. **Results:** places with the winner in orange, word score + vote bonus, the showcase word with its vote points, each player's words, and the words nobody found (hidden when there are none). Play again re-queues; Play solo starts free play. The final board isn't drawn yet.
+     11. **No `retry:` on the stream:** the browser's default reconnect delay (about 3 s) is used after a dropped connection.
 7. **M7 – Release.**
    - Check the concurrency rule from [§6.8](#68-hosting-impact) against `fly.toml`.
    - Run `fly deploy`, then a two-browser smoke check on `https://trur.fly.dev`.

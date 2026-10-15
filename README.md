@@ -10,7 +10,7 @@ A game unlike Wordle, but like Wordle.
 
 The logo is the smallest TRUR grid: TU across the top, RR down the side. The marked tiles read TR + UR = **TRUR**.
 
-> **Status: live at https://trur.fly.dev (since 2026-10-15).** Free play, the daily challenge and the rankings are deployed. The multiplayer backend (M1–M5) is built and tested but its screens aren't, and phone layouts are in progress. See [tasks/todo.md](tasks/todo.md).
+> **Status: live at https://trur.fly.dev (since 2026-10-15).** Free play, the daily challenge, the rankings and multiplayer (press **Multi**) are deployed. The multiplayer screens are built ahead of their design pass, and phone layouts are in progress. See [tasks/todo.md](tasks/todo.md).
 
 ## How to play
 
@@ -41,7 +41,7 @@ The full rules are in [plan.md: Game rules](docs/plan.md#game-rules).
 | --- | --- |
 | **Free play** | A random word pair each game, up to 20 games a day. Missed words are listed when the game ends |
 | **Daily challenge** | Everyone gets the same pair, one game per day. Find a word of 10 or more letters to win. The answers appear after midnight UTC |
-| **Multiplayer** (after go-live) | 2–6 players race on one board for 60 seconds. Each used tile drops to half its value for everyone, and scores stay hidden until the end. See [docs/multiplayer.md](docs/multiplayer.md) |
+| **Multiplayer** | 2–6 players race on one board for 60 seconds. Each used tile drops to half its value for everyone, and scores stay hidden until the end. See [docs/multiplayer.md](docs/multiplayer.md) |
 
 - **Rankings:** a monthly board for each solo mode and a board for each daily challenge, all ranked by best single game.
 - **Players** are anonymous. You pick a nickname, and the browser keeps a secret token in a cookie. There's no login.

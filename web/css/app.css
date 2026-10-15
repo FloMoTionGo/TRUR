@@ -212,7 +212,7 @@ button:disabled { cursor: default; }
 }
 @media (prefers-reduced-motion: reduce) { .tile[data-state="rejected"] { animation: none; } }
 
-.found {
+.found, .m-side { /* .m-side: the match's own word panel (multiplayer, below) */
   width: 190px;
   flex: none;
   margin: 16px 16px 16px 0;
@@ -530,7 +530,7 @@ html:has(dialog[open]) { overflow: hidden; }
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
-  .screen:not(#screen-game) { overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
+  .screen:not(#screen-game):not(#screen-match) { overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
   .screen-center { justify-content: safe center; }
   .bar { height: auto; min-height: 64px; }
   .solution { height: auto; min-height: 88px; }
@@ -567,7 +567,7 @@ html:has(dialog[open]) { overflow: hidden; }
   .found-open::after { content: ""; position: absolute; inset: -8px -2px; } /* 6 px past the border: a 44 px hit area at no layout cost */
 
   /* found sheet (P5): the side panel lives in the sheet on phones */
-  .game-main > .found { display: none; }
+  .game-main > .found, .game-main > .m-side { display: none; }
   .found-flash {
     position: absolute;
     right: -4px;
@@ -686,4 +686,170 @@ html:has(dialog[open]) { overflow: hidden; }
 @keyframes flash-b { 0%, 60% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) {
   .found-open[data-flash] .found-flash { animation: none; opacity: 1; } /* a static highlight while data-flash lasts */
+}
+
+/* === multiplayer (docs/multiplayer.md §8) ===
+   Built from the solo screens' parts, before its Claude Design pass: the queue and 3-2-1 reuse the centred
+   screen, the match reuses the grid and action area, the vote and results the game-over layout. */
+
+/* queue, match found, 3-2-1 and the notes */
+.lobby-title { margin: 0; font-size: 30px; text-align: center; }
+.lobby-text { margin: 0; max-width: 400px; color: var(--muted); font-size: 15px; line-height: 1.5; text-align: center; }
+.lobby-players { list-style: none; margin: 0; padding: 0; max-width: 480px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.lobby-players li { padding: 6px 12px; background: var(--panel); border: 2px solid var(--frame); font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.lobby-count { font-family: var(--font-tile); font-weight: 700; font-size: 96px; line-height: 1; }
+.lobby-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
+/* the match: every tile shows its value; colour fades with it, and a tile you used is hatched and dashed,
+   so neither state relies on colour alone */
+#m-timer { min-width: 4ch; }
+#m-timer[data-warning="true"] { color: var(--red); font-weight: 700; }
+.is-dark #m-timer[data-warning="true"] { color: #F0A59C; }
+#m-grid .tile { position: relative; }
+#m-grid .tile[data-faded="true"]:not([data-state="selected"]):not([data-state="rejected"]) { color: var(--ink); }
+#m-grid .tile[data-label]::after {
+  content: attr(data-label);
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1;
+}
+#m-grid[data-dense="true"] .tile::after { display: none; } /* under 36 px the fade alone shows the value */
+#m-grid .tile[data-locked="true"] { cursor: not-allowed; }
+@media (min-width: 640px) {
+  #m-grid .tile:not([data-state="selected"]):not([data-state="rejected"]) {
+    background-color: color-mix(in srgb, var(--tile) calc(var(--pct, 100) * 1%), var(--panel));
+  }
+  #m-grid .tile[data-locked="true"] {
+    background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--tile-shadow) 6px 8px);
+    border-style: dashed;
+  }
+}
+.m-side .m-showcase { padding: 8px 14px; display: flex; flex-direction: column; gap: 2px; border-bottom: 2px solid var(--line); font-size: 12px; color: var(--muted); }
+.m-side .m-showcase strong { font-family: var(--font-tile); font-size: 15px; color: var(--ink); overflow-wrap: anywhere; }
+.m-words { display: none; } /* phones only: a one-line strip instead of the side panel */
+.button-showcase { background: var(--accent); color: var(--accent-ink); border-color: var(--frame); font-weight: 700; }
+
+/* the popup stack: over the bottom of the side panel on desktop, never over the grid */
+.popups {
+  position: absolute;
+  right: 24px;
+  bottom: 112px;
+  width: 174px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+.popup {
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 2px solid var(--frame);
+  border-left: 8px solid var(--accent);
+  box-shadow: 3px 3px 0 var(--frame-shadow);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.popup span { color: var(--muted); font-size: 12px; }
+.popup[data-kind="note"] { border-left-color: var(--orange); }
+.popup[data-kind="rejected"] { border-left-color: var(--red); }
+.popup[data-kind="warning"] { background: var(--orange); color: var(--on-orange); }
+
+/* the creativity vote */
+.vote-main, .res-main { flex: 1; min-height: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+.vote-cands { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.cand {
+  min-height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  font-family: var(--font-tile);
+  font-weight: 700;
+  font-size: 17px;
+}
+.cand[aria-pressed="true"] { background: var(--orange); color: var(--on-orange); border-color: var(--frame); box-shadow: 3px 3px 0 var(--frame-shadow); }
+.cand-rank { font-family: var(--font-ui); font-size: 12px; }
+.cand:disabled { opacity: .6; }
+.vote-slots { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; }
+.slot { flex: 1; min-width: 0; min-height: 60px; padding: 8px 12px; display: flex; flex-direction: column; justify-content: center; gap: 2px; border: 2px dashed var(--line); }
+.slot[data-filled="true"] { border-style: solid; border-color: var(--frame); }
+.slot-label { font-size: 12px; color: var(--muted); }
+.slot strong { font-family: var(--font-tile); font-size: 16px; overflow-wrap: anywhere; }
+
+/* results */
+.res-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.res-player { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; background: var(--panel); }
+.res-player[data-place="1"] { border: 2px solid var(--frame); background: var(--orange); color: var(--on-orange); }
+.res-row { display: flex; align-items: baseline; gap: 12px; }
+.res-place { width: 24px; font-family: var(--font-tile); font-weight: 700; font-size: 18px; }
+.res-name { flex: 1; min-width: 0; font-weight: 700; font-size: 17px; overflow-wrap: anywhere; }
+.res-score { font-family: var(--font-tile); font-weight: 700; font-size: 22px; }
+.res-detail { margin: 0 0 0 36px; font-size: 13px; }
+.res-words { list-style: none; margin: 0 0 0 36px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--font-tile); font-size: 13px; }
+.res-words li { display: flex; gap: 6px; }
+.res-words .pts { opacity: .75; }
+.res-missed { display: flex; flex-direction: column; border: 2px solid var(--line); }
+.res-missed .over-head { border-bottom: 2px solid var(--line); }
+.res-missed .over-grid { flex: none; }
+
+@media (max-width: 639px) {
+  /* the match screen follows the solo game screen (P6): measured grid, then a word strip and the action area */
+  #m-grid .tile:not([data-state="selected"]):not([data-state="rejected"])::before {
+    background-color: color-mix(in srgb, var(--tile) calc(var(--pct, 100) * 1%), var(--panel));
+  }
+  #m-grid .tile[data-locked="true"]::before {
+    background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--tile-shadow) 5px 7px);
+    border-style: dashed;
+  }
+  .m-words {
+    display: block;
+    flex: none;
+    padding: 4px 12px;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-family: var(--font-tile);
+    font-size: 13px;
+    color: var(--muted);
+    border-top: 2px solid var(--line);
+  }
+  #screen-match .solution { min-height: 0; flex-wrap: wrap; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); gap: 8px; }
+  #screen-match .solution-word { flex: 1 0 100%; min-height: 28px; }
+  #screen-match .preview { margin-left: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  #screen-match .solution .button { min-height: 48px; }
+  #screen-match [data-testid="m-submit"] { flex: 1; } /* Showcase on the far left, Submit wide on the right */
+  /* phones: only the newest popup, on one line over the preview row, so Submit and Clear stay in view
+     (the stack has no room here; the screen reader still hears every one) */
+  .popups {
+    left: 50%;
+    right: auto;
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 52px);
+    transform: translateX(-50%);
+    width: calc(100% - 24px);
+  }
+  .popup:not(:last-child), .popup span { display: none; }
+  .popup { padding: 4px 10px; }
+  #screen-results .over-note { display: none; }
+  .vote-main, .res-main { padding: 16px 12px; overflow-y: visible; }
+  .vote-slots { flex-direction: column; }
+  .res-detail, .res-words { margin-left: 0; }
+  .lobby-count { font-size: 72px; }
+}
+/* the three-way mode switch on phones: compact buttons keep the header on one 48 px row from 320 px up,
+   and from 400 px, where the wordmark comes back */
+@media (max-width: 439px) {
+  .modes button { padding: 6px 8px; font-size: 13px; }
 }

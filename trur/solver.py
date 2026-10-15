@@ -9,17 +9,24 @@ indexes (0, 2, …) and word2's letters at odd indexes.
 
 import datetime
 import json
+import math
 import random
 import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from functools import lru_cache
+from itertools import accumulate
 from pathlib import Path
 from typing import NamedTuple
 
 MIN_TILES = 2
 MAX_TRIES = 3
 WIN_LETTERS = 10
+
+# Source words are drawn by length on a bell curve around 6 letters (owner, 2026-10-14): length L weighs
+# exp(-(L - LENGTH_PEAK)² / 2·LENGTH_SD²), shared evenly by the source words of that length.
+LENGTH_PEAK = 6
+LENGTH_SD = 1.0
 
 Tile = tuple[int, int]  # (row → word2 index, col → word1 index)
 
@@ -44,6 +51,7 @@ class Lexicon:
             raise ValueError(f"source words not in the dictionary: {missing[:5]}")
         self.words = words
         self.source = tuple(source)  # index i ⇒ freq_rank i+1
+        self.cum_weights = tuple(accumulate(length_weights(self.source)))  # for pick_pair
         # Every candidate: even length ≥ 4 (at least MIN_TILES tiles).
         self._candidates = tuple(
             (w, _mask(w[0::2]), _mask(w[1::2]), tuple(_pairs(w).items()))
@@ -64,6 +72,12 @@ class Lexicon:
             if all(n <= count1[p[0]] * count2[p[1]] for p, n in pairs):
                 found.append(word)
         return tuple(found)
+
+
+def length_weights(source: Sequence[str]) -> list[float]:
+    """Each source word's draw weight: the bell curve at its length, split among the words of that length."""
+    counts = Counter(map(len, source))
+    return [math.exp(-((len(w) - LENGTH_PEAK) ** 2) / (2 * LENGTH_SD**2)) / counts[len(w)] for w in source]
 
 
 def _read_words(path: Path) -> list[str]:
@@ -117,13 +131,15 @@ def pick_pair(
     accept: Callable[[str, str, tuple[str, ...]], bool],
     max_attempts: int = 5000,
 ) -> tuple[str, str, tuple[str, ...]]:
-    """Draw two distinct source words in a random orientation until `accept` takes one.
+    """Draw two distinct source words, by length_weights, until `accept` takes one.
 
-    The orientation is drawn before the check, because the grid isn't symmetric
-    (docs/architecture.md §8 item 19). LookupError after max_attempts.
+    Each word is drawn on its own, so the orientation is random too. It is drawn before the check,
+    because the grid isn't symmetric (docs/architecture.md §8 item 19). LookupError after max_attempts.
     """
     for _ in range(max_attempts):
-        word1, word2 = rng.sample(lex.source, 2)
+        word1, word2 = rng.choices(lex.source, cum_weights=lex.cum_weights, k=2)
+        if word1 == word2:
+            continue
         answers = lex.solve(word1, word2)
         if accept(word1, word2, answers):
             return word1, word2, answers

@@ -133,13 +133,13 @@ def test_match_id_tiles_and_ballot(alice: TestClient, db_path: Path, payload: st
     match_id = quote(payload, safe="")  # as sent on the wire
     for r in (
         alice.post(f"/api/match/{match_id}/submit", json={"tiles": [[4, 0], [5, 1]]}),
-        alice.post(f"/api/match/{match_id}/display", json={"tiles": [[4, 0], [5, 1]]}),
+        alice.post(f"/api/match/{match_id}/showcase", json={"tiles": [[4, 0], [5, 1]]}),
         alice.post(f"/api/match/{match_id}/vote", json={"ranking": ["c1"]}),
         alice.get(f"/api/match/{match_id}/results"),
     ):
         assert r.status_code in (404, 405), r.text
         assert_harmless(r, db_path, before)
-    for action in ("submit", "display"):
+    for action in ("submit", "showcase"):
         for tiles in ([[payload, 0], [5, 1]], [payload, [5, 1]], payload):
             assert_harmless(alice.post(f"/api/match/{NO_MATCH}/{action}", json={"tiles": tiles}), db_path, before)
     for ranking in ([payload], payload):

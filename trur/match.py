@@ -2,7 +2,7 @@
 
 Stdlib only, no I/O and no clock reads: every time and every random source is passed in, so the
 lobby, the tests and the sandbox drive it the same way. A match is one shared grid; each accepted
-word (or display word) halves its tiles for everyone and locks them for its player.
+word halves its tiles for everyone and locks them for its player. A showcase word only locks them.
 """
 
 import random
@@ -52,7 +52,7 @@ class FoundWord:
 
 
 @dataclass(frozen=True)
-class DisplayWord:
+class ShowcaseWord:
     word: str
     tiles: tuple[Tile, ...]
     at: datetime
@@ -60,11 +60,11 @@ class DisplayWord:
 
 @dataclass(frozen=True)
 class MatchEvent:
-    """One submit, display word or ballot, in order, for saving (§6.6)."""
-    kind: Literal["word", "display", "vote"]
+    """One submit, showcase word or ballot, in order, for saving (§6.6)."""
+    kind: Literal["word", "showcase", "vote"]
     user_id: str
     at: datetime
-    status: Literal["accepted", "duplicate", "rejected", "displayed", "voted"]
+    status: Literal["accepted", "duplicate", "rejected", "showcased", "voted"]
     word: str = ""
     tiles: tuple[Tile, ...] = ()
     points: int = 0
@@ -83,11 +83,6 @@ class SubmitOutcome(NamedTuple):
     changes: tuple[Change, ...]  # empty unless accepted
 
 
-class DisplayOutcome(NamedTuple):
-    word: str
-    changes: tuple[Change, ...]
-
-
 class Candidate(NamedTuple):
     id: str
     word: str
@@ -99,7 +94,7 @@ class PlayerState:
     sort_key: str  # nickname_key; orders tied places
     locked: set[Tile] = field(default_factory=set)
     found: dict[str, FoundWord] = field(default_factory=dict)
-    display: DisplayWord | None = None
+    showcase: ShowcaseWord | None = None
     ballot: tuple[str, ...] | None = None  # candidate ids, best first; None = not voted
 
 
@@ -222,22 +217,23 @@ def submit(m: Match, user_id: str, tiles: Sequence[Tile], now: datetime) -> Subm
     return SubmitOutcome("accepted", word, score, _use(m, p, tiles))
 
 
-def display(m: Match, user_id: str, tiles: Sequence[Tile], now: datetime) -> DisplayOutcome:
-    """No dictionary or duplicate check and no points; otherwise like an accepted word (§3.6)."""
+def showcase(m: Match, user_id: str, tiles: Sequence[Tile], now: datetime) -> str:
+    """No dictionary or duplicate check, no points and no halving: it only locks its tiles for its player (§3.6)."""
     p, word, tiles = _check_play(m, user_id, tiles, now)
     if any(t in p.locked for t in tiles):
         raise TileLocked()
-    p.display = DisplayWord(word, tiles, now)
-    m.log.append(MatchEvent("display", user_id, now, "displayed", word, tiles))
-    return DisplayOutcome(word, _use(m, p, tiles))
+    p.showcase = ShowcaseWord(word, tiles, now)
+    p.locked.update(tiles)
+    m.log.append(MatchEvent("showcase", user_id, now, "showcased", word, tiles))
+    return word
 
 
 # --- the creativity vote (§3.7) ---
 
 def close_play(m: Match, now: datetime, rng: random.Random) -> bool:
-    """Close play and draw candidate ids. False = fewer than two display words: no vote."""
+    """Close play and draw candidate ids. False = fewer than two showcase words: no vote."""
     m.closed_at = now
-    authors = [uid for uid, p in m.players.items() if p.display is not None]
+    authors = [uid for uid, p in m.players.items() if p.showcase is not None]
     ids = [f"c{i}" for i in range(1, len(authors) + 1)]
     rng.shuffle(ids)
     m.candidates = dict(zip(ids, authors))
@@ -246,9 +242,9 @@ def close_play(m: Match, now: datetime, rng: random.Random) -> bool:
 
 
 def ballot_for(m: Match, user_id: str, rng: random.Random) -> list[Candidate]:
-    """The other players' display words, without names, shuffled for this voter."""
+    """The other players' showcase words, without names, shuffled for this voter."""
     ballot = [
-        Candidate(cid, m.players[uid].display.word)  # type: ignore[union-attr]  # candidates all have one
+        Candidate(cid, m.players[uid].showcase.word)  # type: ignore[union-attr]  # candidates all have one
         for cid, uid in sorted(m.candidates.items())
         if uid != user_id
     ]
@@ -285,7 +281,7 @@ class PlayerRecord:
     nickname: str
     sort_key: str
     words: tuple[FoundWord, ...]  # in the order found
-    display: DisplayWord | None  # the last one
+    showcase: ShowcaseWord | None  # the last one
     votes_cast: tuple[str, ...]  # target user_ids, best first; empty if not voted
 
 
@@ -317,7 +313,7 @@ def finish(m: Match, now: datetime) -> MatchRecord:
                 p.nickname,
                 p.sort_key,
                 tuple(p.found.values()),
-                p.display,
+                p.showcase,
                 tuple(m.candidates[c] for c in p.ballot or ()),
             )
             for uid, p in m.players.items()
@@ -339,17 +335,17 @@ def results(rec: MatchRecord) -> dict:
         word_score = sum(w.points for w in p.words)
         disp = None
         vote_bonus = 0
-        if p.display is not None:
+        if p.showcase is not None:
             got = received.get(p.user_id, 0)
             vote_bonus = bonus(got, sum(1 for v in ballots if v != p.user_id))
-            disp = {"word": p.display.word, "votes": got, "bonus": vote_bonus}
+            disp = {"word": p.showcase.word, "votes": got, "bonus": vote_bonus}
         rows.append({
             "user_id": p.user_id,
             "nickname": p.nickname,
             "sort_key": p.sort_key,
             "score": word_score + vote_bonus,
             "word_score": word_score,
-            "display": disp,
+            "showcase": disp,
             "words": [{"word": w.word, "points": w.points} for w in p.words],
         })
     rows.sort(key=lambda r: (-r["score"], r["sort_key"]))

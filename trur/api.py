@@ -412,7 +412,7 @@ def _changes(changes: tuple[match.Change, ...]) -> list[dict]:
 
 
 def _submit_gap(request: Request, player: sqlite3.Row) -> None:
-    """MATCH_SUBMIT_MIN_GAP_S between a player's submits and display words, checked before anything changes."""
+    """MATCH_SUBMIT_MIN_GAP_S between a player's submits and showcase words, checked before anything changes."""
     gap = request.app.state.settings.match_submit_min_gap_s
     request.app.state.limiter.check(f"match-submit:{player['id']}", 1, gap)
 
@@ -425,12 +425,12 @@ async def match_submit(match_id: str, body: Submission, request: Request, player
     return {"status": out.status, "word": out.word, "changes": _changes(out.changes)}  # never the points
 
 
-@router.post("/api/match/{match_id}/display", dependencies=POST)
-async def match_display(match_id: str, body: Submission, request: Request, player: MatchPlayer) -> dict:
+@router.post("/api/match/{match_id}/showcase", dependencies=POST)
+async def match_showcase(match_id: str, body: Submission, request: Request, player: MatchPlayer) -> dict:
     mid = _match_id(match_id)
     _submit_gap(request, player)
-    out = _lobby(request).display(player["id"], mid, _tiles(body), _now(request))
-    return {"status": "displayed", "word": out.word, "changes": _changes(out.changes)}
+    word = _lobby(request).showcase(player["id"], mid, _tiles(body), _now(request))
+    return {"status": "showcased", "word": word}
 
 
 @router.post("/api/match/{match_id}/vote", status_code=204, dependencies=POST)

@@ -170,55 +170,60 @@ def test_ends_in_ms_never_negative() -> None:
     assert match.ms_until(m.ends_at, m.ends_at + timedelta(seconds=5)) == 0
 
 
-# --- display word ---
+# --- showcase word ---
 
 @pytest.mark.parametrize("word", ["GEAR", "RUAR"])  # in answers or not
-def test_display_word_locks_halves_and_scores_nothing(word: str) -> None:
+def test_showcase_word_locks_scores_nothing_and_halves_nothing(word: str) -> None:
     m = make_match()
-    out = match.display(m, "A", tiles(m, word), PLAY)
-    assert out.word == word and all(c.pct == 50 for c in out.changes)
+    assert match.showcase(m, "A", tiles(m, word), PLAY) == word
     assert m.players["A"].locked == set(tiles(m, word))
-    assert m.players["A"].found == {}
+    assert m.players["A"].found == {} and grid(m) == {}
     rec = match.finish(m, PLAY)
     assert match.results(rec)["players"][0]["word_score"] == 0
 
 
-def test_second_display_word_replaces_first() -> None:
+def test_showcase_tiles_stay_full_value_for_the_others() -> None:
     m = make_match()
-    match.display(m, "A", tiles(m, "GEAR"), PLAY)
-    match.display(m, "A", tiles(m, "DEER"), PLAY)
-    assert m.players["A"].display.word == "DEER"
+    match.showcase(m, "A", tiles(m, "GEAR"), PLAY)
+    assert play(m, "B", "GEAR") == ("accepted", "GEAR", 4, ((tile(m, "GE"), 50), (tile(m, "AR"), 50)))
+
+
+def test_second_showcase_word_replaces_first() -> None:
+    m = make_match()
+    match.showcase(m, "A", tiles(m, "GEAR"), PLAY)
+    match.showcase(m, "A", tiles(m, "DEER"), PLAY)
+    assert m.players["A"].showcase.word == "DEER"
     assert m.players["A"].locked == set(tiles(m, "GEAR") + tiles(m, "DEER"))
-    assert grid(m) == {"GE": 50, "AR": 50, "DE": 50, "ER": 50}
-    assert [e.word for e in m.log if e.kind == "display"] == ["GEAR", "DEER"]
+    assert grid(m) == {}
+    assert [(e.word, e.status) for e in m.log if e.kind == "showcase"] == [("GEAR", "showcased"), ("DEER", "showcased")]
 
 
-def test_display_word_refusals() -> None:
+def test_showcase_word_refusals() -> None:
     m = make_match()
     play(m, "A", "GEAR")
     with pytest.raises(TileLocked):
-        match.display(m, "A", tiles(m, "NEAR"), PLAY)
+        match.showcase(m, "A", tiles(m, "NEAR"), PLAY)
     with pytest.raises(NotRunning):
-        match.display(m, "B", tiles(m, "NEAR"), T0 - timedelta(microseconds=1))
+        match.showcase(m, "B", tiles(m, "NEAR"), T0 - timedelta(microseconds=1))
     with pytest.raises(NotRunning):
-        match.display(m, "B", tiles(m, "NEAR"), m.ends_at + timedelta(milliseconds=301))
+        match.showcase(m, "B", tiles(m, "NEAR"), m.ends_at + timedelta(milliseconds=301))
 
 
-def test_display_word_equal_to_a_found_word() -> None:
+def test_showcase_word_equal_to_a_found_word() -> None:
     m = make_match("GARAGE", "SUMMER", {"AMAM"})
     match.submit(m, "A", [(2, 1), (3, 3)], PLAY)
-    match.display(m, "A", [(3, 1), (2, 3)], PLAY)
-    assert m.players["A"].display.word == "AMAM"
+    match.showcase(m, "A", [(3, 1), (2, 3)], PLAY)
+    assert m.players["A"].showcase.word == "AMAM"
     assert list(m.players["A"].found) == ["AMAM"] and m.players["A"].found["AMAM"].points == 4
 
 
-@pytest.mark.parametrize("displays, expected", [("", False), ("A", False), ("AB", True)])
-def test_close_play_needs_two_display_words(displays: str, expected: bool) -> None:
+@pytest.mark.parametrize("showcases, expected", [("", False), ("A", False), ("AB", True)])
+def test_close_play_needs_two_showcase_words(showcases: str, expected: bool) -> None:
     m = make_match()
-    for p, word in zip(displays, ["GEAR", "DEER"]):
-        match.display(m, p, tiles(m, word), PLAY)
+    for p, word in zip(showcases, ["GEAR", "DEER"]):
+        match.showcase(m, p, tiles(m, word), PLAY)
     assert match.close_play(m, PLAY, random.Random(0)) is expected
-    assert sorted(m.candidates) == [f"c{i}" for i in range(1, len(displays) + 1)]
+    assert sorted(m.candidates) == [f"c{i}" for i in range(1, len(showcases) + 1)]
 
 
 # --- the vote ---
@@ -227,10 +232,10 @@ CLOSED = T0 + timedelta(seconds=61)
 VOTE = CLOSED + timedelta(seconds=1)
 
 
-def voting_match(displays: dict[str, str], players: str = "ABCD") -> match.Match:
+def voting_match(showcases: dict[str, str], players: str = "ABCD") -> match.Match:
     m = make_match(players=players)
-    for p, word in displays.items():
-        match.display(m, p, tiles(m, word), PLAY)
+    for p, word in showcases.items():
+        match.showcase(m, p, tiles(m, word), PLAY)
     match.close_play(m, CLOSED, random.Random(0))
     return m
 
@@ -269,7 +274,7 @@ def test_vote_once_and_in_time() -> None:
 
 def test_no_vote_before_close_or_when_skipped() -> None:
     m = make_match()
-    match.display(m, "A", tiles(m, "GEAR"), PLAY)
+    match.showcase(m, "A", tiles(m, "GEAR"), PLAY)
     with pytest.raises(NotVoting):
         match.vote(m, "B", ["c1"], PLAY)
     match.close_play(m, CLOSED, random.Random(0))
@@ -281,7 +286,7 @@ def test_two_candidates_points() -> None:
     m = voting_match({"A": "GEAR", "B": "DEER", "C": "RUNE"})
     match.vote(m, "C", [cid(m, "A"), cid(m, "B")], VOTE)
     match.vote(m, "B", [cid(m, "A")], VOTE)
-    disp = {p["nickname"]: p["display"] for p in match.results(match.finish(m, VOTE))["players"]}
+    disp = {p["nickname"]: p["showcase"] for p in match.results(match.finish(m, VOTE))["players"]}
     assert disp["A"]["votes"] == 10 and disp["B"]["votes"] == 3 and disp["C"]["votes"] == 0
     assert disp["D"] is None
 
@@ -291,11 +296,11 @@ def test_bonus(received: int, ballots: int, expected: int) -> None:
     assert bonus(received, ballots) == expected
 
 
-def test_player_without_display_word_votes_and_gets_no_bonus() -> None:
+def test_player_without_showcase_word_votes_and_gets_no_bonus() -> None:
     m = voting_match({"A": "GEAR", "B": "DEER"}, players="ABC")
     match.vote(m, "C", [cid(m, "A")], VOTE)
     rows = {p["nickname"]: p for p in match.results(match.finish(m, VOTE))["players"]}
-    assert rows["C"]["display"] is None and rows["C"]["score"] == 0
+    assert rows["C"]["showcase"] is None and rows["C"]["score"] == 0
 
 
 def test_worked_results_example() -> None:
@@ -303,14 +308,14 @@ def test_worked_results_example() -> None:
     play(m, "A", "GEAR")  # 4
     play(m, "B", "NEARER")  # 8
     play(m, "C", "DEER")  # 3 (DE 100, ER 50)
-    match.display(m, "A", tiles(m, "RUNS"), PLAY)
-    match.display(m, "B", [(0, 0), (1, 3)], PLAY)  # GSDU, not a word
+    match.showcase(m, "A", tiles(m, "RUNS"), PLAY)
+    match.showcase(m, "B", [(0, 0), (1, 3)], PLAY)  # GSDU, not a word
     assert match.close_play(m, CLOSED, random.Random(0))
     match.vote(m, "B", [cid(m, "A")], VOTE)
     match.vote(m, "C", [cid(m, "A")], VOTE)
     match.vote(m, "A", [cid(m, "B")], VOTE)
     res = match.results(match.finish(m, VOTE))
-    rows = [(p["place"], p["nickname"], p["word_score"], p["display"], p["score"]) for p in res["players"]]
+    rows = [(p["place"], p["nickname"], p["word_score"], p["showcase"], p["score"]) for p in res["players"]]
     assert rows == [
         (1, "B", 8, {"word": "GSDU", "votes": 5, "bonus": 3}, 11),  # 2.5 rounds up
         (2, "A", 4, {"word": "RUNS", "votes": 10, "bonus": 5}, 9),

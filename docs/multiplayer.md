@@ -1,6 +1,6 @@
 # TRUR – Multiplayer
 
-Rules, design and build plan for the **multiplayer match**, from the `multiplayer games` section of `requirements` and the owner's answers on 2026-10-11. The **display word and creativity vote** ([§3.6](#36-display-word), [§3.7](#37-creativity-vote)) come from the `multiplayer mode` notes in `requirements`, added on 2026-10-12.
+Rules, design and build plan for the **multiplayer match**, from the `multiplayer games` section of `requirements` and the owner's answers on 2026-10-11. The **showcase word and creativity vote** ([§3.6](#36-showcase-word), [§3.7](#37-creativity-vote)) come from the `multiplayer mode` notes in `requirements`, added on 2026-10-12. The notes call it the display word; the owner renamed it on 2026-10-14.
 
 - [plan.md](plan.md) still owns the solo rules (free play, daily challenge). Nothing here changes them.
 - Module, setting and endpoint names follow [architecture.md](architecture.md). Test conventions follow [test-strategy.md](test-strategy.md).
@@ -11,7 +11,7 @@ Rules, design and build plan for the **multiplayer match**, from the `multiplaye
 
 2–6 players play **the same board at the same time for 60 seconds**. Every tile starts at 100 %. Each time anyone uses a tile in an accepted word, that tile drops to half its value for everyone. Scores stay hidden until the end, so players race for fresh tiles while only seeing which tiles others used and how long their words were.
 
-Each player can also set one **display word**: any string of tiles, not checked against the dictionary. After play, everyone votes on the other players' display words for creativity, and the votes add a bonus to the final score.
+Each player can also set one **showcase word**: any string of tiles, not checked against the dictionary. After play, everyone votes on the other players' showcase words for creativity, and the votes add a bonus to the final score.
 
 ## 2. Decisions
 
@@ -33,8 +33,8 @@ Each player can also set one **display word**: any string of tiles, not checked 
 | Server full | **Refused at once** with "Server busy, try again later". Nobody waits for a slot |
 | Results | **Stay viewable** through a results link. A snapshot is stored with each match, and only the match's own players can open it |
 | Rankings | **None for now.** No board means no plausibility check or flagging for matches |
-| Display word | A **Display word** button next to Submit. It sends the current selection **without a dictionary check** and **no word points**, but otherwise acts like an accepted word: the tiles lock for you, halve for everyone, and others get the usual popup. It can be pressed again; **only the last one counts** ([§3.6](#36-display-word)) |
-| Creativity vote | After play, a **vote of up to 60 s**, which **finishes at once when every connected player has voted** (owner, 2026-10-12). A player whose stream has been gone for `MATCH_STREAM_GONE_S` (10 s) counts as done. Each player ranks up to three **other** players' display words, worth **5, 3 and 1** points. Names and scores stay hidden while voting ([§3.7](#37-creativity-vote)) |
+| Showcase word | A **Showcase word** button next to Submit. It sends the current selection **without a dictionary check** and **no word points**. Its tiles **lock for you** but **don't halve** for anyone, and the others get the popup "*FloMo* set a showcase word", without the word or its length (owner, 2026-10-14). It can be pressed again; **only the last one counts** ([§3.6](#36-showcase-word)) |
+| Creativity vote | After play, a **vote of up to 60 s**, which **finishes at once when every connected player has voted** (owner, 2026-10-12). A player whose stream has been gone for `MATCH_STREAM_GONE_S` (10 s) counts as done. Each player ranks up to three **other** players' showcase words, worth **5, 3 and 1** points. Names and scores stay hidden while voting ([§3.7](#37-creativity-vote)) |
 | Vote bonus | **Decided (owner, 2026-10-12):** the bonus is the **average** points a word got per ballot, **× 2**, so a unanimous first place gives **10** in any match size. Chosen over the literal rule (sum of all votes, up to 5 × (players − 1) = 25), which decides too many matches; see the assessment in [§3.7](#37-creativity-vote) |
 | Power-ups | **Later phase.** Specified in [§5](#5-power-ups-later-phase), built after the core match is tuned |
 | Players | Same anonymous player + nickname + cookie as solo. A nickname is needed before joining |
@@ -48,7 +48,7 @@ Each player can also set one **display word**: any string of tiles, not checked 
 ```text
  queue ──► match found ──► 3 · 2 · 1 ──► GO ──── 50 s ──► 10 s warning ──► END ──► VOTE (≤ 60 s) ─► results
            (nicknames)     (grid hidden)  grid revealed,                           anonymous      scores, bonus
-                                          60 s timer starts                        display words  and all words shown
+                                          60 s timer starts                        showcase words and all words shown
 ```
 
 1. **Queue.** The player presses **Multiplayer** and waits ([§4](#4-quick-match-and-match-states)).
@@ -59,7 +59,7 @@ Each player can also set one **display word**: any string of tiles, not checked 
 6. **End.** Submits stop at 60 s.
    - A submit that reaches the server up to **300 ms** later still counts, to absorb network delay on a last-second click.
    - Play is closed only **after** those 300 ms. A late word is therefore always in the results.
-7. **Vote, up to 60 s.** Every player sees the other players' display words, anonymous and shuffled, and ranks up to three ([§3.7](#37-creativity-vote)). The vote **finishes automatically as soon as every connected player has voted**. A player whose stream has been gone for 10 s counts as done, so nobody waits for someone who left. The 60 s are only the limit for connected players who don't vote. If fewer than two players set a display word, there's nothing to compare and the vote is skipped: no bonus for anyone.
+7. **Vote, up to 60 s.** Every player sees the other players' showcase words, anonymous and shuffled, and ranks up to three ([§3.7](#37-creativity-vote)). The vote **finishes automatically as soon as every connected player has voted**. A player whose stream has been gone for 10 s counts as done, so nobody waits for someone who left. The 60 s are only the limit for connected players who don't vote. If fewer than two players set a showcase word, there's nothing to compare and the vote is skipped: no bonus for anyone.
 8. **Results.** Places, every player's words with points, the words nobody found, and the final board. The results screen has its own link (`#match/<id>`), which keeps working later.
 
 **Exact boundaries**, all on the server clock. T is the moment the board has been picked.
@@ -82,7 +82,7 @@ The same steps as solo ([plan.md: A turn](plan.md#a-turn)), minus tries:
    - **Accepted:** the word joins your list (no points shown), its tiles lock for you, and every player's board shows those tiles at half their percentage. Everyone else gets the popup.
    - **Already found:** you scored this word before. You get a short note and nothing else changes.
    - **Rejected:** the red reject animation plays. That's all.
-4. **Or press Display word** ([§3.6](#36-display-word)). The selection becomes your display word, shown above your word list, with no check and no points. The tiles lock and halve as for an accepted word.
+4. **Or press Showcase word** ([§3.6](#36-showcase-word)). The selection becomes your showcase word, shown above your word list, with no check and no points. The tiles lock for you, as for an accepted word, but don't halve.
 5. Either way, the selection clears.
 
 ### 3.3 Scoring
@@ -129,48 +129,47 @@ Result: B 8, C 5, A 4. Final board: GE 25 %, AR 13 %, NE 50 %, ER 25 %, DE 50 %,
 | Any score, including yours | nobody, in the game | everyone |
 | Words nobody found | nobody | everyone |
 | Total number of words on the board | nobody | everyone |
-| Your own display word | you | everyone, with its votes and bonus |
-| Other players' display words | only the usual popup, so a display word looks like a found word | during the vote: the words, without names; at the end: with names |
+| Your own showcase word | you | everyone, with its votes and bonus |
+| Other players' showcase words | only the popup "*FloMo* set a showcase word", without the word or its length | during the vote: the words, without names; at the end: with names |
 | Who voted for whom | – | nobody, only each word's total and bonus |
 
 There's no "x of y found" counter: it would only matter as a solo progress bar, and the race doesn't need it.
 
 ### 3.5 Picking the board
 
-- Same picker as free play (`solver.pick_pair`) with its own `accept` rule:
+- Same picker as free play (`solver.pick_pair`), so source-word lengths follow the bell curve around 6 letters ([plan.md](plan.md), *Source-word lengths*), with its own `accept` rule:
   - neither word is one of **today's or tomorrow's daily words** (tomorrow's is public about 3 hours early), because results list every word and would leak the daily answers. Today's pair comes from `ensure_daily_pair`. Tomorrow's comes from the DB, and if it isn't there yet, `import_daily` runs first. If tomorrow hasn't been picked at all, there's nothing to exclude
   - at least **`MIN_MATCH_WORDS`** answers in that orientation. This is set by the spike in step M2, and is expected to be well above free play's N, because up to 6 players share the board and can't reuse their own tiles
 - The pair is picked in a worker thread when the match forms, so the event loop never blocks.
 - **If no pair qualifies** (`LookupError`), the match is cancelled and its players are told so ([§4](#4-quick-match-and-match-states)).
 
-### 3.6 Display word
+### 3.6 Showcase word
 
-The **Display word** button sends the current selection as your display word.
+The **Showcase word** button sends the current selection as your showcase word. The `requirements` notes call it the *display word*; the owner renamed it on 2026-10-14.
 
 - **No dictionary check and no word points.** Any string of at least `MIN_TILES` tiles counts, valid word or not. A real word sent this way scores nothing either; to score it, use Submit.
-- **Everything else is as for an accepted word** ("triggers all other events"):
-  - the tiles **lock for you** for the rest of the match
-  - each tile's `uses` goes up by 1, so it **halves for everyone**
-  - the others get the popup "*FloMo* found an *n*-letter word", the same as for a real word, so they can't tell it apart
-  - the submit gap (`MATCH_SUBMIT_MIN_GAP_S`) and the 300-ms grace apply
-- **Only the last one counts.** You can press it again with other tiles; the new word replaces the old one. The tiles of the old one **stay locked and halved**, so every change costs you tiles.
-- **Already found, locked tiles:** a locked tile can't be selected, so a display word never reuses your own tiles. The display word may match a word you found; that has no effect.
+- **Its tiles lock for you** for the rest of the match, as for an accepted word.
+- **It halves nothing** (owner, 2026-10-14). Each tile's `uses` stays as it is, so the tiles keep their value for everyone else, and no `tiles` event goes out.
+- **The others get the popup "*FloMo* set a showcase word",** without the word or its length (owner, 2026-10-14). The usual "found a 6-letter word" would give it away, since no tile fades, and its length would tell the voters whose word is whose ([§3.7](#37-creativity-vote)).
+- The submit gap (`MATCH_SUBMIT_MIN_GAP_S`) and the 300-ms grace apply.
+- **Only the last one counts.** You can press it again with other tiles; the new word replaces the old one. The tiles of the old one **stay locked**, so every change costs you tiles. Each press sends the popup again.
+- **Already found, locked tiles:** a locked tile can't be selected, so a showcase word never reuses your own tiles. The showcase word may match a word you found; that has no effect.
 - **Not setting one** is allowed. You still vote, but get no bonus.
 
-**Why the tile cost matters.** Without it, the button would be a free way to spoil tiles for others. With it, a player who spams display words locks their own board and can't score, and the submit gap slows them down. That's accepted for friends-only play ([§7](#7-security) M10).
+**Why the lock stays.** It's the button's only cost: tiles spent on a showcase word can't score for you. Until 2026-10-14 the button also halved its tiles for everyone, which made it a way to spoil the board for others; that's gone. The submit gap still limits how often it can be pressed ([§7](#7-security) M10).
 
 ### 3.7 Creativity vote
 
-**Ballot.** After play, each player gets the display words of the **other** players, anonymous and shuffled per voter.
+**Ballot.** After play, each player gets the showcase words of the **other** players, anonymous and shuffled per voter.
 
 - Rank up to three of them: 1st gets **5**, 2nd **3**, 3rd **1** points. With fewer candidates, use the top values only (two candidates: 5 and 3).
 - Voting for your own word is impossible; it isn't on your ballot.
 - One ballot per player, final once sent. A partial ballot (only a 1st place) is allowed. Not voting within 60 s is allowed too: that player's ballot is empty.
-- Players who didn't set a display word still vote.
+- Players who didn't set a showcase word still vote.
 
-**Bonus (decided; scale lowered from 2 to 1 by the owner on 2026-10-13 after step M2).** `bonus = round_half_up(received ÷ ballots)`, where `received` is the sum of points the word got and `ballots` is the number of non-empty ballots from **other** players. In integers: `(2 × received + ballots) // (2 × ballots)`. No ballots, or no display word: 0. The range is 0–5 in every match size, about one fresh 2-tile word.
+**Bonus (decided; scale lowered from 2 to 1 by the owner on 2026-10-13 after step M2).** `bonus = round_half_up(received ÷ ballots)`, where `received` is the sum of points the word got and `ballots` is the number of non-empty ballots from **other** players. In integers: `(2 × received + ballots) // (2 × ballots)`. No ballots, or no showcase word: 0. The range is 0–5 in every match size, about one fresh 2-tile word.
 
-**Assessment of the literal rule** (bonus = sum of votes received). Simulated on 300 matches per player count with the solver, `MIN_MATCH_WORDS` 20, boards capped at 74 words, greedy players finding 5 words each in 60 s, everyone setting a display word and voting at random:
+**Assessment of the literal rule** (bonus = sum of votes received). Simulated on 300 matches per player count with the solver, `MIN_MATCH_WORDS` 20, boards capped at 74 words, greedy players finding 5 words each in 60 s, everyone setting a showcase word and voting at random:
 
 | Players | Median word score | 1st and 2nd within 4 points | Max bonus, sum | Winner changed by votes, sum | Max bonus, average × 2 | Winner changed, average × 2 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -185,7 +184,7 @@ What this shows:
 - **15 is too much, and the sum gets worse with more players.** Word scores shrink as players are added (more halving), while the sum's maximum grows by 5 per player. At 4 players a unanimous 15 is more than half the median score, and even random votes change the winner in a third of matches. At 6 players the vote decides more matches than the words.
 - **Matches are close.** 1st and 2nd are within 4 points in about 70 % of matches, so any bonus matters. That's intended; it shouldn't dominate.
 - **The averaged bonus is flat.** It caps at 10 (about one fresh 3-tile word) and changes the winner in about a quarter of matches at every size. Real votes cluster more than random ones, so expect somewhat more.
-- **With 2 players the vote does nothing** under either rule: each gets the other's only vote. It still rewards setting a display word at all.
+- **With 2 players the vote does nothing** under either rule: each gets the other's only vote. It still rewards setting a showcase word at all.
 - **Tactical voting:** if names or scores were visible, a rational player would give 5 to whoever can't overtake them. So the ballot shows neither, and the results never show who voted for whom.
 
 The owner chose the averaged bonus on 2026-10-12. Step M2 re-ran this with `MIN_MATCH_WORDS` 60: at scale 2 random votes still changed the winner in up to 35 % of matches (4–5 players), over the 30 % limit; at scale 1, at most 24 %. The owner lowered the scale to 1 on 2026-10-13 ([spike-report.md](spike-report.md#decisions-owner-2026-10-13)).
@@ -217,8 +216,8 @@ The owner chose the averaged bonus on 2026-10-12. Step M2 re-ran this with `MIN_
 | forming | no pair qualifies | idle | `match_cancelled` |
 | countdown | `now ≥ starts_at` | running | `start` (words, grid) |
 | running | `now ≥ ends_at − 10 s` | running | `warning` (once) |
-| running | `now > ends_at + 300 ms`, at least two display words | voting | `voting` (that player's ballot) |
-| running | `now > ends_at + 300 ms`, fewer than two display words | idle | `end` (Results), then the stream closes |
+| running | `now > ends_at + 300 ms`, at least two showcase words | voting | `voting` (that player's ballot) |
+| running | `now > ends_at + 300 ms`, fewer than two showcase words | idle | `end` (Results), then the stream closes |
 | voting | `now > vote_ends_at + 300 ms`, or every player is done (voted, or stream gone for 10 s) | idle | `end` (Results), then the stream closes |
 
 - **Leaving** during forming, the countdown, the match or the vote changes nothing: the player stays in the match, their words still count, and they can reload and rejoin until the end. `POST /queue/leave` does nothing in these states. A player who never comes back simply doesn't vote.
@@ -234,7 +233,7 @@ These are specified now so the core design leaves room for them; they're built i
 
 | Power-up (requirements) | Interpretation | Effect | Who sees it |
 | --- | --- | --- | --- |
-| Double word score, 1× per user | Arm it, and your **next accepted word scores ×2**. If that word is rejected, it stays armed. A display word doesn't use it up, since it has no points | doubles one word's points | only you, until the end |
+| Double word score, 1× per user | Arm it, and your **next accepted word scores ×2**. If that word is rejected, it stays armed. A showcase word doesn't use it up, since it has no points | doubles one word's points | only you, until the end |
 | Reduce letter pair multiplier to half | Pick **one tile** and halve its percentage for everyone, without using or locking it. That spoils a tile others want | `uses += 1` on that tile | everyone (the tile fades) |
 | Reduce visibility of pairs that only appear in the lowest-scoring words | For you, **dim every tile that appears only in 2-tile words**, or in no word at all, for 15 s | personal hint | only you |
 | Enhance pairs that appear in many words | For you, **shade tiles by how many answer words use them** (heat map), for 10 s | personal hint | only you |
@@ -297,34 +296,34 @@ COUNTDOWN_S = 3; DURATION_S = 60; WARNING_S = 10; VOTE_S = 60; GRACE = timedelta
 VOTE_POINTS = (5, 3, 1); BONUS_SCALE = 1                                                 # decided rules (§3.7)
 class PlayerState:
     nickname: str; locked: set[Tile]; found: dict[str, FoundWord]   # FoundWord: word, tiles, points, at
-    display: DisplayWord | None                                     # word, tiles, at; the last one only
+    showcase: ShowcaseWord | None                                   # word, tiles, at; the last one only
     ballot: tuple[str, ...] | None                                  # candidate ids, best first; None = not voted
 class Match:
     id: str; word1: str; word2: str; answers: frozenset[str]
     players: dict[str, PlayerState]          # user_id → state; fixed when the match forms
     uses: dict[Tile, int]                    # missing = 0
     starts_at: datetime; ends_at: datetime
-    closed_at: datetime | None               # set once when play closes; submit() and display() check it first
+    closed_at: datetime | None               # set once when play closes; submit() and showcase() check it first
     candidates: dict[str, str]               # candidate id → user_id, random ids, made when play closes
-    log: list[MatchEvent]                    # every submit, display word and ballot, for the DB at the end
+    log: list[MatchEvent]                    # every submit, showcase word and ballot, for the DB at the end
 def pct(uses: int) -> int                               # max(1, round_half_up(100 / 2**uses)): 100, 50, 25, 13, 6, 3, 2, 1
 def word_points(tile_uses: Sequence[int]) -> int        # max(1, (n × Σ pct(u) + 50) // 100)
 def submit(m: Match, user_id: str, tiles: Sequence[Tile], now: datetime) -> SubmitOutcome
     # order: closed or outside [starts_at, ends_at + GRACE] (→ NotRunning) · word_from_tiles (→ ValueError)
     #        · already in found (→ Duplicate) · any tile locked (→ TileLocked)
     #        · word in answers? Accepted: points, lock tiles, uses += 1 : Rejected
-def display(m: Match, user_id: str, tiles: Sequence[Tile], now: datetime) -> DisplayOutcome
+def showcase(m: Match, user_id: str, tiles: Sequence[Tile], now: datetime) -> str   # the word
     # the same order up to the lock check, with no duplicate or dictionary check;
-    # then replace display, lock tiles, uses += 1
+    # then replace the showcase word and lock its tiles; uses don't change
 def close_play(m: Match, now: datetime, rng) -> bool    # sets closed_at, draws candidate ids; False = skip the vote
-def ballot_for(m: Match, user_id: str, rng) -> list[Candidate]   # the others' display words, shuffled per voter
+def ballot_for(m: Match, user_id: str, rng) -> list[Candidate]   # the others' showcase words, shuffled per voter
                                                         # (rng is passed in, like times, so tests are seeded)
 def vote(m: Match, user_id: str, ranking: Sequence[str], now: datetime) -> None
     # outside (closed_at, vote_ends_at + GRACE] → NotVoting · already voted → AlreadyVoted
     # unknown id, own word, repeat, or more than len(VOTE_POINTS) → ValueError
 def bonus(received: int, ballots: int) -> int           # (2 × received + ballots) // (2 × ballots); 0 if no ballots
 def finish(m: Match, now: datetime) -> MatchRecord      # returns a frozen copy (tuples only) for saving
-def results(rec: MatchRecord) -> ResultsData            # place (RANK), user_id, word score, display word, votes, bonus,
+def results(rec: MatchRecord) -> ResultsData            # place (RANK), user_id, word score, showcase word, votes, bonus,
                                                         # score, words; missed; total; final pct
 ```
 
@@ -348,7 +347,7 @@ class Lobby:
     def view(self, user_id, now) -> MatchView
     def connect(self, user_id, now) -> asyncio.Queue | None # subscribe + snapshot first; None when idle (→ 204)
     def submit(self, user_id, match_id, tiles, now) -> SubmitOutcome   # 404 if not a player of that match
-    def display(self, user_id, match_id, tiles, now) -> DisplayOutcome # 404 if not a player of that match
+    def showcase(self, user_id, match_id, tiles, now) -> str           # 404 if not a player of that match; publishes `showcase`
     def vote(self, user_id, match_id, ranking, now) -> None # 404 likewise; ends the vote if everyone is now done
     def tick(self, now) -> list[PickJob | SaveJob]          # synchronous; changes state, publishes, returns jobs
     def pair_picked(self, match_id, pair, now) -> None      # forming → countdown
@@ -369,7 +368,7 @@ async def run(lobby, clock, pick, save, stop: asyncio.Event, tick_s: float) -> N
 - **`tick()` is fully synchronous** and does all the waiting-for-a-thread work through the jobs it returns.
   - Lobby unit tests call `tick()`, `pair_picked()` and `saved()` directly with a `FakeClock`. That needs no event loop, no sleeps and no threads.
   - `asyncio.Queue.put_nowait` works without a running loop.
-  - **Every transition happens in `tick()`**, including forming: the 6th player is grouped at the next tick, at most `MATCH_TICK_MS` later, and a vote that ends on a ballot hands its `SaveJob` to the next tick. `join`, `submit`, `display` and `vote` only change their own player's state and publish.
+  - **Every transition happens in `tick()`**, including forming: the 6th player is grouped at the next tick, at most `MATCH_TICK_MS` later, and a vote that ends on a ballot hands its `SaveJob` to the next tick. `join`, `submit`, `showcase` and `vote` only change their own player's state and publish.
 - **Errors:** the lobby raises `ApiError` with the codes in [§6.4](#64-api-contract), so the routes stay thin. A rule refusal from `match.py` is mapped once, in the lobby.
 - **The pick** is `games.pick_match_pair(conn, lex, s, rng, today)` ([§3.5](#35-picking-the-board)). It lives in `games.py` because it reads the daily pairs, which `lobby.py` may not import. `run()` gets it as a closure built by the lifespan, with its own connection.
   - **The rng (decided in M5):** the pick and the lobby both draw from the app's `rng`, as free play does. `random.Random` is safe to share between threads, and one seeded rng keeps the first board of a live test fixed (GARDEN × SUMMER), as for free play.
@@ -399,7 +398,7 @@ The conventions in [architecture.md §3](architecture.md#3-api-contract) apply: 
 | `GET /api/match/current` | – | 200 MatchView; `state:"idle"` when not queued or playing | 401 |
 | `GET /api/match/stream` | – | 200 `text/event-stream`, starting with `snapshot`; **204** when idle | 401 |
 | `POST /api/match/{id}/submit` | `{"tiles":[[row,col],…]}`, the same shape and limits as solo | 200 `{"status":"accepted"\|"duplicate"\|"rejected","word","changes":[{"row","col","pct"}]}`. **No points**; `changes` is empty unless accepted | 401; 404 (unknown, not a player, or already saved and dropped from memory); 409 `match_not_running` (countdown, or over but not yet saved); 409 `tile_locked`; 422 `invalid_tiles`; 429 under `MATCH_SUBMIT_MIN_GAP_S` since your last submit |
-| `POST /api/match/{id}/display` | `{"tiles":[[row,col],…]}`, as for submit | 200 `{"status":"displayed","word","changes":[{"row","col","pct"}]}` | the same as submit; the submit gap is shared between the two |
+| `POST /api/match/{id}/showcase` | `{"tiles":[[row,col],…]}`, as for submit | 200 `{"status":"showcased","word"}`; no `changes`, since nothing halves | the same as submit; the submit gap is shared between the two |
 | `POST /api/match/{id}/vote` | `{"ranking":["c3","c1"]}`, candidate ids from the ballot, best first, 1–3 entries | 204 | 401; 404; 409 `match_not_voting`; 409 `already_voted`; 422 `invalid_ballot` (no entry or too many, an unknown or repeated id, your own word) |
 | `GET /api/match/{id}/results` | – | 200 Results, from memory until saved, then from the DB snapshot | 401; 404 (unknown, not a player, or not over yet, including during the vote) |
 
@@ -414,14 +413,14 @@ New error codes: 409 `in_match`, `match_not_running`, `tile_locked`, `match_not_
           "word1":"GARDEN" | null, "word2":"SUMMER" | null,      // null until running
           "pct":[[100,100,100,…],…] | null,                      // [row][col], null until running
           "locked":[[4,0],[5,1]], "found":["GEAR"],               // the caller's own, no points
-          "display":"NEGE" | null,                               // the caller's own display word
+          "showcase":"NEGE" | null,                              // the caller's own showcase word
           "vote":{"ends_in_ms":44000,                            // only while voting
-                  "candidates":[{"id":"c3","word":"ARDE"},…],    // the others' display words, shuffled, no names
+                  "candidates":[{"id":"c3","word":"ARDE"},…],    // the others' showcase words, shuffled, no names
                   "voted":false} | null} | null}
 // Results: the "end" event and GET results
 {"match_id":"uuid4","word1":"GARDEN","word2":"SUMMER","total_words":9,
- "players":[{"place":1,"nickname":"FloMo","score":17,"word_score":8,
-             "display":{"word":"NEGE","votes":13,"bonus":9} | null,   // votes = points received; 3 ballots: 2 × 13 ÷ 3 → 9
+ "players":[{"place":1,"nickname":"FloMo","score":12,"word_score":8,
+             "showcase":{"word":"NEGE","votes":13,"bonus":4} | null,  // votes = points received; 3 ballots: 13 ÷ 3 → 4
              "words":[{"word":"NEARER","points":8}]}],
  "missed_words":["DEARER","RERUNS"],
  "pct":[[…]]}                                                  // the final board, in %
@@ -429,7 +428,7 @@ New error codes: 409 `in_match`, `match_not_running`, `tile_locked`, `match_not_
 
 - **Times are relative** (`…_in_ms`). The browser adds them to `performance.now()` when the message arrives, so the player's clock setting doesn't matter.
 - **Results never contain user IDs.** A player deleted since the match is shown as "deleted player".
-- **Results never contain ballots.** Only each display word's received points and bonus, so nobody learns who voted for whom.
+- **Results never contain ballots.** Only each showcase word's received points and bonus, so nobody learns who voted for whom.
 - **Candidate ids** (`c1`…`c6`) are drawn at random per match when play closes, so they reveal neither the player order nor user IDs.
 
 ### 6.5 Stream events
@@ -444,16 +443,17 @@ New error codes: 409 `in_match`, `match_not_running`, `tile_locked`, `match_not_
 | `match_cancelled` | the match's players, when no board qualifies; the streams then close | `{}` |
 | `start` | the match's players | `{word1, word2, ends_in_ms}`; every tile at 100 % |
 | `tiles` | the match's players, the finder included | `{changes:[{row, col, pct}]}`, absolute values, so a repeat does no harm |
-| `found` | the match's players **except the finder** | `{nickname, letters}`. Sent for display words too, identical in shape |
+| `found` | the match's players **except the finder** | `{nickname, letters}`. Not sent for showcase words |
+| `showcase` | the match's players **except the one who set it** | `{nickname}`: no word and no length. Sent on every press |
 | `warning` | the match's players, once | `{ends_in_ms}` |
 | `voting` | each player, with their own ballot | `{ends_in_ms, candidates:[{id, word}]}` |
 | `voted` | the match's players | `{voted, of}` (counts only, e.g. 3 of 4), so waiting players see progress |
 | `end` | the match's players; the streams then close | Results |
 | `replaced` | an older stream of a player who opened a new one; it then closes | `{}`. The tab shows "Multiplayer is open in another tab" and does not reconnect |
 
-- **Never sent while a match runs:** other players' words or display words, any score, `total_words`, or answers.
-- **Never sent during the vote:** names next to display words, any score, or anyone's ballot.
-- **Rejected and duplicate submits publish nothing.** Display words publish `tiles` and `found`, like accepted words.
+- **Never sent while a match runs:** other players' words or showcase words, any score, `total_words`, or answers.
+- **Never sent during the vote:** names next to showcase words, any score, or anyone's ballot.
+- **Rejected and duplicate submits publish nothing.** Showcase words publish only `showcase`: no `tiles`, since nothing halves, and no `found`.
 - **Events reach each stream in order**, because only the event loop publishes.
 - **A server restart** ends every stream without an event (see [§6.8](#68-hosting-impact)). During a deploy the reconnect may get 204, 502 or 503; any of these closes the `EventSource` for good (`readyState` CLOSED). So whenever the stream ends without a terminal event, `stream.js` calls `GET /api/match/current`: if the player is idle while the page believed it was in a match, it shows "Match cancelled".
 
@@ -478,19 +478,19 @@ CREATE TABLE matches (
   ended_at     TEXT NOT NULL,
   month        TEXT NOT NULL,                       -- of started_at
   player_count INTEGER NOT NULL CHECK (player_count BETWEEN 2 AND 6),   -- fixed when the match forms
-  results      TEXT NOT NULL                        -- JSON snapshot: places, user_ids, scores, words, display words,
+  results      TEXT NOT NULL                        -- JSON snapshot: places, user_ids, scores, words, showcase words,
                                                     -- votes received, bonuses, missed, final pct (no ballots)
 ) STRICT;
 CREATE INDEX matches_started ON matches(started_at);
 CREATE TABLE match_players (
-  match_id     TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  score        INTEGER NOT NULL,                    -- word_score + vote_bonus
-  word_score   INTEGER NOT NULL,
-  vote_bonus   INTEGER NOT NULL DEFAULT 0,
-  display_word TEXT,                                -- the last one; NULL if never set
-  place        INTEGER NOT NULL,
-  words_found  INTEGER NOT NULL,
+  match_id      TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  score         INTEGER NOT NULL,                   -- word_score + vote_bonus
+  word_score    INTEGER NOT NULL,
+  vote_bonus    INTEGER NOT NULL DEFAULT 0,
+  showcase_word TEXT,                               -- the last one; NULL if never set
+  place         INTEGER NOT NULL,
+  words_found   INTEGER NOT NULL,
   PRIMARY KEY (match_id, user_id)
 ) STRICT;
 CREATE TABLE match_votes (                          -- for audit and tuning; never shown per voter
@@ -508,8 +508,8 @@ CREATE TABLE match_submissions (
   user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   word         TEXT NOT NULL,
   tiles        TEXT NOT NULL,                       -- JSON [[row,col],…]
-  kind         TEXT NOT NULL DEFAULT 'word' CHECK (kind IN ('word','display')),
-  is_valid     INTEGER NOT NULL CHECK (is_valid IN (0,1)),   -- always 0 for 'display': not checked
+  kind         TEXT NOT NULL DEFAULT 'word' CHECK (kind IN ('word','showcase')),
+  is_valid     INTEGER NOT NULL CHECK (is_valid IN (0,1)),   -- always 0 for 'showcase': not checked
   points       INTEGER NOT NULL DEFAULT 0,
   submitted_at TEXT NOT NULL,
   month        TEXT NOT NULL
@@ -521,8 +521,8 @@ ALTER TABLE events ADD COLUMN match_id TEXT REFERENCES matches(id) ON DELETE CAS
 
 - **`save_match`** writes everything in one transaction when the match ends:
   - `matches` with its `results` snapshot, a `match_players` row per player, and every accepted or rejected submission. Duplicates store no row, as in solo, so the unique index never fires on a correct engine.
-  - **every** display word a player set, not only the last, as `kind = 'display'` rows, since each one halved tiles; and one `match_votes` row per ranked candidate
-  - the server-only events `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate`, `match_display_word`, `match_vote_cast` and `match_ended`, with their real timestamps
+  - **every** showcase word a player set, not only the last, as `kind = 'showcase'` rows, since each one locked tiles; and one `match_votes` row per ranked candidate
+  - the server-only events `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate`, `match_showcase_word`, `match_vote_cast` and `match_ended`, with their real timestamps
 - **The save waits for the vote.** It runs when the match ends, after the vote, so up to 60 s add to the window in which a restart loses the match.
 - **A player deleted during the match.** `scripts.admin` runs in another process and can't see in-memory matches. `save_match` therefore inserts player, submission, vote and event rows only for users that still exist, read inside the same `BEGIN IMMEDIATE` transaction (a vote needs both its voter and its target). The snapshot keeps their words and score but no nickname.
 - **Reading the snapshot.** It stores user IDs, never nicknames. `match_results` looks the nicknames up in `users` on every read. A deleted player becomes "deleted player", so no personal data stays behind (S13). `place` and `player_count` keep their historical values.
@@ -567,15 +567,15 @@ The audit rules from [plan.md: Security audit](plan.md#security-audit) apply to 
 | ID | Risk | Fix |
 | --- | --- | --- |
 | M1 (S2) | Submitting into, watching or reading the results of someone else's match | The player comes from the cookie. Every match route, including results, checks that the caller was a player in that match and returns 404 otherwise. Match IDs are UUID4 |
-| M2 (S3, S12) | Reading answers or rivals' words early | Answers never leave the server before `end`. The snapshot and stream filter per player: only your own words and display word, never scores. Others' display words appear only at the vote, without names. The grid itself is sent only at "GO". Tests check every payload against an allow-list of keys. **Accepted limit:** the `tiles` and `found` events together let a modified browser work out every score live. Scores are hidden in the game, not secret |
-| M3 (S5) | Racing submits to score twice or after the end | Single-threaded state changes on the event loop, with no `await` between check and update. The per-player duplicate rule stops a second score of the same word, even from other same-text tiles. `closed_at` and the per-submit time check stop late submits and display words. The unique index backs this up in the DB. **Ballots:** one per player, checked and stored without an `await` in between, so a raced second ballot gets `already_voted`; the primary key on `match_votes` backs this up |
+| M2 (S3, S12) | Reading answers or rivals' words early | Answers never leave the server before `end`. The snapshot and stream filter per player: only your own words and showcase word, never scores. Others' showcase words appear only at the vote, without names; during play the `showcase` popup names who set one, never the word. The grid itself is sent only at "GO". Tests check every payload against an allow-list of keys. **Accepted limit:** the `tiles` and `found` events together let a modified browser work out every score live. Scores are hidden in the game, not secret |
+| M3 (S5) | Racing submits to score twice or after the end | Single-threaded state changes on the event loop, with no `await` between check and update. The per-player duplicate rule stops a second score of the same word, even from other same-text tiles. `closed_at` and the per-submit time check stop late submits and showcase words. The unique index backs this up in the DB. **Ballots:** one per player, checked and stored without an `await` in between, so a raced second ballot gets `already_voted`; the primary key on `match_votes` backs this up |
 | M4 (S1) | Injection through the new inputs | The same Pydantic tile model as solo, UUID check on match IDs, and `?` placeholders in `save_match` and `match_results` |
 | M5 (S7) | Holding connections open or flooding the queue | One stream per player (a new one replaces the old), the queue timeout, streams closed when idle (204), `MATCH_MAX_ACTIVE` and `MATCH_MAX_QUEUE` sized to Fly's limit, the queue-join rate limit, the submit gap, and the existing body cap |
 | M6 (S8) | Nicknames in popups and results | `textContent` only, as everywhere else |
 | M7 | Cross-site use of the stream | The stream is a GET with no side effects. The `SameSite=Lax` cookie isn't sent on cross-site subresource requests, and there's no CORS, so another site can neither open it as the player nor read it |
 | M8 (S4) | Bots or one person on two accounts in the same match | **Accepted for now:** there's no board to climb, so a cheater only spoils single matches. The submit gap slows bots. Revisit if match boards come |
 | M9 (S13) | Stored results keeping a deleted player's nickname | The snapshot holds user IDs, and nicknames are looked up on read ([§6.6](#66-database-migration-2)) |
-| M10 | Display words used to spoil tiles, or to show offensive text | **Spoiling:** each display word locks the sender's own tiles, and the submit gap applies, so spoiling the board means giving up your own score; accepted for now. **Text:** a display word is built only from the board's letter pairs, at most `max_tiles` long, and shown with `textContent`. It can still spell something rude; accepted for friends-only play, with the blocklist check as an option ([§13](#13-open-questions)) |
+| M10 | Showcase words used to spoil tiles, or to show offensive text | **Spoiling:** not possible since 2026-10-14: a showcase word halves nothing. It locks the sender's own tiles, and the submit gap applies. **Text:** a showcase word is built only from the board's letter pairs, at most `max_tiles` long, and shown with `textContent`. It can still spell something rude; accepted for friends-only play, with the blocklist check as an option ([§13](#13-open-questions)) |
 | M11 | Rigging the vote | Ballots come only from the cookie's player, once, during the vote. Your own word isn't on your ballot and the server rejects it too. Names and scores are hidden while voting, against tactical voting. Ballots are never shown or returned, so nobody can be pressured over a vote. **Accepted limit:** one person on two accounts (M8) controls two ballots |
 
 ## 8. Layout (Claude Design)
@@ -588,11 +588,11 @@ These screens are added to the brief in [plan.md: Designed in Claude Design](pla
    - the grid, where every tile shows its percentage (100 %, 50 %, 25 %, 13 % …), and its colour fades with it
    - tiles locked for you, which look clearly different from faded ones
    - your words without points, the 60-s timer and the popup stack, which never covers the grid
-   - the **Display word** button next to Submit, and your current display word above your word list
-   - the "already found" note
+   - the **Showcase word** button next to Submit, and your current showcase word above your word list
+   - the "already found" note, and the popup "*FloMo* set a showcase word" next to the "found a 6-letter word" one
    - **the 10-s warning state**
-10. **Results** (also opened from its link): places and scores, split into word score and vote bonus; each player's display word with its votes; each player's words with points; missed words; and the final board.
-11. **Creativity vote:** the others' display words without names, three rank slots (5, 3, 1), **Send vote**, the 60-s timer, and "waiting for others (3 of 4 voted)" after sending. Also the state "no vote this time" when fewer than two display words exist.
+10. **Results** (also opened from its link): places and scores, split into word score and vote bonus; each player's showcase word with its votes; each player's words with points; missed words; and the final board.
+11. **Creativity vote:** the others' showcase words without names, three rank slots (5, 3, 1), **Send vote**, the 60-s timer, and "waiting for others (3 of 4 voted)" after sending. Also the state "no vote this time" when fewer than two showcase words exist.
 
 **Also design:**
 
@@ -622,7 +622,7 @@ Also design for phones:
   - a lock cue that doesn't rely on colour
 - **Timer, 10-s warning and popup ticker:** in the status strip. The popup stack docks over the action area and never covers the grid. Popups are announced politely and collapsed in bursts ("2 players found words").
 - **Your words during play:** a count or a one-line strip, not a sheet. 60 s is too short to keep opening one.
-- **Display word:**
+- **Showcase word:**
   - on the opposite edge from Submit, and visually distinct, because it can't be undone
   - no confirm step, because of the time pressure
 - **Vote:** tap a word, then tap a rank slot. No drag and drop.
@@ -651,9 +651,9 @@ Multiplayer was planned **after plan.md step 7 (go-live)**. **Owner, 2026-10-12:
 
 Each step ends with something runnable, and is done only when its tests in [test-strategy.md §6](test-strategy.md#6-multiplayer-after-go-live) pass.
 
-The display word and vote are **built inside M1–M6**, not as a later step. They add a state to the lobby and columns and a table to migration 2, and adding them after M3 would need a migration 3 and a second pass over the state machine.
+The showcase word and vote are **built inside M1–M6**, not as a later step. They add a state to the lobby and columns and a table to migration 2, and adding them after M3 would need a migration 3 and a second pass over the state machine.
 
-1. **M1 – Rules engine.** `trur/match.py` with the rounding, rules and time-boundary tests, including display words, ballots and the bonus.
+1. **M1 – Rules engine.** `trur/match.py` with the rounding, rules and time-boundary tests, including showcase words, ballots and the bonus.
    - *Done when:* there's 100 % branch coverage, and the worked example and the 1-point case pass as tests.
 2. **M2 – Spike for matches.** Add `--match` to `scripts/spike_stats.py`, using `match.py`.
    - **Done (2026-10-13).** At a word every 6 s two targets failed whatever `MIN_MATCH_WORDS` was. The owner chose a word every 12 s as the assumed rate, `MIN_MATCH_WORDS` 60 and `BONUS_SCALE` 1, and every target holds: [spike-report.md, Matches](spike-report.md#decisions-owner-2026-10-13).
@@ -678,7 +678,7 @@ The display word and vote are **built inside M1–M6**, not as a later step. The
    - **Done (2026-10-14).** The eight routes and the stream are in `api.py`, and the lifespan runs the ticker. The Dockerfile already had `--timeout-graceful-shutdown 2`. In a test, a shutdown with an open stream and a slow save finishes in about 2.5 s. Restart detection needs `stream.js`, so it moves to M6.
 6. **M6 – Design, then frontend.** Starts after checkpoint I of the phone tasks (tasks/todo.md P1–P13, owner 2026-10-13), so the match screens are phone-ready from the start.
    - First design the screens in [§8](#8-layout-claude-design) in Claude Design, at 640×640 and in the phone sizes.
-   - Then build `web/js/match.js` (queue, countdown, match with the Display word button, vote, results, results link) and `web/js/stream.js` (EventSource wrapper: snapshot handling, `close()` on terminal events, "match cancelled" detection through `GET /api/match/current` when the stream closes without a terminal event). Share the grid rendering with `game.js` instead of copying it: use `web/js/grid.js` (render, measured sizing) and `web/js/sheet.js`.
+   - Then build `web/js/match.js` (queue, countdown, match with the Showcase word button, vote, results, results link) and `web/js/stream.js` (EventSource wrapper: snapshot handling, `close()` on terminal events, "match cancelled" detection through `GET /api/match/current` when the stream closes without a terminal event). Share the grid rendering with `game.js` instead of copying it: use `web/js/grid.js` (render, measured sizing) and `web/js/sheet.js`.
    - **Phones:** the stream stops when the phone locks or the tab goes to the background. On `visibilitychange` back to visible, reopen it if it's closed and rebuild from the snapshot ([§6.5](#65-stream-events)). With `MATCH_STREAM_GONE_S` at 10 s, a player who glances at a notification during the vote counts as "done"; see [§13](#13-open-questions) question 7.
    - *Done when:* the design is approved, and E2E flow 10 passes.
 7. **M7 – Release.**
@@ -708,11 +708,17 @@ Applied on 2026-10-11, from the reviews:
   - The new §6 *Multiplayer* holds the fixtures, the test settings, the cases per step M1–M8, E2E flow 10 and the coverage gate. CI and *Resolved gaps* moved to §7 and §8.
   - The route inventory includes the six match routes, and CI gets the per-file coverage step.
 
-Applied on 2026-10-12, for the display word and creativity vote:
+Applied on 2026-10-12, for the showcase word and creativity vote:
 
-- **plan.md:** the *Decisions* row *Multiplayer* mentions the display word and vote; *Designed in Claude Design* points to screens 7–11.
-- **architecture.md:** the routes `POST …/display` and `POST …/vote`, the error codes `match_not_voting`, `already_voted` and `invalid_ballot`, the event types `match_display_word` and `match_vote_cast`, and the migration 2 changes (`match_players` columns, `match_submissions.kind`, `match_votes`).
-- **test-strategy.md §6:** cases for display words, ballots, the bonus, absent voters, payload leaks and E2E flow 10; the route inventory grows to eight match routes.
+- **plan.md:** the *Decisions* row *Multiplayer* mentions the showcase word and vote; *Designed in Claude Design* points to screens 7–11.
+- **architecture.md:** the routes `POST …/showcase` and `POST …/vote`, the error codes `match_not_voting`, `already_voted` and `invalid_ballot`, the event types `match_showcase_word` and `match_vote_cast`, and the migration 2 changes (`match_players` columns, `match_submissions.kind`, `match_votes`).
+- **test-strategy.md §6:** cases for showcase words, ballots, the bonus, absent voters, payload leaks and E2E flow 10; the route inventory grows to eight match routes.
+
+Applied on 2026-10-14, when the display word became the **showcase word** and stopped halving tiles (owner):
+
+- **architecture.md:** the route `POST …/showcase`, the event type `match_showcase_word`, and migration 2's `match_players.showcase_word` and `match_submissions.kind` `'showcase'`. Migration 2 was edited in place: no database had applied it yet.
+- **test-strategy.md §6:** the showcase cases: lock without halving, the `showcase` event, and the full value for the others.
+- **plan.md, mobile.md, tasks/todo.md:** renamed.
 
 Applied on 2026-10-13, for phones ([mobile.md](mobile.md)):
 
@@ -732,19 +738,19 @@ Applied on 2026-10-13, for phones ([mobile.md](mobile.md)):
 8. **Matches don't count toward** the 20-free-games limit or any board.
 9. **Only a match's own players can open its results link.**
 
-**Confirmed by the owner on 2026-10-12** (display word and vote; [§3.6](#36-display-word), [§3.7](#37-creativity-vote)):
+**Confirmed by the owner on 2026-10-12** (showcase word and vote; [§3.6](#36-showcase-word), [§3.7](#37-creativity-vote)):
 
-- **"Display word" means the button's own submissions.** The notes say the button "keeps the last word that was submitted by this"; read as: the last word sent with this button, not your last normal submit.
-- **A display word scores no word points**, even if it happens to be a real word. "Not checked against correctness" is read as "not scored".
-- **"All other events"** means: lock for you, halve for everyone, and the popup to others. So a display word costs tiles, and can be used as a bluff.
+- **The showcase word ("display word" in the notes) means the button's own submissions.** The notes say the button "keeps the last word that was submitted by this"; read as: the last word sent with this button, not your last normal submit.
+- **A showcase word scores no word points**, even if it happens to be a real word. "Not checked against correctness" is read as "not scored".
+- ~~**"All other events"** means: lock for you, halve for everyone, and the popup to others.~~ **Changed (owner, 2026-10-14):** it locks for you, halves nothing, and others get their own popup, "*FloMo* set a showcase word" ([§3.6](#36-showcase-word)).
 - **Ballots are anonymous and scores are hidden while voting,** against tactical voting.
-- **The vote is skipped** when fewer than two players set a display word.
+- **The vote is skipped** when fewer than two players set a showcase word.
 - **The bonus is the average vote × 2,** capped at 10, not the sum of votes ([§3.7](#37-creativity-vote)).
 - **The vote finishes once every connected player has voted.** A player whose stream has been gone for 10 s counts as done.
 
 ## 13. Open questions
 
-1. ~~**Display word limits**~~ **Decided (owner, 2026-10-12):** no press limit and no blocklist. The tile cost and the submit gap are enough for friends-only play ([§7](#7-security) M10).
+1. ~~**Showcase word limits**~~ **Decided (owner, 2026-10-12):** no press limit and no blocklist. The tile cost and the submit gap are enough for friends-only play ([§7](#7-security) M10).
 2. **Power-ups** (step M8):
    - Does every player get each power-up once per match, or one random power-up per match?
    - Does "reduce letter pair multiplier to half" mean spoiling a tile for everyone (as assumed), or halving the cut your own words cause?

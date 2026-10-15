@@ -57,7 +57,7 @@ The rule is not too strict. Only 3% of grids have fewer than 4 words, and the me
 Step M2 of [multiplayer.md §10](multiplayer.md#10-implementation-plan). It plays seeded matches through `trur/match.py` to set `MIN_MATCH_WORDS` and to confirm the vote bonus.
 
 - **Reproduce:** `python -m scripts.spike_stats --match --sample 5000 --seed 1` runs the decided rules (a word every 12 s, `MIN_MATCH_WORDS` 60, `BONUS_SCALE` 1). Add `--every 6 --min-words 20 --bonus-scale 2` for the first run below.
-- **Simulation:** 200 matches per player count (1,000 in all). Greedy players each submit the best word still open to them; a pair goes on its least-used free tile. At the end each player sets a two-tile display word, and everyone ranks a random ballot.
+- **Simulation:** 200 matches per player count (1,000 in all). Greedy players each submit the best word still open to them; a pair goes on its least-used free tile. At the end each player sets a two-tile showcase word (then called display word), and everyone ranks a random ballot.
 
 **Pairs accepted by a `MIN_MATCH_WORDS` rule** (5,000 sampled ordered pairs):
 
@@ -101,3 +101,17 @@ The close-scores target holds (13.4% of matches within 2 points; the limit is 20
 1. **Assumed play rate:** a word every 12 s, as the §3.7 assessment assumed. At 6 s no board size meets the 95 % target. Revisit with real play data after release: if players are faster, raise `MIN_MATCH_WORDS` or lengthen the match.
 2. **`MIN_MATCH_WORDS` = 60** (14.5 % of ordered pairs qualify, still tens of thousands; 40 would reach only 91 %).
 3. **`BONUS_SCALE` = 1** (bonus 0–5 instead of 0–10), as §10 asks. [multiplayer.md §3.7](multiplayer.md#37-creativity-vote) and the worked results example are updated; in that example B now wins on word score, where A's 10-point bonus used to decide it.
+
+## Source-word lengths on a bell curve (owner, 2026-10-14)
+
+`pick_pair` now draws each source word's length on a bell curve around 6 letters (standard deviation 1 letter), then a word of that length ([plan.md](plan.md), *Source-word lengths*). The match spike was rerun with 600 matches per player count, once with the new draw and once with the old uniform one, both with `--sample 5000 --seed 1`, a word every 12 s, `MIN_MATCH_WORDS` 60 and `BONUS_SCALE` 1:
+
+| Check | Uniform draw | Bell curve | Target |
+| --- | --- | --- | --- |
+| 6-player matches where everyone still has a word at the end | 96.3% | 95.0% | at least 95 % |
+| Matches with all word scores within 2 points | 7.5% | 8.1% | under 20 % |
+| Highest share of matches whose winner random votes changed | 20.5% | 21.3% | at most 30 % |
+| Median word score, 6 players | 33 | 30 | – |
+| Slowest pick on the dev PC | 205 ms | 305 ms | under 1 s |
+
+Every target still holds, but the first one has no margin left: smaller boards leave 6 players fewer free tiles. With 200 matches per count it read 94.0 %, within that sample's noise of about ±1.5 points.

@@ -61,9 +61,9 @@ class Sandbox:
         uid = self._uid(uid)
         m, me = self.match, self.match.players[uid]
         feed = [
-            {"n": i, "nickname": m.players[e.user_id].nickname, "letters": len(e.word)}
+            {"n": i, "nickname": m.players[e.user_id].nickname, "letters": len(e.word) if e.kind == "word" else None}
             for i, e in enumerate(m.log)
-            if e.user_id != uid and e.status in ("accepted", "displayed")
+            if e.user_id != uid and e.status in ("accepted", "showcased")
         ]
         voted = sum(p.ballot is not None for p in m.players.values())
         return {
@@ -75,7 +75,7 @@ class Sandbox:
             "pct": match.pct_grid(m),
             "locked": sorted(me.locked),
             "found": list(me.found),
-            "display": me.display.word if me.display else None,
+            "showcase": me.showcase.word if me.showcase else None,
             "feed": feed,
             "vote": {
                 "candidates": [c._asdict() for c in self.ballots[uid]],
@@ -90,9 +90,9 @@ class Sandbox:
         out = match.submit(self.match, self._uid(uid), [tuple(t) for t in tiles], PLAY_AT)
         return {"status": out.status, "word": out.word}
 
-    def display(self, uid: str, tiles: list) -> dict:
-        out = match.display(self.match, self._uid(uid), [tuple(t) for t in tiles], PLAY_AT)
-        return {"status": "displayed", "word": out.word}
+    def showcase(self, uid: str, tiles: list) -> dict:
+        word = match.showcase(self.match, self._uid(uid), [tuple(t) for t in tiles], PLAY_AT)
+        return {"status": "showcased", "word": word}
 
     def end_play(self) -> None:
         if self.phase != "play":
@@ -162,7 +162,7 @@ def make_handler(box: Sandbox) -> type[BaseHTTPRequestHandler]:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             actions = {
                 "/api/submit": lambda: box.submit(body["p"], body["tiles"]),
-                "/api/display": lambda: box.display(body["p"], body["tiles"]),
+                "/api/showcase": lambda: box.showcase(body["p"], body["tiles"]),
                 "/api/end": box.end_play,
                 "/api/vote": lambda: box.vote(body["p"], body["ranking"]),
                 "/api/end-vote": box.end_vote,

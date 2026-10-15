@@ -104,12 +104,12 @@ def play(lobby: Lobby, clock: FakeClock, uid: str, match_id: str, word: str) -> 
     return lobby.submit(uid, match_id, board(lobby, match_id, word), clock.now())
 
 
-def voting(lobby: Lobby, clock: FakeClock, players: str = "ABC", displays: str = "AB") -> str:
-    """A match whose `displays` set the display words GEAR, DEER, RUNS (in that order), ticked into
+def voting(lobby: Lobby, clock: FakeClock, players: str = "ABC", showcases: str = "AB") -> str:
+    """A match whose `showcases` set the showcase words GEAR, DEER, RUNS (in that order), ticked into
     the vote. Ballots count only after the close, so the clock ends 1 s into the vote."""
     match_id = start(lobby, clock, players)
-    for uid, word in zip(displays, ("GEAR", "DEER", "RUNS")):
-        lobby.display(uid, match_id, board(lobby, match_id, word), clock.now())
+    for uid, word in zip(showcases, ("GEAR", "DEER", "RUNS")):
+        lobby.showcase(uid, match_id, board(lobby, match_id, word), clock.now())
     clock.advance(END)
     drive(lobby, clock)
     assert lobby.rooms[match_id].state == "voting"
@@ -367,13 +367,13 @@ def test_one_tick_catches_up_from_the_countdown_to_the_end(lobby: Lobby, clock: 
     assert drive(lobby, clock) == []
 
 
-def test_catching_up_with_two_display_words_opens_the_vote_instead(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
+def test_catching_up_with_two_showcase_words_opens_the_vote_instead(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
     join(lobby, clock, "A", "B")
     clock.advance(SETTINGS.match_fill_s)
     [job] = drive(lobby, clock)
     clock.advance(match.COUNTDOWN_S)  # play has started by the clock, before any tick says so
-    lobby.display("A", job.match_id, board(lobby, job.match_id, "GEAR"), clock.now())
-    lobby.display("B", job.match_id, board(lobby, job.match_id, "DEER"), clock.now())
+    lobby.showcase("A", job.match_id, board(lobby, job.match_id, "GEAR"), clock.now())
+    lobby.showcase("B", job.match_id, board(lobby, job.match_id, "DEER"), clock.now())
     hub.sent.clear()
     clock.advance(END)
     assert drive(lobby, clock) == []
@@ -389,13 +389,13 @@ def test_without_ballots_the_vote_ends_after_its_60_s(lobby: Lobby, clock: FakeC
     assert state(lobby, clock, "A") == "voting"
     clock.advance(0.001)
     [save] = drive(lobby, clock)
-    assert [p["display"]["bonus"] for p in hub.last("A", "end")["players"]] == [0, 0]
+    assert [p["showcase"]["bonus"] for p in hub.last("A", "end")["players"]] == [0, 0]
     assert save.record.id == match_id
 
 
-def test_fewer_than_two_display_words_skip_the_vote(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
+def test_fewer_than_two_showcase_words_skip_the_vote(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
     match_id = start(lobby, clock, "AB")
-    lobby.display("A", match_id, board(lobby, match_id, "GEAR"), clock.now())
+    lobby.showcase("A", match_id, board(lobby, match_id, "GEAR"), clock.now())
     clock.advance(END)
     drive(lobby, clock)
     assert hub.events("A")[-1] == "end" and "voting" not in hub.events("A")
@@ -426,9 +426,9 @@ def test_the_vote_ends_on_the_ballot_that_leaves_everyone_done(lobby: Lobby, clo
     assert state(lobby, clock, "C") == "idle"
     [save] = lobby.tick(clock.now())  # the save follows in the same step
     assert isinstance(save, SaveJob) and save.record.id == match_id
-    displays = {p["nickname"]: p["display"] for p in hub.last("A", "end")["players"]}
-    assert displays["Ann"] == {"word": "GEAR", "votes": 10, "bonus": 5}  # 5 + 5 from two ballots
-    assert displays["Ben"] == {"word": "DEER", "votes": 8, "bonus": 4}  # 5 + 3
+    showcases = {p["nickname"]: p["showcase"] for p in hub.last("A", "end")["players"]}
+    assert showcases["Ann"] == {"word": "GEAR", "votes": 10, "bonus": 5}  # 5 + 5 from two ballots
+    assert showcases["Ben"] == {"word": "DEER", "votes": 8, "bonus": 4}  # 5 + 3
 
 
 def test_an_absent_voter_counts_as_done_after_10_s(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
@@ -467,7 +467,7 @@ def test_a_voter_without_a_stream_counts_as_gone_from_the_close(lobby: Lobby, cl
     match_id = start(lobby, clock, "ABC")
     close_stream(lobby, "C", clock.now())  # gone since GO, 60 s before the vote opens
     for uid, word in zip("AB", ("GEAR", "DEER")):
-        lobby.display(uid, match_id, board(lobby, match_id, word), clock.now())
+        lobby.showcase(uid, match_id, board(lobby, match_id, word), clock.now())
     clock.advance(END)
     drive(lobby, clock)
     clock.advance(1)
@@ -519,32 +519,31 @@ def test_play_refusals(lobby: Lobby, clock: FakeClock) -> None:
     match_id, two = job.match_id, [(0, 0), (1, 1)]
     assert refusal(lambda: lobby.submit("A", match_id, two, clock.now())) == (409, "match_not_running")  # forming
     assert refusal(lambda: lobby.submit("C", match_id, two, clock.now())) == (404, "not_found")
-    assert refusal(lambda: lobby.display("A", "no-such-match", two, clock.now())) == (404, "not_found")
+    assert refusal(lambda: lobby.showcase("A", "no-such-match", two, clock.now())) == (404, "not_found")
     assert refusal(lambda: lobby.vote("A", match_id, ["c1"], clock.now())) == (409, "match_not_voting")
     lobby.pair_picked(match_id, GARDEN, clock.now())
-    assert refusal(lambda: lobby.display("A", match_id, two, clock.now())) == (409, "match_not_running")  # countdown
+    assert refusal(lambda: lobby.showcase("A", match_id, two, clock.now())) == (409, "match_not_running")  # countdown
     clock.advance(match.COUNTDOWN_S)
     drive(lobby, clock)
     play(lobby, clock, "A", match_id, "GEAR")
     assert refusal(lambda: play(lobby, clock, "A", match_id, "GENRES")) == (409, "tile_locked")  # GE is A's
     assert refusal(lambda: lobby.submit("A", match_id, [(0, 0)], clock.now())) == (422, "invalid_tiles")
-    assert refusal(lambda: lobby.display("A", match_id, [(1, 1), (1, 1)], clock.now())) == (422, "invalid_tiles")
+    assert refusal(lambda: lobby.showcase("A", match_id, [(1, 1), (1, 1)], clock.now())) == (422, "invalid_tiles")
     assert refusal(lambda: lobby.vote("A", match_id, ["c1"], clock.now())) == (409, "match_not_voting")
     clock.advance(END)
     drive(lobby, clock)
     assert refusal(lambda: play(lobby, clock, "B", match_id, "GEAR")) == (409, "match_not_running")  # over, not yet saved
 
 
-def test_a_display_word_publishes_exactly_what_a_found_word_does(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
+def test_a_found_word_halves_its_tiles_and_a_showcase_word_only_names_its_player(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
     match_id = start(lobby, clock, "ABC")
     assert play(lobby, clock, "A", match_id, "GEAR").status == "accepted"
     tiles_word, found_word = hub.sent[-2:]
     assert tiles_word == (["A", "B", "C"], "tiles", {"changes": [{"row": 4, "col": 0, "pct": 50}, {"row": 5, "col": 1, "pct": 50}]})
     assert found_word == (["B", "C"], "found", {"nickname": "Ann", "letters": 4})  # everyone but the finder
-    lobby.display("A", match_id, board(lobby, match_id, "DEER"), clock.now())
-    tiles_display, found_display = hub.sent[-2:]
-    assert tiles_display == (["A", "B", "C"], "tiles", {"changes": [{"row": 4, "col": 3, "pct": 50}, {"row": 5, "col": 4, "pct": 50}]})
-    assert found_display == found_word
+    sent = len(hub.sent)
+    assert lobby.showcase("A", match_id, board(lobby, match_id, "DEER"), clock.now()) == "DEER"
+    assert hub.sent[sent:] == [(["B", "C"], "showcase", {"nickname": "Ann"})]  # no tile changes, no length
 
 
 def test_rejected_and_duplicate_words_publish_nothing(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
@@ -559,18 +558,18 @@ def test_rejected_and_duplicate_words_publish_nothing(lobby: Lobby, clock: FakeC
 def test_the_view_shows_only_the_callers_own_play(lobby: Lobby, clock: FakeClock) -> None:
     match_id = start(lobby, clock, "AB")
     play(lobby, clock, "A", match_id, "GEAR")
-    lobby.display("A", match_id, board(lobby, match_id, "DEER"), clock.now())
+    lobby.showcase("A", match_id, board(lobby, match_id, "DEER"), clock.now())
     clock.advance(20)
     a = lobby.view("A", clock.now())
     assert a["state"] == "running" and a["queue"] is None
     assert a["match"] == {
         "match_id": match_id, "players": ["Ann", "Ben"], "starts_in_ms": None, "ends_in_ms": 40_000,
         "word1": "GARDEN", "word2": "SUMMER", "pct": match.pct_grid(lobby.rooms[match_id].m),
-        "locked": [[4, 0], [4, 3], [5, 1], [5, 4]], "found": ["GEAR"], "display": "DEER", "vote": None,
+        "locked": [[4, 0], [4, 3], [5, 1], [5, 4]], "found": ["GEAR"], "showcase": "DEER", "vote": None,
     }
     b = lobby.view("B", clock.now())["match"]
-    assert (b["locked"], b["found"], b["display"], b["pct"]) == ([], [], None, a["match"]["pct"])
-    assert b["pct"][4][0] == 50
+    assert (b["locked"], b["found"], b["showcase"], b["pct"]) == ([], [], None, a["match"]["pct"])
+    assert b["pct"][4][0] == 50 and b["pct"][4][3] == 100  # GE from GEAR halved; DE from the showcase word not
 
 
 def test_a_last_moment_word_is_in_the_results(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
@@ -692,8 +691,8 @@ def test_run_saves_a_vote_that_ended_just_before_stop(lobby: Lobby, clock: FakeC
         match_id = found["match_id"]
         clock.advance(match.COUNTDOWN_S)
         await until(streams["A"], "start")
-        lobby.display("A", match_id, board(lobby, match_id, "GEAR"), clock.now())
-        lobby.display("B", match_id, board(lobby, match_id, "DEER"), clock.now())
+        lobby.showcase("A", match_id, board(lobby, match_id, "GEAR"), clock.now())
+        lobby.showcase("B", match_id, board(lobby, match_id, "DEER"), clock.now())
         clock.advance(END)
         await until(streams["A"], "voting")
         clock.advance(1)

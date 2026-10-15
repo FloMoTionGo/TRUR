@@ -109,14 +109,14 @@ CREATE TABLE matches (
 ) STRICT;
 CREATE INDEX matches_started ON matches(started_at);
 CREATE TABLE match_players (
-  match_id     TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  score        INTEGER NOT NULL,
-  word_score   INTEGER NOT NULL,
-  vote_bonus   INTEGER NOT NULL DEFAULT 0,
-  display_word TEXT,
-  place        INTEGER NOT NULL,
-  words_found  INTEGER NOT NULL,
+  match_id      TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  score         INTEGER NOT NULL,
+  word_score    INTEGER NOT NULL,
+  vote_bonus    INTEGER NOT NULL DEFAULT 0,
+  showcase_word TEXT,
+  place         INTEGER NOT NULL,
+  words_found   INTEGER NOT NULL,
   PRIMARY KEY (match_id, user_id)
 ) STRICT;
 CREATE TABLE match_votes (
@@ -134,7 +134,7 @@ CREATE TABLE match_submissions (
   user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   word         TEXT NOT NULL,
   tiles        TEXT NOT NULL,
-  kind         TEXT NOT NULL DEFAULT 'word' CHECK (kind IN ('word','display')),
+  kind         TEXT NOT NULL DEFAULT 'word' CHECK (kind IN ('word','showcase')),
   is_valid     INTEGER NOT NULL CHECK (is_valid IN (0,1)),
   points       INTEGER NOT NULL DEFAULT 0,
   submitted_at TEXT NOT NULL,
@@ -297,10 +297,10 @@ def save_match(conn: sqlite3.Connection, rec: match.MatchRecord) -> None:
         for p in res["players"]:
             if p["user_id"] not in alive:
                 continue
-            disp = p["display"]
+            disp = p["showcase"]
             conn.execute(
                 "INSERT INTO match_players "
-                "(match_id, user_id, score, word_score, vote_bonus, display_word, place, words_found) "
+                "(match_id, user_id, score, word_score, vote_bonus, showcase_word, place, words_found) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (rec.id, p["user_id"], p["score"], p["word_score"], disp["bonus"] if disp else 0,
                  disp["word"] if disp else None, p["place"], len(p["words"])),
@@ -326,8 +326,8 @@ def save_match(conn: sqlite3.Connection, rec: match.MatchRecord) -> None:
                     (rec.id, e.user_id, e.word, json.dumps([list(t) for t in e.tiles], separators=(",", ":")),
                      e.kind, int(e.status == "accepted"), e.points, iso(e.at), month),
                 )
-            if e.kind == "display":
-                event(e.user_id, "match_display_word", {"word": e.word}, e.at)
+            if e.kind == "showcase":
+                event(e.user_id, "match_showcase_word", {"word": e.word}, e.at)
             else:
                 event(e.user_id, f"match_word_{e.status}", {"word": e.word, "points": e.points}, e.at)
         for p in res["players"]:

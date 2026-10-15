@@ -47,7 +47,7 @@ class Settings:
     match_max_active: int = 8  # forming, countdown, running or voting
     match_max_queue: int = 24
     min_match_words: int = 60  # from step M2 (docs/spike-report.md)
-    match_submit_min_gap_s: float = 0.5  # shared by submit and display word; lower than solo's, it's a race
+    match_submit_min_gap_s: float = 0.5  # shared by submit and showcase word; lower than solo's, it's a race
     rl_queue_joins_per_player_hour: int = 30  # 0 = off
     match_tick_ms: int = 200  # 0 = no ticker: in-process tests call tick() themselves
     sse_keepalive_s: float = 5.0  # a ": ping" after this long without an event

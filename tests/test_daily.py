@@ -549,7 +549,7 @@ def test_no_route_leaks_todays_unfound_words(player: Player, client: TestClient,
         ("POST", "/api/match/queue/leave"): [alice.post(f"{MATCH}/queue/leave", json={})],
         ("GET", "/api/match/stream"): [alice.get(f"{MATCH}/stream")],  # idle by now: 204
         ("POST", "/api/match/{match_id}/submit"): [alice.post(f"{MATCH}/{NO_MATCH}/submit", json={"tiles": DEMOCRATIC})],
-        ("POST", "/api/match/{match_id}/display"): [alice.post(f"{MATCH}/{NO_MATCH}/display", json={"tiles": DEMOCRATIC})],
+        ("POST", "/api/match/{match_id}/showcase"): [alice.post(f"{MATCH}/{NO_MATCH}/showcase", json={"tiles": DEMOCRATIC})],
         ("POST", "/api/match/{match_id}/vote"): [alice.post(f"{MATCH}/{NO_MATCH}/vote", json={"ranking": ["c1"]})],
         ("GET", "/api/match/{match_id}/results"): [alice.get(f"{MATCH}/{NO_MATCH}/results")],
         ("POST", "/api/games/{game_id}/end"): [alice.post(f"{GAMES}/{gid}/end", json={})],  # last: it ends the game

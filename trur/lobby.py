@@ -121,6 +121,10 @@ def _vote_ends_at(m: match.Match) -> datetime:
     return m.vote_ends_at  # type: ignore[return-value]  # only asked once play has closed
 
 
+def _others(room: Room, user_id: str) -> list[str]:
+    return [uid for uid in room.players if uid != user_id]
+
+
 def public_results(res: dict) -> dict:
     """Results as the browser gets them: never a user_id (§6.4)."""
     return {**res, "players": [{k: v for k, v in p.items() if k != "user_id"} for p in res["players"]]}
@@ -229,7 +233,7 @@ class Lobby:
     # --- what a player sees (§6.4) ---
 
     def view(self, user_id: str, now: datetime) -> dict:
-        """The MatchView: only the caller's own words, display word and ballot; never a score."""
+        """The MatchView: only the caller's own words, showcase word and ballot; never a score."""
         w = self.queue.get(user_id)
         if w is not None:
             timeout = w.joined_at + timedelta(seconds=self.s.match_queue_timeout_s)
@@ -244,7 +248,7 @@ class Lobby:
         view: dict = {
             "match_id": room.id, "players": [w.nickname for w in room.players.values()],
             "starts_in_ms": None, "ends_in_ms": None, "word1": None, "word2": None, "pct": None,
-            "locked": [], "found": [], "display": None, "vote": None,
+            "locked": [], "found": [], "showcase": None, "vote": None,
         }
         if room.state == "forming":
             return view
@@ -256,7 +260,7 @@ class Lobby:
         view.update(
             ends_in_ms=ms_until(m.ends_at, now), word1=m.word1, word2=m.word2, pct=match.pct_grid(m),
             locked=sorted([r, c] for r, c in p.locked), found=list(p.found),
-            display=p.display.word if p.display else None,
+            showcase=p.showcase.word if p.showcase else None,
         )
         if room.state == "voting":
             view["vote"] = {
@@ -292,18 +296,17 @@ class Lobby:
             self._played(room, user_id, out.word, out.changes)
         return out
 
-    def display(self, user_id: str, match_id: str, tiles: Sequence[Tile], now: datetime) -> match.DisplayOutcome:
+    def showcase(self, user_id: str, match_id: str, tiles: Sequence[Tile], now: datetime) -> str:
+        """A showcase word changes no tile, so the others only hear that one was set, not its length (§3.6)."""
         room = self._room(user_id, match_id)
         with _refusals(_INVALID_TILES):
-            out = match.display(_started(room), user_id, tiles, now)
-        self._played(room, user_id, out.word, out.changes)
-        return out
+            word = match.showcase(_started(room), user_id, tiles, now)
+        self.hub.publish(_others(room, user_id), "showcase", {"nickname": room.players[user_id].nickname})
+        return word
 
     def _played(self, room: Room, user_id: str, word: str, changes: tuple[match.Change, ...]) -> None:
-        """A display word publishes exactly what a real word does, so the two look the same."""
         self.hub.publish(room.players, "tiles", {"changes": [{"row": r, "col": c, "pct": p} for (r, c), p in changes]})
-        others = [uid for uid in room.players if uid != user_id]
-        self.hub.publish(others, "found", {"nickname": room.players[user_id].nickname, "letters": len(word)})
+        self.hub.publish(_others(room, user_id), "found", {"nickname": room.players[user_id].nickname, "letters": len(word)})
 
     def vote(self, user_id: str, match_id: str, ranking: Sequence[str], now: datetime) -> None:
         """One ballot; ends the vote at once if every player is now done."""

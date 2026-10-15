@@ -15,6 +15,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 | Topic | Decision |
 | --- | --- |
 | Source words | Taken from the 500 most common Canadian English words that are **5–10 letters** long ("syllables" in the requirements meant letters) |
+| Source-word lengths | **Drawn on a bell curve around 6 letters** (owner, 2026-10-14). A length L weighs e^(−(L − 6)² / 2), a standard deviation of 1 letter, and every source word of that length is equally likely. Of the drawn words, about 42 % have 6 letters, 26 % each 5 or 7, 6 % 8, and under 1 % 9 or 10. Each mode's check then favours bigger boards: 6 letters lead in free play (43 % of the words on accepted boards), while 7 letters lead in multiplayer (45 %, against 31 % for 6) and tie with 6 in the daily (39 % and 38 %) |
 | Grid | **Combination matrix.** Word 1's letters run across the top, word 2's letters down the side, and each cell = (letter of word 1) + (letter of word 2). There are no extra reversed tiles |
 | Letter order | **Fixed:** the horizontal word's letter always comes first and the vertical word's letter second. GARDEN × SUMMER gives GS, never SG |
 | Tiles | **Every cell is its own tile; nothing is merged or removed.** This keeps double letters (EE), repeated tiles (GM twice, from the two Ms in SUMMER) and pairs that happen to appear both ways (RE and ER) |
@@ -40,7 +41,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 | Database | **SQLite.** Locally it's a file in `./var`, which git ignores. On Fly.io it's a file on a 1 GB volume, backed up by Fly's daily snapshots |
 | Security | The fixes from the [Security audit](#security-audit) are part of the build steps |
 | Implementation | Module layout, API contract and schema in [architecture.md](architecture.md); tests in [test-strategy.md](test-strategy.md) |
-| Multiplayer | **Public quick-match for 2–6 players**, 60 s on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Each player can set one unchecked **display word**; after play, a vote on creativity (up to 60 s) adds a bonus of up to 10 points. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
+| Multiplayer | **Public quick-match for 2–6 players**, 60 s on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Each player can set one unchecked **showcase word**; after play, a vote on creativity (up to 60 s) adds a bonus of up to 5 points. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
 | Hosting | **Fly.io app `trur`** in Frankfurt (`fra`), separate from GoCalypse. It **stops when idle** and **goes live at the end** of the solo build (step 7); multiplayer follows after go-live |
 
 ## Game rules
@@ -312,7 +313,7 @@ The full SQL with every constraint and index is in [architecture.md §4](archite
 **`scripts/pick_daily.py`:**
 
 1. It fills every date from today to tomorrow (UTC) that has no pair yet, so a run delayed past midnight doesn't skip a day. If both dates already have a pair, it does nothing, so a rerun is always safe.
-2. It picks two different random source words **and which one goes horizontal**.
+2. It picks two different source words, by length on the bell curve (*Source-word lengths* above), **and which one goes horizontal**.
 3. It then checks that exact orientation, because the grid isn't symmetric. A pair is skipped if that orientation has no word of 10+ letters, or if those two words were already paired on an earlier date (in either order).
 4. It appends `{date, word1, word2}` to the JSON file.
 5. If no pair qualifies after a capped number of attempts, it exits with an error.
@@ -355,7 +356,7 @@ The full SQL with every constraint and index is in [architecture.md §4](archite
 
 When a free-play game is created (`POST /api/games`, mode `free`):
 
-1. The backend picks two different random source words, and which one goes horizontal.
+1. The backend picks two different source words, by length on the bell curve, and which one goes horizontal.
 2. It rejects the pair if either word is one of today's (UTC) daily words, or if the solver finds fewer than N valid words in that orientation. N is set after the feasibility spike.
 3. If the pair is rejected, the backend tries again, up to a capped number of attempts.
 

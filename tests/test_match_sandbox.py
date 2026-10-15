@@ -28,11 +28,11 @@ def test_full_four_player_game(box: Sandbox) -> None:
     assert box.submit("2", [GE, AR]) == {"status": "accepted", "word": "GEAR"}
     assert box.submit("1", [GE, AR])["status"] == "duplicate"
     assert box.submit("3", [RU, AR])["status"] == "rejected"
-    box.display("3", [DE, ER])
-    box.display("4", [RU, NS])
+    box.showcase("3", [DE, ER])
+    box.showcase("4", [RU, NS])
     s = box.state("2")
-    assert [f["nickname"] for f in s["feed"]] == ["Ana", "Cleo", "Dan"]
-    assert s["found"] == ["GEAR"] and s["pct"][4][0] == 25 and s["vote"] is None
+    assert [(f["nickname"], f["letters"]) for f in s["feed"]] == [("Ana", 4), ("Cleo", None), ("Dan", None)]
+    assert s["found"] == ["GEAR"] and s["pct"][4][0] == 25 and s["pct"][4][3] == 100 and s["vote"] is None
     box.end_play()
     with pytest.raises(NotRunning):
         box.submit("1", [DE, ER])
@@ -47,7 +47,7 @@ def test_full_four_player_game(box: Sandbox) -> None:
     box.vote("4", [cand["DEER"]])
     res = box.state("1")["results"]
     assert box.phase == "results" and "user_id" not in res["players"][0]
-    rows = {p["nickname"]: (p["score"], p["display"]) for p in res["players"]}
+    rows = {p["nickname"]: (p["score"], p["showcase"]) for p in res["players"]}
     assert rows["Dan"] == (5, {"word": "RUNS", "votes": 15, "bonus": 5})
     assert rows["Ana"] == (4, None) and rows["Ben"] == (2, None)
 
@@ -64,8 +64,8 @@ def test_vote_skipped_and_end_vote(box: Sandbox) -> None:
 
 
 def test_end_vote_early(box: Sandbox) -> None:
-    box.display("1", [GE, AR])
-    box.display("2", [DE, ER])
+    box.showcase("1", [GE, AR])
+    box.showcase("2", [DE, ER])
     box.end_play()
     box.end_vote()
     assert box.phase == "results"
@@ -108,7 +108,7 @@ def test_http(server: str) -> None:
     status, page = call(server + "/")
     assert status == 200 and b"match sandbox" in page
     assert call(server + "/api/submit", {"p": "1", "tiles": [GE, AR]}) == (200, {"status": "accepted", "word": "GEAR"})
-    assert call(server + "/api/display", {"p": "1", "tiles": [DE, ER]})[1]["status"] == "displayed"
+    assert call(server + "/api/showcase", {"p": "1", "tiles": [DE, ER]})[1]["status"] == "showcased"
     assert call(server + "/api/submit", {"p": "1", "tiles": [GE, DE]})[1]["error"] == "tile_locked"
     assert call(server + "/api/submit", {"p": "1", "tiles": [GE]})[0] == 422
     assert call(server + "/api/submit", {"p": "9", "tiles": [GE, AR]})[0] == 404

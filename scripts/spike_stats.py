@@ -9,7 +9,7 @@ it has, how many points they are worth, and whether it has a win word (10+ lette
 
 --match (docs/multiplayer.md §10, M2) reports how many pairs a MIN_MATCH_WORDS rule accepts and how long
 a pick takes, then plays seeded matches through trur.match: 2–6 greedy players, each submitting the best
-word still open to them every 12 s for 60 s, then a display word each and random ballots.
+word still open to them every 12 s for 60 s, then a showcase word each and random ballots.
 """
 
 import argparse
@@ -161,10 +161,10 @@ def simulate(lex: Lexicon, word1: str, word2: str, answers: tuple[str, ...], n: 
     starved = any(best_move(m, p, words, options) is None for p in m.players.values())
 
     grid = [(r, c) for r in range(len(word2)) for c in range(len(word1))]
-    for uid, p in m.players.items():  # a display word each: two of their free tiles
+    for uid, p in m.players.items():  # a showcase word each: two of their free tiles
         free = [tile for tile in grid if tile not in p.locked]
         if len(free) >= 2:
-            match.display(m, uid, rng.sample(free, 2), m.ends_at)
+            match.showcase(m, uid, rng.sample(free, 2), m.ends_at)
     closed = m.ends_at + timedelta(milliseconds=1)
     if match.close_play(m, closed, rng):
         for uid in m.players:
@@ -175,7 +175,7 @@ def simulate(lex: Lexicon, word1: str, word2: str, answers: tuple[str, ...], n: 
     word = {r["user_id"]: r["word_score"] for r in rows}
     total = {r["user_id"]: r["score"] for r in rows}
     return MatchResult(n, list(word.values()), starved, _first(word) != _first(total),
-                       max((r["display"] or {}).get("bonus", 0) for r in rows))
+                       max((r["showcase"] or {}).get("bonus", 0) for r in rows))
 
 
 def match_report(lex: Lexicon, results: list[PairResult], total_pairs: int, min_words: int, per_count: int,

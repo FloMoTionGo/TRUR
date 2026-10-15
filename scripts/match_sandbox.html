@@ -76,11 +76,11 @@ table.res th, table.res td { text-align: left; padding: 6px; border-bottom: 1px 
     <div class="word" id="sel"></div>
     <div class="actions">
       <button class="act" id="submit">Submit</button>
-      <button class="act alt" id="displayBtn">Display word</button>
+      <button class="act alt" id="showcaseBtn">Showcase word</button>
       <button class="act alt" id="clear">Clear</button>
     </div>
     <div class="cols" style="margin-top:14px">
-      <div><h2>Your display word</h2><div id="disp" class="note">none</div></div>
+      <div><h2>Your showcase word</h2><div id="showcase" class="note">none</div></div>
       <div><h2>Your words (points hidden)</h2><ul id="found"></ul></div>
     </div>
   </section>
@@ -94,7 +94,7 @@ table.res th, table.res td { text-align: left; padding: 6px; border-bottom: 1px 
 
   <section id="results" class="panel" hidden>
     <h2>Results</h2>
-    <table class="res"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Words</th><th>Display word</th></tr></thead><tbody id="resBody"></tbody></table>
+    <table class="res"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Words</th><th>Showcase word</th></tr></thead><tbody id="resBody"></tbody></table>
     <div class="cols" style="margin-top:12px">
       <div><h2>Missed words</h2><p class="note" id="missed"></p></div>
       <div><h2>Final board</h2><table class="mini" id="finalGrid"></table></div>
@@ -130,7 +130,7 @@ async function refresh() {
   try { state = await api("/api/state?p=" + encodeURIComponent(me)); } catch { return; }
   const top = state.feed.length ? state.feed[state.feed.length - 1].n : -1;
   if (!(me in seen)) seen[me] = top;
-  for (const f of state.feed) if (f.n > seen[me]) toast(`${f.nickname} found a ${f.letters}-letter word`);
+  for (const f of state.feed) if (f.n > seen[me]) toast(f.letters ? `${f.nickname} found a ${f.letters}-letter word` : `${f.nickname} set a showcase word`);
   seen[me] = Math.max(seen[me], top);
   render();
 }
@@ -177,8 +177,8 @@ function renderPlay(s) {
     g.append(tr);
   });
   $("sel").textContent = sel.map(([r, c]) => s.word1[c] + s.word2[r]).join("");
-  $("submit").disabled = $("displayBtn").disabled = sel.length < 2;
-  $("disp").textContent = s.display || "none";
+  $("submit").disabled = $("showcaseBtn").disabled = sel.length < 2;
+  $("showcase").textContent = s.showcase || "none";
   $("found").replaceChildren(...s.found.map((w) => el("li", w)));
 }
 
@@ -188,7 +188,7 @@ async function send(path) {
     const out = await api(path, { p: me, tiles });
     if (out.status === "rejected") toast(`${out.word}: not in the dictionary`, "bad");
     else if (out.status === "duplicate") toast(`${out.word}: already found, no points`, "dup");
-    else if (out.status === "displayed") toast(`Display word set: ${out.word}`);
+    else if (out.status === "showcased") toast(`Showcase word set: ${out.word}`);
   } catch (e) { toast(e.message.replaceAll("_", " "), "bad"); }
   refresh();
 }
@@ -197,9 +197,9 @@ function renderVote(s) {
   const v = s.vote;
   $("voteNote").textContent = v.voted
     ? `Ballot sent. ${v.count} of ${v.of} voted; waiting for the others (or press End vote).`
-    : `Rank up to three display words: click in order (5, 3, 1 points). Your own word isn't here. ${v.count} of ${v.of} voted.`;
+    : `Rank up to three showcase words: click in order (5, 3, 1 points). Your own word isn't here. ${v.count} of ${v.of} voted.`;
   const box = $("cands"); box.replaceChildren();
-  if (!v.candidates.length) box.append(el("p", "No other display words to rank.", { class: "note" }));
+  if (!v.candidates.length) box.append(el("p", "No other showcase words to rank.", { class: "note" }));
   for (const c of v.candidates) {
     const i = ranking.indexOf(c.id);
     const b = el("button", null, { class: "cand" });
@@ -217,9 +217,9 @@ function renderResults(r) {
   for (const p of r.players) {
     const tr = el("tr");
     tr.append(el("td", p.place), el("td", p.nickname),
-      el("td", `${p.score} (${p.word_score} + ${p.display ? p.display.bonus : 0})`),
+      el("td", `${p.score} (${p.word_score} + ${p.showcase ? p.showcase.bonus : 0})`),
       el("td", p.words.map((w) => `${w.word} ${w.points}`).join(", ") || "–"),
-      el("td", p.display ? `${p.display.word} · ${p.display.votes} votes → +${p.display.bonus}` : "–"));
+      el("td", p.showcase ? `${p.showcase.word} · ${p.showcase.votes} votes → +${p.showcase.bonus}` : "–"));
     body.append(tr);
   }
   $("missed").textContent = `${r.missed_words.join(", ") || "none"} (${r.total_words} words on the board)`;
@@ -228,7 +228,7 @@ function renderResults(r) {
 }
 
 $("submit").onclick = () => send("/api/submit");
-$("displayBtn").onclick = () => send("/api/display");
+$("showcaseBtn").onclick = () => send("/api/showcase");
 $("clear").onclick = () => { sel = []; render(); };
 $("sendVote").onclick = async () => {
   try { await api("/api/vote", { p: me, ranking }); ranking = []; } catch (e) { toast(e.message.replaceAll("_", " "), "bad"); }

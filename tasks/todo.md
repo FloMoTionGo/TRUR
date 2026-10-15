@@ -285,7 +285,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 ## Phase 8: Multiplayer (M1–M6 before go-live, owner 2026-10-12)
 
 ### M1: Rules engine
-**Description:** `trur/match.py` (multiplayer.md §6.3): `pct`, `word_points`, `submit`, `display`, `close_play`, `ballot_for`, `vote`, `bonus`, `finish`, `results`. Plus a dev sandbox, `python -m scripts.match_sandbox` (owner request): one shared board on localhost, hot-seat players, no clock, with the vote and the results.
+**Description:** `trur/match.py` (multiplayer.md §6.3): `pct`, `word_points`, `submit`, `showcase`, `close_play`, `ballot_for`, `vote`, `bonus`, `finish`, `results`. Plus a dev sandbox, `python -m scripts.match_sandbox` (owner request): one shared board on localhost, hot-seat players, no clock, with the vote and the results.
 **Acceptance criteria:**
 - [x] TS §6 step M1 cases pass, including the worked example, the 1-point case and the worked results example
 - [x] 100 % branch coverage on `match.py`
@@ -293,7 +293,7 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Dependencies:** T3 · **Files:** trur/match.py, scripts/match_sandbox.{py,html}, tests/test_match.py, tests/test_match_sandbox.py · **Scope:** M
 
 ### M2: Spike for matches
-**Description:** `python -m scripts.spike_stats --match` (multiplayer.md §10, TS §6 step M2): pair supply for a `MIN_MATCH_WORDS` rule, pick time, and 1,000 seeded matches of greedy players with display words and random ballots.
+**Description:** `python -m scripts.spike_stats --match` (multiplayer.md §10, TS §6 step M2): pair supply for a `MIN_MATCH_WORDS` rule, pick time, and 1,000 seeded matches of greedy players with showcase words and random ballots.
 **Acceptance criteria:**
 - [x] TS §6 step M2 cases pass: the report repeats with the same seed, and simulated players obey the match rules
 - [x] `MIN_MATCH_WORDS` is set, and the §10 targets hold: a word every 12 s, `MIN_MATCH_WORDS` 60, `BONUS_SCALE` 1 (owner, 2026-10-13; [spike-report.md](../docs/spike-report.md#decisions-owner-2026-10-13))
@@ -303,13 +303,13 @@ Overview and risks are in [plan.md](plan.md). "TS" refers to [docs/test-strategy
 **Description:** migration 2, `db.save_match` and `db.match_results` (multiplayer.md §6.6, TS §6 step M3). Independent of the M2 decisions: `MIN_MATCH_WORDS` and `BONUS_SCALE` change no column.
 **Acceptance criteria:**
 - [x] Migration 2 applies on a fixture DB built at `user_version` 1
-- [x] TS §6 step M3 cases pass: snapshot, rows, display words, votes, events, a player deleted during the match, `delete-player`, injection strings on `match_results`
+- [x] TS §6 step M3 cases pass: snapshot, rows, showcase words, votes, events, a player deleted during the match, `delete-player`, injection strings on `match_results`
 - [x] A failed save is logged and its results stay in memory for 10 min: done in **M4**, where `run()` and `Lobby.saved()` exist
 - [x] S1 injection on the new routes: done in **M5** (`test_injection.py`)
 **Dependencies:** M1 · **Files:** trur/db.py, tests/test_match_db.py, tests/test_db.py · **Scope:** S
 
 ### M4: Lobby
-**Description:** `trur/lobby.py` (multiplayer.md §4, §6.3): `Hub` (one queue per open stream), `Lobby` (queue, fill window, timeouts, match states, submit, display word, vote, results in memory until saved) and `run()` (the ticker, picks and saves in threads). The lobby's settings join `config.py`, and `games.pick_match_pair` picks a board that keeps today's and tomorrow's daily words out (§3.5). Routes, SSE and the lifespan wiring are **M5**.
+**Description:** `trur/lobby.py` (multiplayer.md §4, §6.3): `Hub` (one queue per open stream), `Lobby` (queue, fill window, timeouts, match states, submit, showcase word, vote, results in memory until saved) and `run()` (the ticker, picks and saves in threads). The lobby's settings join `config.py`, and `games.pick_match_pair` picks a board that keeps today's and tomorrow's daily words out (§3.5). Routes, SSE and the lifespan wiring are **M5**.
 **Acceptance criteria:**
 - [x] TS §6 step M4 cases pass: queue, states, vote, grace window, Hub, board picking, and `run()` with the real ticker
 - [x] From M3: a failed save is logged and its results stay in memory for 10 min, while the lobby keeps forming matches

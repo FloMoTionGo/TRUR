@@ -420,7 +420,7 @@ Base fixture: the JSON has 10-10 = STRONG × MEANING and 10-11 = MEDICAL × CORR
 
 ## 6. Multiplayer (after go-live)
 
-How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Drafted on 2026-10-11 from the multiplayer test review; the display word and creativity vote cases were added on 2026-10-12. Multiplayer is built after go-live, so none of this runs before step 8 of the plan.
+How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Drafted on 2026-10-11 from the multiplayer test review; the showcase word (then called display word) and creativity vote cases were added on 2026-10-12. Multiplayer is built after go-live, so none of this runs before step 8 of the plan.
 
 ### Fixtures and helpers
 
@@ -476,20 +476,21 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - After `close_play()` → not running, whatever the time.
 - `ends_in_ms` is never negative.
 
-**Display word:**
-- It locks the tiles for the sender, adds 1 to each tile's `uses`, and scores 0 points, whether or not the word is in `answers`.
-- A second display word replaces the first. The first one's tiles stay locked and halved.
-- A display word on a locked tile → `TileLocked`. Before `starts_at` or after `ends_at + 300 ms` → not running.
-- A display word equal to a word you found is allowed, and changes nothing about that word.
-- `close_play` returns False with zero or one display words, and True with two.
+**Showcase word** (owner, 2026-10-14: it halves nothing):
+- It locks the tiles for the sender, leaves every tile's `uses` unchanged, and scores 0 points, whether or not the word is in `answers`.
+- Another player then scores the same tiles at full value.
+- A second showcase word replaces the first. The first one's tiles stay locked, and no tile changes.
+- A showcase word on a locked tile → `TileLocked`. Before `starts_at` or after `ends_at + 300 ms` → not running.
+- A showcase word equal to a word you found is allowed, and changes nothing about that word.
+- `close_play` returns False with zero or one showcase words, and True with two.
 
 **Vote** (every ballot from `ballot_for` with `Random(0)`):
-- A ballot never contains the voter's own word, and contains every other display word.
+- A ballot never contains the voter's own word, and contains every other showcase word.
 - `vote` refuses your own id, an unknown id, a repeated id and four entries (`ValueError`), a second ballot (`AlreadyVoted`), and anything before `close_play` or after `vote_ends_at + 300 ms` (`NotVoting`). At `+300 ms` it's accepted.
 - With two candidates, a ballot of two gives 5 and 3; a ballot of one gives 5.
 - `bonus(0, 0) == 0`; `bonus(15, 3) == 10` (the maximum); `bonus(5, 4) == 3` (2.5, rounded half up); `bonus(13, 3) == 9`.
-- A player without a display word gets bonus 0 and can still vote.
-- **The worked results example:** three players; C sets no display word; B and C each rank only A's word (5 + 5), A ranks B's (5) → two ballots count for A and two for B: A's bonus (2 × 10 + 2) // 4 = 5, B's (2 × 5 + 2) // 4 = 3 (2.5 rounds up); the scores and places include the bonus, so B (8 + 3) places above A (4 + 5).
+- A player without a showcase word gets bonus 0 and can still vote.
+- **The worked results example:** three players; C sets no showcase word; B and C each rank only A's word (5 + 5), A ranks B's (5) → two ballots count for A and two for B: A's bonus (2 × 10 + 2) // 4 = 5, B's (2 × 5 + 2) // 4 = 3 (2.5 rounds up); the scores and places include the bonus, so B (8 + 3) places above A (4 + 5).
 
 ### Step M2: spike
 
@@ -502,9 +503,9 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - **Migration 2** applies on a fixture DB at `user_version` 1. Never use a copy of production, which holds personal data (S13).
 - **The snapshot:** DB results deep-equal the in-memory results.
 - **Rows:** only accepted and rejected submits become `match_submissions` rows with `kind = 'word'`. Duplicates store none.
-- **Display words:** every one a player set becomes a `kind = 'display'` row with `is_valid = 0`, and `match_players.display_word` holds the last one.
+- **Showcase words:** every one a player set becomes a `kind = 'showcase'` row with `is_valid = 0`, and `match_players.showcase_word` holds the last one.
 - **Votes:** one `match_votes` row per ranked candidate; `match_players.score` = `word_score` + `vote_bonus`. Inserting a self-vote or a second row for the same voter and target fails.
-- **The events** `match_started`, `match_word_*`, `match_display_word`, `match_vote_cast` and `match_ended` are written with their real timestamps.
+- **The events** `match_started`, `match_word_*`, `match_showcase_word`, `match_vote_cast` and `match_ended` are written with their real timestamps.
 - **A player deleted during the match:** the save succeeds without their rows, and they show as "deleted player". Votes they cast or received are left out of `match_votes`; the snapshot keeps the bonuses as computed.
 - **After `delete-player`:** their `match_players`, `match_submissions`, `match_votes` and events rows are gone, and no stored results contain their nickname.
 - **A failed save** is logged (`caplog`). The results are still served from memory for 10 minutes, and the lobby keeps forming matches.
@@ -530,10 +531,10 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - `pick_failed` → `match_cancelled`, and the players are idle.
 - A player who leaves during the countdown is still in the results.
 - `warning` is published once, even with two ticks at the same `now`.
-- **Catch-up:** one tick jumping from the countdown past the end, with no display words, publishes `start`, `warning` and `end` in that order, and returns exactly one `SaveJob`. With two display words it publishes `start`, `warning` and `voting`, and no `end` until the vote is over.
+- **Catch-up:** one tick jumping from the countdown past the end, with no showcase words, publishes `start`, `warning` and `end` in that order, and returns exactly one `SaveJob`. With two showcase words it publishes `start`, `warning` and `voting`, and no `end` until the vote is over.
 
 **Vote:**
-- running → voting when two display words exist; running → idle (`end`) when fewer do.
+- running → voting when two showcase words exist; running → idle (`end`) when fewer do.
 - Each player's `voting` event carries their own ballot, without their own word and without nicknames.
 - `voted` is published after each ballot with counts only.
 - The vote ends at once on the ballot that leaves every player done, and the `SaveJob` follows in the same step.
@@ -543,7 +544,7 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 - With every stream gone, the next tick after 10 s ends the vote.
 - Without any ballot, the vote ends at `vote_ends_at + 300 ms`, and every bonus is 0.
 - A join while voting → `in_match`.
-- The `found` event for a display word has exactly the keys of one for a real word.
+- A showcase word publishes only `showcase` `{nickname}`, to everyone but its player: no `tiles` and no `found`.
 - **Grace window:**
   - a tick at `ends_at + 1 ms` publishes no `end`
   - a submit at `+299 ms` is accepted
@@ -570,18 +571,18 @@ How [multiplayer.md](multiplayer.md) gets tested. Names come from its §6. Draft
 ### Step M5: API and stream (`test_match_api.py`)
 
 **In-process (`TestClient`):**
-- **Auth:** every match route without a cookie → 401. A non-player → 404 on submit, display, vote and results, the same as for an unknown match. The stream names no match, so for a non-player it's the idle 204. A match ID that isn't a canonical UUID → 404, even for a player of that match.
+- **Auth:** every match route without a cookie → 401. A non-player → 404 on submit, showcase, vote and results, the same as for an unknown match. The stream names no match, so for a non-player it's the idle 204. A match ID that isn't a canonical UUID → 404, even for a player of that match.
 - **Contract:** status codes and the error envelope follow the [multiplayer.md §6.4](multiplayer.md#64-api-contract) table.
   - The submit response contains no points.
   - `{"score": …}` in a body → 422.
   - The stream when idle → 204.
-- **Rate limits:** the queue-join rate limit. Submits 0.4 s apart → 429 with no change; 0.5 s apart → both handled. A display word 0.4 s after a submit → 429, because they share the gap.
+- **Rate limits:** the queue-join rate limit. Submits 0.4 s apart → 429 with no change; 0.5 s apart → both handled. A showcase word 0.4 s after a submit → 429, because they share the gap.
 - **Vote:** `POST …/vote` before the vote → 409 `match_not_voting`; a second ballot → 409 `already_voted`; your own or an unknown candidate id → 422 `invalid_ballot`. Results during the vote → 404.
 - **Payload leaks (M2):** every MatchView and stream event, in every state, is checked against a key allow-list. Nothing may contain:
   - `word1` or `word2` before `start`
   - another player's words, or any score
   - `total_words` before `end`
-  - another player's display word before `voting`, or a nickname next to one during the vote
+  - another player's showcase word before `voting`, or a nickname next to one during the vote
   - a ballot, or who voted for whom, anywhere
   - a user ID, anywhere
 
@@ -608,9 +609,9 @@ Two `browser.new_context()` on `live_match_server`, with separate cookies and ni
   - player 2 sees "*nickname* found a 4-letter word" (auto-waiting `expect`; popups stay at least 3 s)
   - GE and AR show `data-pct="50"` on both screens
   - GE and AR show `data-locked` on player 1's screen only
-- Each player sets a display word. Player 2 sees the same "found a word" popup as for a real word.
-- The test advances the clock past the end. Both see the vote screen with the other's display word (`data-candidate`) and no names. Both vote; the vote ends without waiting for the 60 s.
-- Both see the same results, with each display word, its votes and the bonus, and reloading the results link shows them again.
+- Each player sets a showcase word. Player 2 sees "*nickname* set a showcase word", and no tile changes its `data-pct`.
+- The test advances the clock past the end. Both see the vote screen with the other's showcase word (`data-candidate`) and no names. Both vote; the vote ends without waiting for the 60 s.
+- Both see the same results, with each showcase word, its votes and the bonus, and reloading the results link shows them again.
 - No `/stream` request is made within 5 s after `end`.
 - Timer text isn't asserted, because the fake clock and the browser's own clock differ.
 

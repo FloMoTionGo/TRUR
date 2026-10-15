@@ -37,7 +37,7 @@ ROUTES = {
     ("GET", "/api/match/current"),
     ("GET", "/api/match/stream"),
     ("POST", "/api/match/{match_id}/submit"),
-    ("POST", "/api/match/{match_id}/display"),
+    ("POST", "/api/match/{match_id}/showcase"),
     ("POST", "/api/match/{match_id}/vote"),
     ("GET", "/api/match/{match_id}/results"),
 }

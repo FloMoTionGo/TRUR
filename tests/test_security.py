@@ -467,7 +467,7 @@ def test_another_players_game_looks_like_a_missing_one(player: Player, db_path: 
         ("/api/match/queue", {}),
         ("/api/match/queue/leave", {}),
         ("/api/match/{gid}/submit", {"tiles": GEAR}),  # any UUID: the body is checked first
-        ("/api/match/{gid}/display", {"tiles": GEAR}),
+        ("/api/match/{gid}/showcase", {"tiles": GEAR}),
         ("/api/match/{gid}/vote", {"ranking": ["c1"]}),
     ],
 )

@@ -38,7 +38,7 @@ TRUR/
 │  ├─ auth.py              token/cookie, nickname rules + folding, user lookup
 │  ├─ daily.py             fetch/import daily JSON, ensure-today-has-a-pair + fallback, past answers
 │  ├─ games.py             game service: create/resume/submit/end/sweep, plausibility, event log
-│  ├─ match.py             multiplayer rules engine: tile %, points, locks, duplicates, time window, display words, vote and bonus (stdlib only)
+│  ├─ match.py             multiplayer rules engine: tile %, points, locks, duplicates, time window, showcase words, vote and bonus (stdlib only)
 │  ├─ lobby.py             multiplayer queue, matches, Hub (SSE fan-out), tick()/run() (stdlib + asyncio)
 │  ├─ rankings.py          ranking recompute + board queries
 │  ├─ security.py          body cap, security headers, JSON/Origin check, RateLimiter, client IP
@@ -54,7 +54,7 @@ TRUR/
 │  ├─ js/sheet.js          <dialog> bottom sheet for phones: found list, End confirm (mobile.md §6.3–6.4)
 │  ├─ js/boards.js         monthly + daily boards, past answers view
 │  ├─ js/events.js         batches tile events (≤50, ≥1 s apart)
-│  ├─ js/match.js          multiplayer: queue, countdown, match, display word, vote, results, results link
+│  ├─ js/match.js          multiplayer: queue, countdown, match, showcase word, vote, results, results link
 │  ├─ js/stream.js         EventSource wrapper for /api/match/stream
 │  ├─ img/logo.svg, img/logo-compact.svg, favicon.svg (+ PNG home-screen icons, mobile.md §6.9)
 │  ├─ manifest.webmanifest optional home-screen install (P17)
@@ -110,10 +110,12 @@ class SystemClock:                            # production; tests use FakeClock(
 
 # trur/solver.py  (stdlib only, shared with scripts/)
 MIN_TILES = 2; MAX_TRIES = 3; WIN_LETTERS = 10
+LENGTH_PEAK = 6; LENGTH_SD = 1.0  # source-word lengths: a bell curve (plan.md, Source-word lengths)
 Tile = tuple[int, int]            # (row → word2 index, col → word1 index)
 class Lexicon:
     words: frozenset[str]         # UPPERCASE A–Z
     source: tuple[str, ...]       # index i ⇒ freq_rank i+1
+    cum_weights: tuple[float, ...]  # running sum of length_weights(source), for pick_pair
     max_tiles: int                # longest even word // 2
     def solve(self, word1: str, word2: str) -> tuple[str, ...]  # LRU-cached (256 pairs)
 def load_lexicon(data_dir: Path) -> Lexicon        # asserts source ⊆ words
@@ -121,10 +123,12 @@ def word_from_tiles(word1: str, word2: str, tiles: Sequence[Tile]) -> str  # Val
 def points(word: str) -> int                        # (len(word) // 2) ** 2
 def is_win_word(word: str) -> bool                  # len(word) >= WIN_LETTERS (decided: 10 or more)
 def pair_key(a: str, b: str) -> frozenset[str]
+def length_weights(source: Sequence[str]) -> list[float]  # bell curve at each word's length ÷ words of that length
 def pick_pair(lex: Lexicon, rng: random.Random,
               accept: Callable[[str, str, tuple[str, ...]], bool],
               max_attempts: int = 5000) -> tuple[str, str, tuple[str, ...]]
-    # draws two distinct source words AND their orientation first, then calls accept(word1, word2, answers)
+    # draws two distinct source words by length_weights, each on its own (so the orientation is random too),
+    # then calls accept(word1, word2, answers)
     # on that exact orientation (the grid is not symmetric); LookupError after max_attempts
 class DailyEntry(NamedTuple): date: datetime.date; word1: str; word2: str
 def parse_daily_json(raw: bytes) -> list[object]   # must be a top-level list, else ValueError
@@ -356,11 +360,11 @@ It runs with `uvicorn trur.app:create_app --factory --workers 1`. It has to be o
 | `GET /api/match/current` | – | 200 MatchView |
 | `GET /api/match/stream` | – | 200 `text/event-stream`, starting with `snapshot`; 204 when idle |
 | `POST /api/match/{id}/submit` | `{"tiles":[[row,col],…]}` | 200 `{status, word, changes}`, no points |
-| `POST /api/match/{id}/display` | `{"tiles":[[row,col],…]}` | 200 `{status:"displayed", word, changes}`, no check, no points |
+| `POST /api/match/{id}/showcase` | `{"tiles":[[row,col],…]}` | 200 `{status:"showcased", word}`, no check, no points, nothing halves |
 | `POST /api/match/{id}/vote` | `{"ranking":[candidate id, …]}`, 1–3 entries | 204 |
 | `GET /api/match/{id}/results` | – | 200 Results (players of that match only) |
 
-**Server-only event types.** The server logs these itself and refuses them from clients: `game_started`, `word_accepted`, `word_rejected`, `word_duplicate` and `game_ended`. Payloads: `game_started` `{mode}`, `word_*` `{word, points}`, `game_ended` `{reason, score, flagged}`, logged once per game even when requests race. Client events store their fields minus `type` and `game_id`, with the server's time in `created_at`. Multiplayer adds `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate`, `match_display_word`, `match_vote_cast` and `match_ended`, written when a match is saved, one row per player with `match_id` set and no `game_id`. Payloads: `match_started` `{player_count}`, `match_word_*` `{word, points}`, `match_display_word` `{word}`, `match_vote_cast` `{ranked}` (how many words, never whom), `match_ended` `{place, score}`.
+**Server-only event types.** The server logs these itself and refuses them from clients: `game_started`, `word_accepted`, `word_rejected`, `word_duplicate` and `game_ended`. Payloads: `game_started` `{mode}`, `word_*` `{word, points}`, `game_ended` `{reason, score, flagged}`, logged once per game even when requests race. Client events store their fields minus `type` and `game_id`, with the server's time in `created_at`. Multiplayer adds `match_started`, `match_word_accepted`, `match_word_rejected`, `match_word_duplicate`, `match_showcase_word`, `match_vote_cast` and `match_ended`, written when a match is saved, one row per player with `match_id` set and no `game_id`. Payloads: `match_started` `{player_count}`, `match_word_*` `{word, points}`, `match_showcase_word` `{word}`, `match_vote_cast` `{ranked}` (how many words, never whom), `match_ended` `{place, score}`.
 
 **Boards.** The board endpoints first run `sweep_abandoned` on a read-write connection, then run the query on `connect_ro`.
 
@@ -462,7 +466,7 @@ ORDER BY score DESC, u.nickname_key LIMIT ?
 - It sets `PRAGMA journal_mode=WAL` and reads `PRAGMA user_version`.
 - For each pending `MIGRATIONS[i]` it runs `executescript("BEGIN IMMEDIATE;" + SQL + "PRAGMA user_version=i+1; COMMIT;")`. The SQL is always a constant in the code, never input.
 - Migrations only move forward: never edit one that has been applied; append a new one instead.
-- **Migration 2** (multiplayer, after go-live) adds `matches`, `match_players` (with `word_score`, `vote_bonus` and `display_word`), `match_submissions` (with `kind`: word or display), `match_votes` and `events.match_id`. Its SQL is in [multiplayer.md §6.6](multiplayer.md#66-database-migration-2).
+- **Migration 2** (multiplayer, after go-live) adds `matches`, `match_players` (with `word_score`, `vote_bonus` and `showcase_word`), `match_submissions` (with `kind`: word or showcase), `match_votes` and `events.match_id`. Its SQL is in [multiplayer.md §6.6](multiplayer.md#66-database-migration-2).
 - Request connections set `foreign_keys=ON` and `busy_timeout` *before* installing the authorizer.
 
 ## 5. Configuration

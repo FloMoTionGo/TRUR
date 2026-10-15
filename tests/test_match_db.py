@@ -34,7 +34,7 @@ def conn(db_path: Path):
 
 
 def played() -> match.MatchRecord:
-    """The worked results example plus a duplicate, a rejected word and a second display word for A."""
+    """The worked results example plus a duplicate, a rejected word and a second showcase word for A."""
     m = match.new_match(
         "m1", "GARDEN", "SUMMER", ("AMAM", "DEARER", "DEER", "GEAR", "GENRES", "NEAR", "NEARER", "RERUNS", "RUNE"),
         [(uid, nick, nick.lower()) for uid, nick in NICKS.items()], T0,
@@ -44,9 +44,9 @@ def played() -> match.MatchRecord:
     match.submit(m, "uC", tiles(m, "RUAR"), at(3))  # rejected
     match.submit(m, "uB", tiles(m, "NEARER"), at(4))  # accepted, 8
     match.submit(m, "uC", tiles(m, "DEER"), at(5))  # accepted, 3
-    match.display(m, "uA", tiles(m, "DEER"), at(6))
-    match.display(m, "uA", tiles(m, "RUNS"), at(7))  # the last one counts
-    match.display(m, "uB", [(0, 0), (1, 3)], at(8))  # GSDU
+    match.showcase(m, "uA", tiles(m, "DEER"), at(6))
+    match.showcase(m, "uA", tiles(m, "RUNS"), at(7))  # the last one counts
+    match.showcase(m, "uB", [(0, 0), (1, 3)], at(8))  # GSDU
     assert match.close_play(m, at(60), random.Random(0))
     cid = {uid: c for c, uid in m.candidates.items()}
     match.vote(m, "uB", [cid["uA"]], at(61))
@@ -103,7 +103,7 @@ def test_match_row(conn: sqlite3.Connection) -> None:
     ]
 
 
-def test_submission_rows_skip_duplicates_and_keep_every_display_word(conn: sqlite3.Connection) -> None:
+def test_submission_rows_skip_duplicates_and_keep_every_showcase_word(conn: sqlite3.Connection) -> None:
     db.save_match(conn, played())
     got = rows(conn, "SELECT user_id, word, tiles, kind, is_valid, points, submitted_at, month "
                      "FROM match_submissions ORDER BY id")
@@ -112,9 +112,9 @@ def test_submission_rows_skip_duplicates_and_keep_every_display_word(conn: sqlit
         ("uC", "RUAR", "word", 0, 0),
         ("uB", "NEARER", "word", 1, 8),
         ("uC", "DEER", "word", 1, 3),
-        ("uA", "DEER", "display", 0, 0),
-        ("uA", "RUNS", "display", 0, 0),
-        ("uB", "GSDU", "display", 0, 0),
+        ("uA", "DEER", "showcase", 0, 0),
+        ("uA", "RUNS", "showcase", 0, 0),
+        ("uB", "GSDU", "showcase", 0, 0),
     ]
     assert got[-1][2] == "[[0,0],[1,3]]"
     assert [g[6] for g in got] == [db.iso(at(s)) for s in (1, 3, 4, 5, 6, 7, 8)]
@@ -123,11 +123,11 @@ def test_submission_rows_skip_duplicates_and_keep_every_display_word(conn: sqlit
 
 def test_player_and_vote_rows(conn: sqlite3.Connection) -> None:
     db.save_match(conn, played())
-    players = rows(conn, "SELECT user_id, score, word_score, vote_bonus, display_word, place, words_found "
+    players = rows(conn, "SELECT user_id, score, word_score, vote_bonus, showcase_word, place, words_found "
                          "FROM match_players ORDER BY place")
     assert players == [
         ("uB", 12, 8, 4, "GSDU", 1, 1),  # received 3 + 5 from two ballots
-        ("uA", 9, 4, 5, "RUNS", 2, 1),  # received 5 + 5; the last display word
+        ("uA", 9, 4, 5, "RUNS", 2, 1),  # received 5 + 5; the last showcase word
         ("uC", 3, 3, 0, None, 3, 1),
     ]
     assert all(score == word + bonus for _, score, word, bonus, *_ in players)
@@ -163,9 +163,9 @@ def test_events_with_their_real_timestamps(conn: sqlite3.Connection) -> None:
         ("uC", "match_word_rejected", '{"word":"RUAR","points":0}', db.iso(at(3))),
         ("uB", "match_word_accepted", '{"word":"NEARER","points":8}', db.iso(at(4))),
         ("uC", "match_word_accepted", '{"word":"DEER","points":3}', db.iso(at(5))),
-        ("uA", "match_display_word", '{"word":"DEER"}', db.iso(at(6))),
-        ("uA", "match_display_word", '{"word":"RUNS"}', db.iso(at(7))),
-        ("uB", "match_display_word", '{"word":"GSDU"}', db.iso(at(8))),
+        ("uA", "match_showcase_word", '{"word":"DEER"}', db.iso(at(6))),
+        ("uA", "match_showcase_word", '{"word":"RUNS"}', db.iso(at(7))),
+        ("uB", "match_showcase_word", '{"word":"GSDU"}', db.iso(at(8))),
         ("uB", "match_vote_cast", '{"ranked":1}', db.iso(at(61))),
         ("uC", "match_vote_cast", '{"ranked":2}', db.iso(at(62))),
         ("uA", "match_vote_cast", '{"ranked":1}', db.iso(at(63))),

@@ -1,7 +1,10 @@
 """Pair picking and daily-JSON validation (tasks/todo.md T4)."""
 
 import datetime
+import math
 import random
+from collections import Counter
+from itertools import islice, product
 
 import pytest
 
@@ -10,6 +13,7 @@ from trur.solver import (
     DailyEntry,
     Lexicon,
     is_win_word,
+    length_weights,
     pair_key,
     parse_daily_json,
     pick_pair,
@@ -64,6 +68,24 @@ def test_daily_rule_only_picks_qualifying_orientations(lex: Lexicon, seed: int) 
 def test_daily_rule_skips_used_pairs(lex: Lexicon, seed: int) -> None:
     used = {pair_key("CORRECT", "MEDICAL")}
     assert pick_pair(lex, random.Random(seed), daily_accept(used))[:2] == ("STRONG", "MEANING")
+
+
+def test_length_weights_follow_a_bell_curve_around_six() -> None:
+    w = length_weights(["ABCDE", "FGHIJK", "LMNOPQ", "RSTUVWX", "ABCDEFGHIJ"])
+    assert w[1] == w[2] == 0.5  # 6 letters: the peak, shared by two words
+    assert w[0] == w[3] == pytest.approx(math.exp(-0.5))  # one letter off: about 61 %
+    assert w[4] == pytest.approx(math.exp(-8))  # 10 letters: almost never
+
+
+def test_pick_pair_draws_lengths_not_words() -> None:
+    """Forty 5-letter words still lose to ten 6-letter ones: the length is drawn, then a word of it."""
+    source = ["".join(t) for n, k in ((5, 40), (6, 10), (7, 10)) for t in islice(product("ABCDEFGH", repeat=n), k)]
+    lex = Lexicon(frozenset(source), source)
+    rng = random.Random(0)
+    lengths = Counter(len(pick_pair(lex, rng, lambda *_: True)[0]) for _ in range(6000))
+    bell = {n: math.exp(-((n - 6) ** 2) / 2) for n in (5, 6, 7)}
+    for n, weight in bell.items():
+        assert lengths[n] / 6000 == pytest.approx(weight / sum(bell.values()), abs=0.03), n
 
 
 def test_pick_pair_gives_up(lex: Lexicon) -> None:

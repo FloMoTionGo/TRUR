@@ -95,7 +95,7 @@ ROUTES = [
     ("GET", f"{M}/current", None),
     ("GET", f"{M}/stream", None),
     ("POST", f"{M}/{NO_MATCH}/submit", {"tiles": coords("GEAR")}),
-    ("POST", f"{M}/{NO_MATCH}/display", {"tiles": coords("GEAR")}),
+    ("POST", f"{M}/{NO_MATCH}/showcase", {"tiles": coords("GEAR")}),
     ("POST", f"{M}/{NO_MATCH}/vote", {"ranking": ["c1"]}),
     ("GET", f"{M}/{NO_MATCH}/results", None),
 ]
@@ -110,7 +110,7 @@ def in_match(c: TestClient, match_id: str) -> list[tuple[int, dict]]:
     """Every route that names a match, called by c."""
     return [(r.status_code, r.json()) for r in (
         c.post(f"{M}/{match_id}/submit", json={"tiles": coords("GEAR")}),
-        c.post(f"{M}/{match_id}/display", json={"tiles": coords("GEAR")}),
+        c.post(f"{M}/{match_id}/showcase", json={"tiles": coords("GEAR")}),
         c.post(f"{M}/{match_id}/vote", json={"ranking": ["c1"]}),
         c.get(f"{M}/{match_id}/results"),
     )]
@@ -162,10 +162,10 @@ def test_joining_from_a_match_or_into_a_full_queue(host: Host, player: Player) -
     assert dee.get(f"{M}/current").json()["state"] == "idle"
 
 
-def test_submit_and_display_answer_without_points(host: Host, player: Player) -> None:
+def test_submit_and_showcase_answer_without_points(host: Host, player: Player) -> None:
     alice, bob = player("Alice"), player("Bob")
     match_id = host.start(alice, bob, go=False)
-    submit, display = f"{M}/{match_id}/submit", f"{M}/{match_id}/display"
+    submit, showcase = f"{M}/{match_id}/submit", f"{M}/{match_id}/showcase"
     assert_envelope(alice.post(submit, json={"tiles": coords("GEAR")}), 409, "match_not_running")  # 3-2-1
     host.go()
     accepted = alice.post(submit, json={"tiles": coords("GEAR")})
@@ -177,30 +177,29 @@ def test_submit_and_display_answer_without_points(host: Host, player: Player) ->
     assert_envelope(alice.post(submit, json={"tiles": coords("NEAR")}), 409, "tile_locked")  # AR is Alice's
     assert_envelope(alice.post(submit, json={"tiles": [[9, 9], [0, 0]]}), 422, "invalid_tiles")  # off the 6×6 grid
     assert_envelope(alice.post(submit, json={"tiles": coords("DEER"), "score": 99}), 422, "invalid_request")
-    assert bob.post(display, json={"tiles": coords("DEER")}).json() == {
-        "status": "displayed", "word": "DEER", "changes": [{"row": 4, "col": 3, "pct": 50}, {"row": 5, "col": 4, "pct": 50}]}
+    assert bob.post(showcase, json={"tiles": coords("DEER")}).json() == {"status": "showcased", "word": "DEER"}  # no tile changes
     host.clock.advance(END)
-    host.tick()  # one display word: no vote, the match is over but not yet saved
+    host.tick()  # one showcase word: no vote, the match is over but not yet saved
     assert_envelope(bob.post(submit, json={"tiles": coords("RUNE")}), 409, "match_not_running")
-    assert_envelope(bob.post(display, json={"tiles": coords("RUNE")}), 409, "match_not_running")
+    assert_envelope(bob.post(showcase, json={"tiles": coords("RUNE")}), 409, "match_not_running")
 
 
-def test_the_submit_gap_is_shared_with_display_words(host: Host, player: Player) -> None:
+def test_the_submit_gap_is_shared_with_showcase_words(host: Host, player: Player) -> None:
     host.configure(match_submit_min_gap_s=0.5)
     alice, bob = player("Alice"), player("Bob")
     match_id = host.start(alice, bob)
-    submit, display = f"{M}/{match_id}/submit", f"{M}/{match_id}/display"
+    submit, showcase = f"{M}/{match_id}/submit", f"{M}/{match_id}/showcase"
     m = host.lobby.rooms[match_id].m
     assert alice.post(submit, json={"tiles": coords("GEAR")}).json()["status"] == "accepted"
     uses = dict(m.uses)
     host.clock.advance(0.4)
-    for path in (submit, display):
+    for path in (submit, showcase):
         r = alice.post(path, json={"tiles": coords("DEER")})
         assert_envelope(r, 429, "rate_limited")
         assert r.headers["retry-after"] == "1"
     assert m.uses == uses and list(m.players[user_ids_of(m)["Alice"]].found) == ["GEAR"]  # nothing changed
     host.clock.advance(0.1)  # 0.5 s after the submit
-    assert alice.post(display, json={"tiles": coords("DEER")}).json()["status"] == "displayed"
+    assert alice.post(showcase, json={"tiles": coords("DEER")}).json()["status"] == "showcased"
     host.clock.advance(0.4)
     assert_envelope(alice.post(submit, json={"tiles": coords("RUNE")}), 429, "rate_limited")
     assert bob.post(submit, json={"tiles": coords("RUNE")}).json()["status"] == "accepted"  # the gap is per player
@@ -237,8 +236,8 @@ def test_the_vote_and_when_results_open(host: Host, player: Player) -> None:
         return c.post(f"{M}/{match_id}/vote", json={"ranking": ranking})
 
     assert_envelope(vote(alice, ["c1"]), 409, "match_not_voting")  # still playing
-    alice.post(f"{M}/{match_id}/display", json={"tiles": coords("RUNS")})
-    bob.post(f"{M}/{match_id}/display", json={"tiles": coords("DEER")})
+    alice.post(f"{M}/{match_id}/showcase", json={"tiles": coords("RUNS")})
+    bob.post(f"{M}/{match_id}/showcase", json={"tiles": coords("DEER")})
     host.clock.advance(END)
     host.tick()
     host.clock.advance(1)  # ballots count only after the close
@@ -256,7 +255,7 @@ def test_the_vote_and_when_results_open(host: Host, player: Player) -> None:
     assert vote(cy, [ballots["Cyd"]["DEER"], ballots["Cyd"]["RUNS"]]).status_code == 204  # everyone done: the end
     results = [c.get(f"{M}/{match_id}/results") for c in (alice, bob, cy)]
     assert [r.status_code for r in results] == [200] * 3 and results[0].json() == results[1].json() == results[2].json()
-    assert [(p["nickname"], p["display"]) for p in results[0].json()["players"]] == [
+    assert [(p["nickname"], p["showcase"]) for p in results[0].json()["players"]] == [
         ("Bob", {"word": "DEER", "votes": 10, "bonus": 5}),  # 5 + 5 from two ballots
         ("Alice", {"word": "RUNS", "votes": 8, "bonus": 4}),  # 5 + 3
         ("Cyd", None),
@@ -302,14 +301,14 @@ def paths(value: object, at: str = "") -> set[str]:
 VIEW = {
     "state", "queue", "queue.waiting", "queue.fill_ends_in_ms", "queue.timeout_in_ms", "match",
     *(f"match.{k}" for k in ("match_id", "players", "starts_in_ms", "ends_in_ms", "word1", "word2", "pct",
-                             "locked", "found", "display", "vote")),
+                             "locked", "found", "showcase", "vote")),
     "match.vote.ends_in_ms", "match.vote.candidates", "match.vote.candidates[].id", "match.vote.candidates[].word",
     "match.vote.voted",
 }
 RESULTS = {
     "match_id", "word1", "word2", "total_words", "players", "missed_words", "pct",
-    *(f"players[].{k}" for k in ("place", "nickname", "score", "word_score", "display", "words")),
-    "players[].display.word", "players[].display.votes", "players[].display.bonus",
+    *(f"players[].{k}" for k in ("place", "nickname", "score", "word_score", "showcase", "words")),
+    "players[].showcase.word", "players[].showcase.votes", "players[].showcase.bonus",
     "players[].words[].word", "players[].words[].points",
 }
 REPLY = {"status", "word", "changes", "changes[].row", "changes[].col", "changes[].pct"}
@@ -320,6 +319,7 @@ EVENTS = {  # docs/multiplayer.md §6.5
     "start": {"word1", "word2", "ends_in_ms"},
     "tiles": {"changes", "changes[].row", "changes[].col", "changes[].pct"},
     "found": {"nickname", "letters"},
+    "showcase": {"nickname"},
     "warning": {"ends_in_ms"},
     "voting": {"ends_in_ms", "candidates", "candidates[].id", "candidates[].word"},
     "voted": {"voted", "of"},
@@ -358,7 +358,7 @@ def test_payloads_hold_only_what_the_player_may_see(host: Host, player: Player, 
         return clients[n].post(f"{M}/{match_id}/{action}", json={"tiles": coords(word)})
 
     replies = [play("Alice", "submit", "GEAR"), play("Cyd", "submit", "NEAR"), play("Cyd", "submit", "GSAS"),
-               play("Alice", "submit", "GEAR"), play("Bob", "display", "DEER"), play("Alice", "display", "RUNS")]
+               play("Alice", "submit", "GEAR"), play("Bob", "showcase", "DEER"), play("Alice", "showcase", "RUNS")]
     host.clock.advance(match.DURATION_S - match.WARNING_S)
     host.tick()
     look()  # running, after the warning
@@ -393,7 +393,7 @@ def test_payloads_hold_only_what_the_player_may_see(host: Host, player: Player, 
     shown = {"Alice": {"RUNS"}, "Bob": {"DEER"}, "Cyd": set()}
     for n in names:
         theirs = set().union(*(found[o] for o in names if o != n))
-        their_display = set().union(*(shown[o] for o in names if o != n))
+        their_showcase = set().union(*(shown[o] for o in names if o != n))
         stream = [(e, json.dumps(d)) for e, d in events[n]]
         before = {e: [t for _, t in stream[:[x for x, _ in stream].index(e)]] for e in ("start", "voting", "end")}
         mine = [(state, json.dumps(v)) for o, state, v in views if o == n]
@@ -401,9 +401,9 @@ def test_payloads_hold_only_what_the_player_may_see(host: Host, player: Player, 
                     if "GARDEN" in t or "SUMMER" in t], n  # the board only from GO
         assert not [t for t in before["end"] + [t for s, t in mine if s != "idle"] if any(w in t for w in theirs)], n
         assert not [t for t in before["voting"] + [t for s, t in mine if s in ("queued", "forming", "countdown", "running")]
-                    if any(w in t for w in their_display)], n
+                    if any(w in t for w in their_showcase)], n
         voting = next(t for e, t in stream if e == "voting")
-        assert not [o for o in names if o in voting], n  # display words without names
+        assert not [o for o in names if o in voting], n  # showcase words without names
 
 
 # --- live: the stream, concurrency and shutdown (live_match_server) ---
@@ -502,8 +502,8 @@ def test_two_clients_play_a_full_match(live_match_server: LiveServer, db_path: P
         async with table(server, headers) as t:
             assert (await t.post("Alice", "submit", {"tiles": coords("GEAR")})).json()["status"] == "accepted"
             assert await t.streams["Bob"].until("found") == {"nickname": "Alice", "letters": 4}
-            assert (await t.post("Alice", "display", {"tiles": coords("RUNS")})).status_code == 200
-            assert (await t.post("Bob", "display", {"tiles": coords("DEER")})).status_code == 200
+            assert (await t.post("Alice", "showcase", {"tiles": coords("RUNS")})).status_code == 200
+            assert (await t.post("Bob", "showcase", {"tiles": coords("DEER")})).status_code == 200
             t.clock.advance(END)
             ballots = await t.until("voting")
             t.clock.advance(1)
@@ -520,13 +520,13 @@ def test_two_clients_play_a_full_match(live_match_server: LiveServer, db_path: P
 
     results = asyncio.run(scenario())
     assert all(r == results[0] for r in results)
-    assert [(p["nickname"], p["score"], p["word_score"], p["display"]) for p in results[0]["players"]] == [
+    assert [(p["nickname"], p["score"], p["word_score"], p["showcase"]) for p in results[0]["players"]] == [
         ("Alice", 9, 4, {"word": "RUNS", "votes": 5, "bonus": 5}),
         ("Bob", 5, 0, {"word": "DEER", "votes": 5, "bonus": 5}),
     ]
     server.stop()  # the lifespan waits for a save still running
     assert rows(db_path, "SELECT word, kind FROM match_submissions ORDER BY id") == [
-        ("GEAR", "word"), ("RUNS", "display"), ("DEER", "display")]
+        ("GEAR", "word"), ("RUNS", "showcase"), ("DEER", "showcase")]
     assert rows(db_path, "SELECT COUNT(*) FROM match_votes") == [(2,)]
 
 
@@ -570,8 +570,8 @@ def test_parallel_identical_ballots_count_once(live_match_server: LiveServer, db
 
     async def scenario() -> None:
         async with table(server, headers) as t:
-            await t.post("Alice", "display", {"tiles": coords("RUNS")})
-            await t.post("Bob", "display", {"tiles": coords("DEER")})
+            await t.post("Alice", "showcase", {"tiles": coords("RUNS")})
+            await t.post("Bob", "showcase", {"tiles": coords("DEER")})
             t.clock.advance(END)
             ballots = await t.until("voting")
             t.clock.advance(1)

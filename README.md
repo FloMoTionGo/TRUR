@@ -41,7 +41,7 @@ The full rules are in [plan.md: Game rules](docs/plan.md#game-rules).
 | --- | --- |
 | **Free play** | A random word pair each game, up to 20 games a day. Missed words are listed when the game ends |
 | **Daily challenge** | Everyone gets the same pair, one game per day. Find a word of 10 or more letters to win. The answers appear after midnight UTC |
-| **Multiplayer** | 2–6 players race on one board for 60 seconds. Each used tile drops to half its value for everyone, and scores stay hidden until the end. See [docs/multiplayer.md](docs/multiplayer.md) |
+| **Multiplayer** | 2–6 players race on one board for 3 minutes. Each used tile drops to half its value for everyone, and scores stay hidden until the end. See [docs/multiplayer.md](docs/multiplayer.md) |
 
 - **Rankings:** a monthly board for each solo mode and a board for each daily challenge, all ranked by best single game.
 - **Players** are anonymous. You pick a nickname, and the browser keeps a secret token in a cookie. There's no login.

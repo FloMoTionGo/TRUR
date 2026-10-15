@@ -166,7 +166,7 @@ def test_closed_play_is_not_running() -> None:
 
 def test_ends_in_ms_never_negative() -> None:
     m = make_match()
-    assert match.ms_until(m.ends_at, T0) == 60_000
+    assert match.ms_until(m.ends_at, T0) == match.DURATION_S * 1000
     assert match.ms_until(m.ends_at, m.ends_at + timedelta(seconds=5)) == 0
 
 
@@ -228,7 +228,7 @@ def test_close_play_needs_two_showcase_words(showcases: str, expected: bool) -> 
 
 # --- the vote ---
 
-CLOSED = T0 + timedelta(seconds=61)
+CLOSED = T0 + timedelta(seconds=match.DURATION_S + 1)
 VOTE = CLOSED + timedelta(seconds=1)
 
 

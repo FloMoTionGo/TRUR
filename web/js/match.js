@@ -305,7 +305,7 @@ function renderLobby() {
       const s = secondsLeft(startsAt);
       count.hidden = false;
       setText(count, s > 0 ? String(s) : "GO");
-      setText(text, "The grid appears at GO. 60 seconds, then a vote on showcase words.");
+      setText(text, "The grid appears at GO. 3 minutes, then a vote on showcase words.");
     } else {
       count.hidden = true;
       setText(text, "Picking a board…");
@@ -363,7 +363,7 @@ function startPlay(word1, word2, pct, endsInMs) {
   show("match");
   fitGrid(grid); // built while hidden; on phones it can only be measured now
   renderTimer();
-  if (!pct) announce("status", `Go! ${word1} across, ${word2} down. 60 seconds.`);
+  if (!pct) announce("status", `Go! ${word1} across, ${word2} down. 3 minutes.`);
 }
 
 function paintTile(tile) {

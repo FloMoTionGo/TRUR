@@ -115,3 +115,16 @@ The close-scores target holds (13.4% of matches within 2 points; the limit is 20
 | Slowest pick on the dev PC | 205 ms | 305 ms | under 1 s |
 
 Every target still holds, but the first one has no margin left: smaller boards leave 6 players fewer free tiles. With 200 matches per count it read 94.0 %, within that sample's noise of about ±1.5 points.
+
+## 3-minute matches (owner, 2026-10-15)
+
+The owner raised `DURATION_S` from 60 to 180 s. The match spike was rerun with the new length, `--sample 5000 --seed 1`, 200 matches per player count, `MIN_MATCH_WORDS` 60 and `BONUS_SCALE` 1, at three play rates:
+
+| Check | A word every 12 s (15 each) | Every 24 s (7 each) | Every 36 s (5 each) | Target |
+| --- | --- | --- | --- | --- |
+| 6-player matches where everyone still has a word at the end | 0.0% | 68.0% | 94.0% | at least 95 % |
+| Matches with all word scores within 2 points | 7.5% | 6.7% | 8.3% | under 20 % |
+| Highest share of matches whose winner random votes changed | 23.0% | 25.5% | 28.5% | at most 30 % |
+| Median word score, 6 players | 35 | 34 | 30 | – |
+
+The vote and close-scores targets hold at every rate. Whether players run out of words depends only on how many words each player submits: at the assumed rate of a word every 12 s, the first target fails in every match, because 15 words lock most of a player's own tiles. At a word every 36 s (5 words each, as with 60 s at 12 s) it is back at the old level. So the longer match fits slower players. If real matches show players running dry before the end, raise `MIN_MATCH_WORDS` or shorten the match again.

@@ -8,7 +8,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 
 - **Free play:** a random word pair each game.
 - **Daily challenge:** every player gets the same word pair that day, and the goal is to find a word of 10 or more letters.
-- **Multiplayer:** 2–6 players race on one board for 60 seconds, and every use of a tile halves its value for everyone. Designed in [multiplayer.md](multiplayer.md).
+- **Multiplayer:** 2–6 players race on one board for 3 minutes, and every use of a tile halves its value for everyone. Designed in [multiplayer.md](multiplayer.md).
 
 ## Decisions so far
 
@@ -41,7 +41,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 | Database | **SQLite.** Locally it's a file in `./var`, which git ignores. On Fly.io it's a file on a 1 GB volume, backed up by Fly's daily snapshots |
 | Security | The fixes from the [Security audit](#security-audit) are part of the build steps |
 | Implementation | Module layout, API contract and schema in [architecture.md](architecture.md); tests in [test-strategy.md](test-strategy.md) |
-| Multiplayer | **Public quick-match for 2–6 players**, 60 s on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Each player can set one unchecked **showcase word**; after play, a vote on creativity (up to 60 s) adds a bonus of up to 5 points. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
+| Multiplayer | **Public quick-match for 2–6 players**, 3 minutes on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Each player can set one unchecked **showcase word**; after play, a vote on creativity (up to 60 s) adds a bonus of up to 5 points. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
 | Hosting | **Fly.io app `trur`** in Frankfurt (`fra`), separate from GoCalypse. It **stops when idle** and **goes live at the end** of the solo build (step 7); multiplayer follows after go-live |
 
 ## Game rules

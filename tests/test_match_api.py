@@ -644,10 +644,11 @@ def test_shutdown_cuts_open_streams_and_finishes_a_pending_save(
     async def scenario() -> float:
         async with table(server, {n: headers[n] for n in ("Alice", "Bob")}) as t:
             await t.post("Alice", "submit", {"tiles": coords("GEAR")})
+            t.clock.advance(END - 30)  # Cyd queues late in the match, so the queue timeout can't end the stream first
             assert (await t.http.post(f"{M}/queue", json={}, headers=headers["Cyd"])).status_code == 200
             async with open_stream(t.http, headers["Cyd"]) as cy:  # still open at shutdown: uvicorn cuts it
                 assert (await cy.next())[0] == "snapshot"
-                t.clock.advance(END)
+                t.clock.advance(30)
                 await t.until("end")  # the save starts at the next tick
                 began = time.monotonic()
                 await asyncio.to_thread(server.stop)

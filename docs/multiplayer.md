@@ -9,7 +9,7 @@ Rules, design and build plan for the **multiplayer match**, from the `multiplaye
 
 ## 1. Goal
 
-2–6 players play **the same board at the same time for 60 seconds**. Every tile starts at 100 %. Each time anyone uses a tile in an accepted word, that tile drops to half its value for everyone. Scores stay hidden until the end, so players race for fresh tiles while only seeing which tiles others used and how long their words were.
+2–6 players play **the same board at the same time for 3 minutes**. Every tile starts at 100 %. Each time anyone uses a tile in an accepted word, that tile drops to half its value for everyone. Scores stay hidden until the end, so players race for fresh tiles while only seeing which tiles others used and how long their words were.
 
 Each player can also set one **showcase word**: any string of tiles, not checked against the dictionary. After play, everyone votes on the other players' showcase words for creativity, and the votes add a bonus to the final score.
 
@@ -24,7 +24,7 @@ Each player can also set one **showcase word**: any string of tiles, not checked
 | Same word, other players | **Several players can score the same word.** Later finders get less, because the first finder already halved those tiles |
 | Same word, same player | **"Already found", no points**, as in solo. That holds even when the word is rebuilt from other copies of the same letter pairs. Nothing locks and nothing is halved |
 | Wrong word | **Nothing happens except the red reject note.** No tries, no lockout, no penalty |
-| Length | **60 s of play** after a **3-2-1 countdown**, with a **10-second warning** on every screen. A match always runs the full 60 s |
+| Length | **3 minutes (180 s) of play** after a **3-2-1 countdown**, with a **10-second warning** on every screen. A match always runs the full 3 minutes (owner, 2026-10-15; was 60 s; [spike rerun](spike-report.md#3-minute-matches-owner-2026-10-15)) |
 | Players in a match | **Fixed when the match forms.** Leaving or losing the connection never removes anyone, and the match **always plays to the end**, even if only one player is still connected |
 | Hint popup | When another player's word is accepted, everyone else sees **"FloMo found a 6-letter word"** |
 | Multipliers | **Visible live on every tile**, as a percentage. That's the strategy, even though it shows which tiles others used |
@@ -46,17 +46,17 @@ Each player can also set one **showcase word**: any string of tiles, not checked
 ### 3.1 Timeline
 
 ```text
- queue ──► match found ──► 3 · 2 · 1 ──► GO ──── 50 s ──► 10 s warning ──► END ──► VOTE (≤ 60 s) ─► results
+ queue ──► match found ──► 3 · 2 · 1 ──► GO ─── 170 s ──► 10 s warning ──► END ──► VOTE (≤ 60 s) ─► results
            (nicknames)     (grid hidden)  grid revealed,                           anonymous      scores, bonus
-                                          60 s timer starts                        showcase words and all words shown
+                                          3-min timer starts                       showcase words and all words shown
 ```
 
 1. **Queue.** The player presses **Multiplayer** and waits ([§4](#4-quick-match-and-match-states)).
 2. **Match found.** Everyone sees the nicknames in the match. From now on the players are fixed.
 3. **Countdown 3-2-1.** The grid is **not sent yet**, so nobody gets a head start.
-4. **Play, 60 s.** The words and the grid arrive with "GO". The server's clock decides when the match ends.
+4. **Play, 3 minutes.** The words and the grid arrive with "GO". The server's clock decides when the match ends.
 5. **Warning at 10 s left.** A banner appears and the timer changes colour on every screen at the same moment.
-6. **End.** Submits stop at 60 s.
+6. **End.** Submits stop at 180 s.
    - A submit that reaches the server up to **300 ms** later still counts, to absorb network delay on a last-second click.
    - Play is closed only **after** those 300 ms. A late word is therefore always in the results.
 7. **Vote, up to 60 s.** Every player sees the other players' showcase words, anonymous and shuffled, and ranks up to three ([§3.7](#37-creativity-vote)). The vote **finishes automatically as soon as every connected player has voted**. A player whose stream has been gone for 10 s counts as done, so nobody waits for someone who left. The 60 s are only the limit for connected players who don't vote. If fewer than two players set a showcase word, there's nothing to compare and the vote is skipped: no bonus for anyone.
@@ -65,7 +65,7 @@ Each player can also set one **showcase word**: any string of tiles, not checked
 **Exact boundaries**, all on the server clock. T is the moment the board has been picked.
 
 - `starts_at` is T + 3 s.
-- `ends_at` is `starts_at` + 60 s.
+- `ends_at` is `starts_at` + 180 s.
 - A submit is accepted when `starts_at ≤ now ≤ ends_at + 300 ms`.
 - The warning goes out at the first tick with `now ≥ ends_at − 10 s`. Play closes at the first tick with `now > ends_at + 300 ms`; that tick's time is `closed_at`.
 - `vote_ends_at` is `closed_at` + 60 s. A ballot is accepted when `closed_at < now ≤ vote_ends_at + 300 ms`. The match ends at the first tick after that, or earlier when every player is **done**: has voted, or has had no open stream for `MATCH_STREAM_GONE_S` (`Hub.gone_since`). A ballot that makes everyone done ends the vote at once; a player who goes away is noticed by the next tick after their 10 s.
@@ -274,7 +274,7 @@ Browser B ◄──SSE /api/match/stream┤ api.py (async match routes)         
 | New dependency | none; `StreamingResponse` + `EventSource` | plain `uvicorn` has no WebSocket support, so `websockets` or `wsproto` must be added |
 | Security stack (Origin/JSON check, body cap, rate limits, Pydantic, error envelope) | reused unchanged for every action | must be rebuilt for messages, including an Origin check against cross-site hijacking |
 | Reconnect | built into `EventSource` | hand-written |
-| Latency | ample for a 60-s match with at most two submits per second | lower, but not needed |
+| Latency | ample for a 3-min match with at most two submits per second | lower, but not needed |
 
 **SSE details:**
 
@@ -292,7 +292,7 @@ Browser B ◄──SSE /api/match/stream┤ api.py (async match routes)         
 **New: `trur/match.py`.** The rules engine, stdlib only, with no I/O and no clock reads (times are passed in):
 
 ```python
-COUNTDOWN_S = 3; DURATION_S = 60; WARNING_S = 10; VOTE_S = 60; GRACE = timedelta(milliseconds=300)   # decided rules
+COUNTDOWN_S = 3; DURATION_S = 180; WARNING_S = 10; VOTE_S = 60; GRACE = timedelta(milliseconds=300)   # decided rules
 VOTE_POINTS = (5, 3, 1); BONUS_SCALE = 1                                                 # decided rules (§3.7)
 class PlayerState:
     nickname: str; locked: set[Tile]; found: dict[str, FoundWord]   # FoundWord: word, tiles, points, at
@@ -530,7 +530,7 @@ ALTER TABLE events ADD COLUMN match_id TEXT REFERENCES matches(id) ON DELETE CAS
 
 ### 6.7 Configuration
 
-Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)): the lobby's in step M4 (`MATCH_MIN_PLAYERS` to `MATCH_MAX_QUEUE`, and `MIN_MATCH_WORDS`), the rest with the routes in M5. The constants in `match.py` (3-s countdown, 60-s match, 10-s warning, 60-s vote limit, 300-ms grace, 5/3/1 vote points, bonus scale 1) are rules, not settings. Tests drive time through `FakeClock`, so they don't need shorter values.
+Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)): the lobby's in step M4 (`MATCH_MIN_PLAYERS` to `MATCH_MAX_QUEUE`, and `MIN_MATCH_WORDS`), the rest with the routes in M5. The constants in `match.py` (3-s countdown, 180-s match, 10-s warning, 60-s vote limit, 300-ms grace, 5/3/1 vote points, bonus scale 1) are rules, not settings. Tests drive time through `FakeClock`, so they don't need shorter values.
 
 | Variable | Default | Test | Note |
 | --- | --- | --- | --- |
@@ -552,7 +552,7 @@ Added to `Settings` ([architecture.md §5](architecture.md#5-configuration)): th
   - the rule: `MATCH_MAX_ACTIVE × MATCH_MAX_PLAYERS + MATCH_MAX_QUEUE + 25 ≤ hard_limit`
   - with the defaults that's 8 × 6 + 24 + 25 = 97 ≤ 100
   - raise `hard_limit` before raising the caps
-- **The vote** keeps each match's streams open up to 60 s longer, so a match can hold its slots for about 2 minutes (3 s + 60 s + 60 s). The concurrency rule doesn't change, but a full server stays full longer. In practice the vote finishes as soon as every connected player has voted, usually well before 60 s.
+- **The vote** keeps each match's streams open up to 60 s longer, so a match can hold its slots for about 4 minutes (3 s + 180 s + 60 s). The concurrency rule doesn't change, but a full server stays full longer. In practice the vote finishes as soon as every connected player has voted, usually well before 60 s.
 - **Auto-stop:** open streams keep the machine running while players queue, play or vote. The queue timeout and closing streams after `end` let it stop again.
 - **Deploys and restarts:**
   - uvicorn runs the lifespan shutdown only after open connections have closed, so open streams would hold up a deploy until Fly kills the machine.
@@ -587,7 +587,7 @@ These screens are added to the brief in [plan.md: Designed in Claude Design](pla
 9. **Match screen:**
    - the grid, where every tile shows its percentage (100 %, 50 %, 25 %, 13 % …), and its colour fades with it
    - tiles locked for you, which look clearly different from faded ones
-   - your words without points, the 60-s timer and the popup stack, which never covers the grid
+   - your words without points, the 3-min timer and the popup stack, which never covers the grid
    - the **Showcase word** button next to Submit, and your current showcase word above your word list
    - the "already found" note, and the popup "*FloMo* set a showcase word" next to the "found a 6-letter word" one
    - **the 10-s warning state**
@@ -621,7 +621,7 @@ Also design for phones:
   - `aria-disabled="true"`, not `disabled`, so screen readers still announce them
   - a lock cue that doesn't rely on colour
 - **Timer, 10-s warning and popup ticker:** in the status strip. The popup stack docks over the action area and never covers the grid. Popups are announced politely and collapsed in bursts ("2 players found words").
-- **Your words during play:** a count or a one-line strip, not a sheet. 60 s is too short to keep opening one.
+- **Your words during play:** a count or a one-line strip, not a sheet. 3 minutes are still too short to keep opening one.
 - **Showcase word:**
   - on the opposite edge from Submit, and visually distinct, because it can't be undone
   - no confirm step, because of the time pressure
@@ -743,7 +743,7 @@ Applied on 2026-10-13, for phones ([mobile.md](mobile.md)):
 1. **Your own score is hidden too** during the match. You see your words without points.
 2. **The popup names the finder** ("FloMo found a 6-letter word"). The finder doesn't get the popup.
 3. **2–6 players** per match, with a 10-s fill window and a 2-min queue timeout.
-4. **A match always runs the full 60 s.** It doesn't end early, even if nobody can find more words.
+4. **A match always runs the full 3 minutes.** It doesn't end early, even if nobody can find more words.
 5. **Results list the words nobody found** right away, as in free play. Match boards never repeat on purpose, and today's and tomorrow's daily words are excluded.
 6. **A tile never drops below 1 %**, and every accepted word scores at least 1 point.
 7. **The grid is revealed only at "GO",** not during the 3-2-1.

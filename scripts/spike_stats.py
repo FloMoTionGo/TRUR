@@ -9,7 +9,7 @@ it has, how many points they are worth, and whether it has a win word (10+ lette
 
 --match (docs/multiplayer.md §10, M2) reports how many pairs a MIN_MATCH_WORDS rule accepts and how long
 a pick takes, then plays seeded matches through trur.match: 2–6 greedy players, each submitting the best
-word still open to them every 12 s for 60 s, then a showcase word each and random ballots.
+word still open to them every 12 s for the match (DURATION_S), then a showcase word each and random ballots.
 """
 
 import argparse

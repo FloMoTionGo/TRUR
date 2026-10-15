@@ -315,7 +315,7 @@ def test_forming_publishes_nothing_until_the_board_is_picked(lobby: Lobby, clock
     assert state(lobby, clock, "A") == "countdown"
     clock.advance(0.001)
     drive(lobby, clock)
-    assert hub.sent[-1] == (["A", "B"], "start", {"word1": "GARDEN", "word2": "SUMMER", "ends_in_ms": 60_000})
+    assert hub.sent[-1] == (["A", "B"], "start", {"word1": "GARDEN", "word2": "SUMMER", "ends_in_ms": match.DURATION_S * 1000})
     assert state(lobby, clock, "A") == "running"
 
 
@@ -345,7 +345,7 @@ def test_a_player_who_leaves_during_the_countdown_is_still_in_the_results(lobby:
 
 def test_the_warning_is_published_once(lobby: Lobby, clock: FakeClock, hub: RecordingHub) -> None:
     start(lobby, clock, "AB")
-    clock.advance(49.999)
+    clock.advance(match.DURATION_S - match.WARNING_S - 0.001)
     drive(lobby, clock)
     assert "warning" not in hub.events("A")
     clock.advance(0.001)
@@ -563,7 +563,7 @@ def test_the_view_shows_only_the_callers_own_play(lobby: Lobby, clock: FakeClock
     a = lobby.view("A", clock.now())
     assert a["state"] == "running" and a["queue"] is None
     assert a["match"] == {
-        "match_id": match_id, "players": ["Ann", "Ben"], "starts_in_ms": None, "ends_in_ms": 40_000,
+        "match_id": match_id, "players": ["Ann", "Ben"], "starts_in_ms": None, "ends_in_ms": (match.DURATION_S - 20) * 1000,
         "word1": "GARDEN", "word2": "SUMMER", "pct": match.pct_grid(lobby.rooms[match_id].m),
         "locked": [[4, 0], [4, 3], [5, 1], [5, 4]], "found": ["GEAR"], "showcase": "DEER", "vote": None,
     }

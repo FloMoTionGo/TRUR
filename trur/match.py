@@ -15,7 +15,7 @@ from trur.solver import Tile, points, word_from_tiles
 
 # Decided rules, not settings (§6.7).
 COUNTDOWN_S = 3
-DURATION_S = 60
+DURATION_S = 180
 WARNING_S = 10
 VOTE_S = 60
 GRACE = timedelta(milliseconds=300)

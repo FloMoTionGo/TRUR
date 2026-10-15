@@ -197,8 +197,10 @@ def serve(
 ) -> Iterator[LiveServer]:
     """port: 0 picks a free one; a test restarts a stopped server on its old port, as a deploy would."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    if port and sys.platform != "win32":
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # the old server's connections may be in TIME_WAIT
+    if sys.platform != "win32":
+        # Linux rebinds a port only if its old sockets set this too: the first server's accepted
+        # connections may still be open or in TIME_WAIT when a test restarts it (Windows needs nothing)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("127.0.0.1", port))
     base_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
     settings = make_settings(db_path.parent, allowed_origins=(base_url,), **overrides)

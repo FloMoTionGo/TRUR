@@ -843,7 +843,9 @@ html:has(dialog[open]) { overflow: hidden; }
   .popup:not(:last-child), .popup span { display: none; }
   .popup { padding: 4px 10px; }
   #screen-results .over-note { display: none; }
-  .vote-main, .res-main { padding: 16px 12px; overflow-y: visible; }
+  /* the column scrolls itself, above the action area: overflowing a squeezed column ran the lists on
+     under Play again (live, 2026-10-15) */
+  .vote-main, .res-main { padding: 16px 12px; overscroll-behavior: contain; }
   .vote-slots { flex-direction: column; }
   .res-detail, .res-words { margin-left: 0; }
   .lobby-count { font-size: 72px; }

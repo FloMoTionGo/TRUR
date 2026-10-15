@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import FakeApi, long_words, watch_errors
 from tests.e2e.devices import BY_ID
-from tests.e2e.layout import l1, l2, l4, l6, l7, l8, pitch, press, snapshot
+from tests.e2e.layout import l1, l2, l3, l4, l6, l7, l8, pitch, press, snapshot
 from tests.e2e.test_layout import BASELINES, GEOMETRY, decode_geometry
 from trur.solver import Lexicon
 
@@ -748,3 +748,40 @@ def test_p13_1_in_app_back_leaves_no_extra_entry(phone: Page, live_server, lex: 
     expect(phone.locator("#screen-game")).to_be_visible()
     assert phone.evaluate("history.length") == length + 1
     assert phone.evaluate("history.state") is None
+
+
+# --- multiplayer results (docs/multiplayer.md §8) ---
+
+MATCH_ID = "0b8ecc06-be19-4c3a-9d2e-5f1a2b3c4d5e"
+
+
+def match_results(missed: list[str]) -> dict:
+    """GET /api/match/<id>/results for a three-player match, shaped like trur.match.results without the pcts."""
+    def player(place: int, nickname: str, words: list[str], bonus: int) -> dict:
+        scored = [{"word": w, "points": len(w) // 2} for w in words]
+        word_score = sum(w["points"] for w in scored)
+        return {"place": place, "nickname": nickname, "score": word_score + bonus, "word_score": word_score,
+                "showcase": {"word": "SVEEDD", "votes": 2 * bonus, "bonus": bonus} if bonus else None,
+                "words": scored}
+    return {"match_id": MATCH_ID, "word1": "INSTEAD", "word2": "INVOLVED", "total_words": len(missed) + 4,
+            "players": [player(1, "Ann", ["SEND", "NODE", "DONE", "DINNED"], 5), player(2, "Bob", [], 3),
+                        player(3, "Cat", [], 0)],
+            "missed_words": missed}
+
+
+def test_results_long_list_scrolls_above_the_action_area(phone: Page, live_server, lex: Lexicon) -> None:
+    """Words nobody found ran on under Play solo / Play again (2026-10-15, live): the list must scroll
+    above the action area, which stays docked to the bottom with both buttons in view."""
+    phone.route("**/api/**", FakeApi(lex).handle)
+    phone.route(f"**/api/match/{MATCH_ID}/results", lambda route: route.fulfill(json=match_results(long_words(96))))
+    phone.goto(f"{live_server.base_url}/#match/{MATCH_ID}")
+    words = phone.locator(f'{SEL.format("res-missed")} li')
+    expect(words).to_have_count(96)
+    bar = "#screen-results .solution"
+    for end in (words.first, words.last):
+        end.scroll_into_view_if_needed()
+        s = snapshot(phone, bar=bar)
+        assert l1(s) + l2(s) + l3(s) + l7(s, "bar") == []
+        top = s["named"]["bar"]["rect"][1]
+        word = end.bounding_box()
+        assert word["y"] + word["height"] <= top + 0.5, f"{end} ends at {word['y'] + word['height']}, under the bar at {top}"

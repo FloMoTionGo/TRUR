@@ -150,7 +150,7 @@ button:disabled { cursor: default; }
   --tile-size: 48px;
   --gap: 6px;
   /* fitGrid (js/grid.js) reads these. Desktop sizes tiles for the fixed --fit-w × --fit-h box. */
-  --head: 24px;
+  --head: 30px;       /* the source-word tiles (owner, 2026-10-14: "Source words as orange tiles") */
   --max-tile: 48px;
   --gap-dense: 4px;   /* 8 or more columns or rows */
   --gap-loose: 6px;
@@ -164,7 +164,20 @@ button:disabled { cursor: default; }
   align-items: center;
   justify-items: center;
 }
-.grid .head { font-family: var(--font-tile); font-size: 14px; color: var(--muted); }
+/* each source-word letter on its own orange tile, at 150 % (14 → 21 px). No frame and no shadow, so it
+   stays apart from a selected tile, which is also orange */
+.grid .head {
+  width: var(--head);
+  height: var(--head);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-tile);
+  font-size: 21px;
+  font-weight: 700;
+  background: var(--orange);
+  color: var(--on-orange);
+}
 .grid .head-col { align-self: end; }
 
 .tile {
@@ -575,7 +588,7 @@ html:has(dialog[open]) { overflow: hidden; }
      (flex: 1) and the action area. Values are provisional until the P9 design. */
   .grid-area { flex: 1 1 0; min-height: 0; overflow: hidden; padding: 8px 12px; }
   .grid {
-    --head: 16px;
+    --head: 22px;     /* the source-word tiles; was 16px */
     --max-tile: 56px;
     --gap-dense: 3px;
     --gap-loose: 4px;
@@ -584,7 +597,7 @@ html:has(dialog[open]) { overflow: hidden; }
     grid-template-columns: var(--head) repeat(var(--cols), calc(var(--tile-size) + var(--gap)));
     grid-template-rows: var(--head) repeat(var(--rows), calc(var(--tile-size) + var(--gap)));
   }
-  .grid .head { font-size: 12px; }
+  .grid .head { font-size: 18px; } /* 150 % of 12px */
 
   /* every point of the grid is a tile button: it covers its whole cell, gaps included, and the visible
      tile is drawn on ::before, half a gap in (mobile.md §5.3) */

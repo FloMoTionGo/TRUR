@@ -146,6 +146,7 @@ On desktop, all of it fits a fixed **640×640 px** game area; phones get their o
   - white ground
   - olive tiles (`#6B7B3A`, edge `#4D5829`) with white letters
   - orange selected tiles with near-black letters
+  - **source words as orange tiles** (owner, 2026-10-14, from [Source Word Tiles](https://claude.ai/artifact/MHdFHCkeWe54sckt2DufPn); built 2026-10-15): each letter of the two source words sits on its own orange tile, bold, at 150 % (21 px on desktop in a 30 px head, 18 px in a 22 px head on phones). No frame and no shadow, so it stays apart from a selected tile. The logo keeps its plain head letters
   - olive headings and active states
   - light olive panels (`#EEF0E6`)
   - Fonts: Space Grotesk for the interface, Space Mono for tiles and numbers, both self-hosted.

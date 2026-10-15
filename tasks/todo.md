@@ -432,7 +432,7 @@ Run the layout checks once against today's page at 360×780: L2, L3 and L4 must 
 
 **Acceptance criteria:**
 - [x] TS P6.1–P6.15 pass, including a gap click selecting the nearer tile, a head click selecting nothing, and Enter on a focused tile toggling that tile
-- [x] At 10×10 in portrait without the banner, the pitch is at least 32 at widths of 360 and up
+- [x] At 10×10 in portrait without the banner, the pitch is at least 32 at widths of 360 and up (31 since the source-word tiles, 2026-10-15; see TS P6.2)
 - [x] D1 and D3 pass, and flow 3 still reads "Click tiles…" at 1000×800
 **Dependencies:** P5 · **Files:** web/index.html, web/css/app.css, web/js/game.js · **Scope:** M
 

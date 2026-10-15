@@ -94,7 +94,9 @@ Status: **planned, nothing built yet.** This started as a proposal (`tasks/mobil
 
 ### 5.1 Sizes on phones
 
-On phones (portrait and landscape): gutter 12, head 16, gap 3 for grids of 8 or more columns or rows and 4 below that, and `--max-tile` 56. "Tile / pitch" means tile size / tile + gap, floored as `fitGrid` does:
+On phones (portrait and landscape): gutter 12, head 16, gap 3 for grids of 8 or more columns or rows and 4 below that, and `--max-tile` 56. "Tile / pitch" means tile size / tile + gap, floored as `fitGrid` does.
+
+**Since 2026-10-15 the head is 22**, for the source-word tiles (owner, [plan.md: Layout & style](plan.md#layout--style)). Every width-bound tile in the table below loses up to 1 px, for example 10×10 at 360 is now 28 / 31; the tile-size baselines hold the exact values:
 
 | Width | 10×10 | 8×8 | 6×6 |
 | --- | --- | --- | --- |

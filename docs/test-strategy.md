@@ -784,7 +784,7 @@ This step builds the phone harness: `devices.py`, `layout.py` (L1–L8), `press(
 ### Step P6: game screen
 
 - **P6.1** For 5×5, 6×6, 10×10, 5×10 and 10×5 on every portrait device: L1, L2 and L4 hold, and there's no vertical scroll.
-- **P6.2** At 10×10 in portrait without the banner, at widths of 360 and up: pitch ≥ 32, and the tile font is at least 12 px. Everywhere: pitch ≥ 24.
+- **P6.2** At 10×10 in portrait without the banner, at widths of 360 and up: pitch ≥ 31, and the tile font is at least 12 px. Everywhere: pitch ≥ 24. (It was 32 until the source-word tiles widened the head from 16 to 22 px on 2026-10-15, a cost of 1 px the owner's design accepted.)
 - **P6.3** At 5×5 on widths of 375 and up, the tile is 56 px.
 - **P6.4** Submit and Clear pass L6, and Submit is at least as wide as Clear.
 - **P6.5** With a coarse pointer the visible hint reads "Tap tiles to build a word". At 1000×800 flow 3 still reads "Click tiles…".

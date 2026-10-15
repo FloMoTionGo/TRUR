@@ -215,6 +215,7 @@ def serve(
     def stop() -> None:
         server.should_exit = True
         thread.join(timeout=10)
+        sock.close()  # frees the port at once, so a restarted server can bind it (Linux refuses while it's open)
 
     try:
         yield LiveServer(base_url, app, clock, stop)

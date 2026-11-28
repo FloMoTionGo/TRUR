@@ -41,6 +41,7 @@ TRUR/
 │  ├─ match.py             multiplayer rules engine: tile %, points, locks, duplicates, time window, showcase words, vote and bonus (stdlib only)
 │  ├─ lobby.py             multiplayer queue, matches, Hub (SSE fan-out), tick()/run() (stdlib + asyncio)
 │  ├─ rankings.py          ranking recompute + board queries
+│  ├─ stats.py             a player's own daily record: streaks, played, won (read-only)
 │  ├─ security.py          body cap, security headers, JSON/Origin check, RateLimiter, client IP
 │  ├─ api.py               routes, Pydantic models, dependencies, exception handlers
 │  └─ app.py               create_app() factory, lifespan, middleware, static mount of web/

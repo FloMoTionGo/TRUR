@@ -622,21 +622,22 @@ What keeps players in other daily word games (Wordle, Spelling Bee, Connections)
 - **Whether a streak must survive a lost cookie.** Options: a recovery code (B1), or accept the loss and say so in the privacy text. Recommendation: ship L1 first and add B1 in priority 4.
 
 **Acceptance criteria:**
-- [ ] Every task below is marked, and both decisions are written into docs/plan.md with their date
+- [x] Both decisions are made as recommended and written into docs/plan.md (2026-11-28)
+- [ ] Every task below is marked build, later or drop
 
 **Dependencies:** none · **Files:** tasks/todo.md, docs/plan.md · **Scope:** S
 
 ### Priority 2: The return loop
 
 ### B2: Statistics queries (no new table)
-**Description:** A `trur/stats.py` module with one function that reads a player's daily history from `games` and `submissions`: dailies played, dailies won, current streak, best streak, best daily score, longest word, and the last 30 days as a played/won list. The streak walks `daily_date` backwards from today; a day still in play today doesn't break it. Add an index on `games(user_id, mode, daily_date)` in a migration if the query plan needs one.
+**Description:** A `trur/stats.py` module with one function that reads a player's daily history from `games` and `submissions`: dailies played, dailies won, current streak, best streak, best daily score, longest word, and the last 30 days as a played/won list. The streak walks `daily_date` backwards from today; a day still in play today doesn't break it. No index was needed: the query plan uses the existing UNIQUE (user_id, daily_date) index, and a test pins that.
 **Acceptance criteria:**
-- [ ] Unit tests on the FakeClock: games at 23:59 and 00:01 UTC are two days; a skipped day resets the current streak and keeps the best; today not yet played leaves yesterday's streak standing
-- [ ] The streak rule is T31's, in one named function
-- [ ] Rows older than the 90-day event purge still count (test with a purge in between)
-- [ ] A hidden or flagged game is handled as the boards handle it
+- [x] Unit tests on the FakeClock: games at 23:59 and 00:01 UTC are two days; a skipped day resets the current streak and keeps the best; today not yet played leaves yesterday's streak standing
+- [x] The streak rule is T31's, in one named function
+- [x] Rows older than the 90-day event purge still count (test with a purge in between)
+- [x] Hidden and flagged are handled on purpose: a flagged game still counts as played, won and for the streak (it is the player's own record), but its score and words stay out of the best score and the longest word, as on the boards; a hidden player sees their own numbers
 
-**Dependencies:** T31 · **Files:** trur/stats.py, trur/db.py (index, if needed), tests/test_stats.py · **Scope:** M
+**Dependencies:** T31 · **Files:** trur/stats.py, tests/test_stats.py, docs/architecture.md · **Scope:** M
 
 ### L1: Daily streak and personal statistics
 **Why it works elsewhere:** the streak is Wordle's main reason to open the game on a dull day; its statistics screen turns single games into a record worth protecting.

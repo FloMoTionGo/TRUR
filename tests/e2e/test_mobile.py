@@ -816,3 +816,21 @@ def test_l1_the_daily_record_fits_down_to_320_px(phone: Page, live_server, lex: 
         assert left >= 0 and right <= width, width
         assert all(p[0] >= left - 0.5 and p[2] <= right + 0.5 for p in got["parts"]), width
         assert all(got["labels"]), width  # no label is cut off
+
+
+# --- L2: sharing a daily result ---
+
+def test_l2_share_opens_the_share_sheet_from_a_44_px_button(phone: Page, live_server, lex: Lexicon, phone_device) -> None:
+    phone.add_init_script("navigator.share = (data) => { window.__shared = data; return Promise.resolve(); };")
+    open_page(phone, live_server, lex, ready=f'{SEL.format("stats-over")} [data-stat]', **daily_over({}))
+    for width in (phone_device.width, 320):
+        phone.set_viewport_size({"width": width, "height": phone_device.height})
+        s = snapshot(phone, share=SEL.format("share"))
+        assert l1(s) == [] and l2(s) == [] and l3(s) == [], width
+        left, top, right, bottom = s["named"]["share"]["rect"]
+        assert right - left >= 44 - 0.5 and bottom - top >= 44 - 0.5, width
+    press(phone.locator(SEL.format("share")))
+    phone.wait_for_function("() => window.__shared !== undefined")
+    text = phone.evaluate("window.__shared.text")
+    assert text.startswith("TRUR daily · Sun 11 Oct\n25 points · 1 of ") and "▮▮▮▮▮" in text and "DEMOCRATIC" not in text
+    expect(phone.locator(SEL.format("toast"))).to_be_hidden()  # the sheet is its own feedback

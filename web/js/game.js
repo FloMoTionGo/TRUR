@@ -6,6 +6,7 @@ import { addDays, dayLabel, showAnswers, showBoards } from "./boards.js";
 import { logEvent } from "./events.js";
 import { buildGrid, fitGrid, observeGrid, PHONE_QUERY } from "./grid.js";
 import { showScreen } from "./screens.js";
+import { share, shareText } from "./share.js";
 import { openSheet } from "./sheet.js";
 import { daysText, loadStats, renderStats, serverNow } from "./stats.js";
 
@@ -257,6 +258,14 @@ byTestId("new-game").addEventListener("click", async () => {
   }
 });
 
+// The daily result as text, with no word in it (js/share.js).
+byTestId("share").addEventListener("click", async () => {
+  if (!game || game.mode !== "daily") return;
+  const outcome = await share(shareText(game, window.location.host));
+  if (outcome === "copied") showToast("duplicate", "Copied", "Your result is on the clipboard, without the words.");
+  else if (outcome === "failed") showToast("rejected", "Couldn’t share", "This browser didn’t allow copying.");
+});
+
 const openAnswers = () => showAnswers(game.daily_date, () => show(game)); // back to the screen it came from
 byTestId("past-answers").addEventListener("click", openAnswers);
 byTestId("past-answers-over").addEventListener("click", openAnswers);
@@ -340,6 +349,7 @@ function showGameOver() {
   }
   byTestId("over-note").hidden = !daily;
   byTestId("past-answers-over").hidden = !daily;
+  byTestId("share").hidden = !daily;
   byTestId("over-streak").textContent = "";
   nextReady = false;
   byTestId("new-game").textContent = "New game";

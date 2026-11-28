@@ -671,11 +671,13 @@ The server's time comes as `server_time` in the statistics response, which this 
     ▮▮ ▮▮ ▮▮▮ ▮▮▮ ▮▮▮ ▮▮▮▮ ▮▮▮▮▮
     trur.fly.dev
 
-One block per tile, one group per found word, shortest first. `navigator.share` where it exists, the clipboard otherwise, with a toast saying "Copied". No word, no letter and no source word appears in the text.
+One block per tile, one group per found word, shortest first. `navigator.share` on touch devices that have it, the clipboard otherwise, with a toast saying "Copied". No word, no letter and no source word appears in the text.
+
+Built with two small changes: the date line carries the weekday ("Sun 11 Oct", as everywhere else in the app), and desktop browsers always copy, even where they have a share dialog, because a paste is what a desktop player wants.
 **Acceptance criteria:**
-- [ ] A test builds the text for the fixture daily and checks no answer word and no source word is in it
-- [ ] Works under the current CSP with no new dependency
-- [ ] The button has a 44 px target on phones
+- [x] A test builds the text for the fixture daily and checks no answer word and no source word is in it
+- [x] Works under the current CSP with no new dependency (the browser flows fail on any console error, CSP reports included)
+- [x] The button has a 44 px target on phones (checked down to 320 px)
 
 **Dependencies:** T31 · **Files:** web/js/share.js, web/js/game.js, web/index.html, web/css/app.css, tests/e2e/test_flows.py · **Scope:** S
 

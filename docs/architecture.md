@@ -54,6 +54,7 @@ TRUR/
 │  ├─ js/grid.js           grid render + sizing (fixed on desktop, measured on phones), shared with match.js (mobile.md §5)
 │  ├─ js/sheet.js          <dialog> bottom sheet for phones: found list, End confirm (mobile.md §6.3–6.4)
 │  ├─ js/boards.js         monthly + daily boards with the "You" tab, past answers view
+│  ├─ js/share.js          a daily result as text without spoilers; share sheet on touch, clipboard elsewhere
 │  ├─ js/stats.js          the daily record: four numbers and 30 day blocks, the header's streak badge
 │  ├─ js/events.js         batches tile events (≤50, ≥1 s apart)
 │  ├─ js/match.js          multiplayer: queue, countdown, match, showcase word, vote, results, results link

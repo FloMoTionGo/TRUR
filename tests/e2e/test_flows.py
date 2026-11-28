@@ -404,3 +404,46 @@ def test_the_countdown_runs_on_the_servers_clock(page: Page, live_server, fake_a
     expect(page.locator(".tile").first).to_be_visible()
     assert "POST /api/games" in fake_api.calls[-3:]
     assert console_errors == []
+
+
+# --- sharing a daily result (L2): how the game went, and no word ---
+
+SHARE_TEXT = "async ([game, host]) => (await import('/js/share.js')).shareText(game, host)"
+
+
+def test_share_copies_a_result_without_any_word(game_page: Page, lex) -> None:
+    # the page's own clipboard call is caught, so a test run never overwrites the system clipboard
+    game_page.evaluate("navigator.clipboard.writeText = (text) => { window.__copied = text; return Promise.resolve(); }")
+    game_page.locator(SEL.format("end")).click()
+    expect(game_page.locator(SEL.format("share"))).to_be_hidden()  # free play has nothing to compare
+    open_daily(game_page)
+    play(game_page, *DEMOCRATIC)
+    game_page.locator(SEL.format("end")).click()
+    game_page.locator(SEL.format("share")).click()
+    expect(game_page.locator("#toast-title")).to_have_text("Copied")
+
+    text = game_page.evaluate("window.__copied")
+    answers = lex.solve("MEDICAL", "CORRECT")
+    host = game_page.evaluate("location.host")
+    assert text == f"TRUR daily · Sun 11 Oct\n25 points · 1 of {len(answers)} words · longest 10 letters\n▮▮▮▮▮\n{host}"
+    assert not [w for w in (*answers, "MEDICAL", "CORRECT") if w in text.upper()]
+
+
+def test_share_text_groups_the_words_shortest_first(game_page: Page) -> None:
+    found = [{"word": w, "points": 0} for w in ("DEMOCRATIC", "GEAR", "DEARER", "NEAR")]
+    game = {"daily_date": "2026-11-28", "score": 42, "found": found, "found_count": 4, "total_words": 23}
+    text = game_page.evaluate(SHARE_TEXT, [game, "trur.fly.dev"])
+    assert text.split("\n") == ["TRUR daily · Sat 28 Nov", "42 points · 4 of 23 words · longest 10 letters",
+                                "▮▮ ▮▮ ▮▮▮ ▮▮▮▮▮", "trur.fly.dev"]
+    assert not [w["word"] for w in found if w["word"] in text.upper()]
+    nothing = {"daily_date": "2026-11-28", "score": 0, "found": [], "found_count": 0, "total_words": 23}
+    assert game_page.evaluate(SHARE_TEXT, [nothing, "trur.fly.dev"]).split("\n") == [
+        "TRUR daily · Sat 28 Nov", "0 points · 0 of 23 words", "trur.fly.dev"]
+
+
+def test_share_says_so_when_the_clipboard_refuses(page: Page, live_server, fake_api) -> None:
+    fake_api.mode, fake_api.daily_date, fake_api.over = "daily", "2026-10-11", True
+    page.add_init_script("Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('no')) } });")
+    page.goto(live_server.base_url + "/")
+    page.locator(SEL.format("share")).click()
+    expect(page.locator("#toast-title")).to_have_text("Couldn’t share")

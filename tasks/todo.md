@@ -584,3 +584,199 @@ Then update the docs:
 - [ ] TS P17.1–P17.4 pass: the manifest is served as `application/manifest+json` with the S12 headers, the icon sizes are read from the PNG headers, and the S11 route inventory is unchanged
 - [ ] The static test for no inline script or style passes
 **Dependencies:** checkpoint J, and the R6 decision · **Files:** web/manifest.webmanifest, web/img/*.png, web/index.html, tests/test_static.py · **Scope:** S
+
+---
+
+## Phase 10: Coming back tomorrow (proposal, 2026-11-28; nothing here is decided)
+
+What keeps players in other daily word games (Wordle, Spelling Bee, Connections), matched to what TRUR already has: a daily challenge, monthly boards, past answers and a nickname cookie. The tasks are in priority order. Ids say the area (L long-term motivation, U frontend, B backend) and stay fixed if the order changes.
+
+**Facts this plan rests on (checked in the code, 2026-11-28):**
+- `games` keeps `daily_date`, `score`, `won` and `ended_at` for every game, and `submissions` keeps every word. Only `events` is purged after 90 days (`db.purge_events`). So streaks, statistics and word rarity need **no new table**.
+- Every game payload already carries `total_words`, so progress inside a grid can be shown without revealing answers.
+- Static files come from a plain `StaticFiles` mount with no `Cache-Control` header.
+- A new route has to be added to the S11 route inventory test.
+
+| Priority | Tasks | Why this order |
+| --- | --- | --- |
+| **1 Unblock** | B3, T31 | CI is red on every push; two decisions shape everything after |
+| **2 The return loop** | B2, L1, L4, L2, U1 | a reason to come back tomorrow, a way to tell others, and a first game that makes sense |
+| **3 Depth in one session** | L3, U3, U2 | goals and feedback between the first word and the last |
+| **4 Protect and compare** | B1, L5 | worth building once streaks exist and players have data to lose |
+| **5 Later** | U5, L6, U4, B4, B5, L7 | useful, but none of them changes whether a player returns |
+
+### Priority 1: Unblock
+
+### B3: Dependency audit is red
+**Description:** The CI audit step (`pip-audit -r requirements.txt`) fails on `opentelemetry-api` 1.45.1 (CVE-2026-126360, fixed in 1.45.2), so every push shows a failed `test` job although all 826 tests pass. The package is a transitive pin in both lock files. Recompile the hashed locks from `requirements.in` and `requirements-dev.in` with only that package raised, then check the diff touches nothing else.
+**Acceptance criteria:**
+- [ ] `pip-audit -r requirements.txt` is clean, locally and in CI
+- [ ] `pip install --require-hashes -r requirements-dev.txt` works in a fresh venv
+- [ ] The lock diff changes only `opentelemetry-api` and what it forces
+
+**Dependencies:** none · **Files:** requirements.txt, requirements-dev.txt · **Scope:** S
+
+### T31: Decide the phase 10 scope (manual, with the owner)
+**Description:** Mark every task below build, later or drop. Two decisions come first, because L1, L4, L2 and B1 depend on them:
+- **What keeps a streak alive.** Options: (a) a daily game started, (b) at least one word found, (c) a win, meaning a word of 10 or more letters. Recommendation: (b) for the streak, with wins counted separately. A win-only streak would break on hard pairs through no fault of the player; (a) rewards opening the page.
+- **Whether a streak must survive a lost cookie.** Options: a recovery code (B1), or accept the loss and say so in the privacy text. Recommendation: ship L1 first and add B1 in priority 4.
+
+**Acceptance criteria:**
+- [ ] Every task below is marked, and both decisions are written into docs/plan.md with their date
+
+**Dependencies:** none · **Files:** tasks/todo.md, docs/plan.md · **Scope:** S
+
+### Priority 2: The return loop
+
+### B2: Statistics queries (no new table)
+**Description:** A `trur/stats.py` module with one function that reads a player's daily history from `games` and `submissions`: dailies played, dailies won, current streak, best streak, best daily score, longest word, and the last 30 days as a played/won list. The streak walks `daily_date` backwards from today; a day still in play today doesn't break it. Add an index on `games(user_id, mode, daily_date)` in a migration if the query plan needs one.
+**Acceptance criteria:**
+- [ ] Unit tests on the FakeClock: games at 23:59 and 00:01 UTC are two days; a skipped day resets the current streak and keeps the best; today not yet played leaves yesterday's streak standing
+- [ ] The streak rule is T31's, in one named function
+- [ ] Rows older than the 90-day event purge still count (test with a purge in between)
+- [ ] A hidden or flagged game is handled as the boards handle it
+
+**Dependencies:** T31 · **Files:** trur/stats.py, trur/db.py (index, if needed), tests/test_stats.py · **Scope:** M
+
+### L1: Daily streak and personal statistics
+**Why it works elsewhere:** the streak is Wordle's main reason to open the game on a dull day; its statistics screen turns single games into a record worth protecting.
+**Description:** `GET /api/users/me/stats` returns B2's numbers for the cookie's player. A statistics panel shows them: four numbers in a row (played, win rate, current streak, best streak), then the last 30 days as a strip of blocks. It opens from a header button next to the leaderboards button and appears on the daily game-over screen. The header shows the current streak as a small number once it is 2 or more.
+**Acceptance criteria:**
+- [ ] The route is in the S11 inventory and returns only the caller's own data; without a cookie it answers as `/api/users/me` does
+- [ ] An E2E flow: finish a daily, see the streak go from 0 to 1
+- [ ] The panel fits a 320 px phone without sideways scrolling, and the desktop baseline is updated in the same commit
+- [ ] The streak number has a text label for screen readers
+
+**Dependencies:** B2 · **Files:** trur/api.py, web/index.html, web/js/stats.js, web/js/game.js, web/css/app.css, tests/test_games.py, tests/e2e/test_flows.py, tests/e2e/screens.py, baselines · **Scope:** M
+
+### L4: Next daily countdown and "see you tomorrow"
+**Description:** The daily game-over screen ends in a dead end today. Add the time until the next daily ("New daily in 5 h 12 min"), counted to midnight UTC and corrected by the server's time from the response headers, so a wrong device clock doesn't mislead. Under it, the streak from L1 ("3 days in a row"). When the countdown reaches zero the button becomes "Play today's daily".
+**Acceptance criteria:**
+- [ ] With the device clock two hours off, the countdown is still right (E2E with a shifted page clock)
+- [ ] The text updates once a minute, not every second, and isn't announced to screen readers on each update
+
+**Dependencies:** L1 for the streak line · **Files:** web/js/game.js, web/index.html, web/css/app.css, tests/e2e/test_flows.py · **Scope:** S
+
+### L2: Share a result without spoilers
+**Why it works elsewhere:** Wordle spread through its shareable grid, which shows how the game went and gives nothing away.
+**Description:** A Share button on the daily game-over screen. The text is built in the browser from data the page already has. Example:
+
+    TRUR daily · 28 Nov
+    42 points · 7 of 23 words · longest 10 letters
+    ▮▮ ▮▮ ▮▮▮ ▮▮▮ ▮▮▮ ▮▮▮▮ ▮▮▮▮▮
+    trur.fly.dev
+
+One block per tile, one group per found word, shortest first. `navigator.share` where it exists, the clipboard otherwise, with a toast saying "Copied". No word, no letter and no source word appears in the text.
+**Acceptance criteria:**
+- [ ] A test builds the text for the fixture daily and checks no answer word and no source word is in it
+- [ ] Works under the current CSP with no new dependency
+- [ ] The button has a 44 px target on phones
+
+**Dependencies:** T31 · **Files:** web/js/share.js, web/js/game.js, web/index.html, web/css/app.css, tests/e2e/test_flows.py · **Scope:** S
+
+### U1: First-visit "How to play"
+**Description:** The rule a newcomer has to get is that a tile is its column letter plus its row letter, and a word is a chain of tiles. Three steps, each one picture and one sentence, using the logo's own example (T U across, R R down, tiles TR and UR): (1) how a tile gets its two letters, (2) pick tiles in order to spell a word, (3) longer words score more: tiles squared, and three wrong tries end the game. Shown once after the nickname screen, remembered in `localStorage`, and reachable from a "?" button in the header.
+**Acceptance criteria:**
+- [ ] It is a `<dialog>` like the found sheet: focus is trapped, Escape closes it, focus returns to the button
+- [ ] The pictures are the real tile styles, not images, so both themes work
+- [ ] A returning player never sees it unasked
+
+**Dependencies:** none · **Files:** web/index.html, web/js/help.js, web/js/main.js, web/css/app.css, tests/e2e/test_flows.py, baselines · **Scope:** M
+
+### Priority 3: Depth in one session
+
+### L3: Ranks inside one grid
+**Why it works elsewhere:** Spelling Bee's ladder (Beginner … Genius) gives every session a next goal long before the player has found everything.
+**Description:** Five named ranks at fixed shares of the grid's total points (for example 5, 15, 30, 50 and 70 %; the names and shares are for the owner). The server sends the rank thresholds in points with the game, so the answers stay hidden. The found panel shows the current rank and a bar to the next one; reaching a rank shows one short banner. Free play and daily; not multiplayer.
+**Acceptance criteria:**
+- [ ] The thresholds are computed once at game creation and stored or derived from stored values, so a dictionary change can't shift them mid-game (as `total_words` is handled)
+- [ ] A rank change is announced once in `#sr-status`
+- [ ] The bar has a text equivalent ("Rank 2 of 5, 6 points to the next")
+
+**Dependencies:** T31 · **Files:** trur/games.py, trur/api.py, trur/db.py (if stored), web/js/game.js, web/index.html, web/css/app.css, tests/test_games.py, baselines · **Scope:** M
+
+### U3: Selected tiles readable without colour
+**Description:** Since the Toy Blocks restyle a selected tile and the source letters share one orange and differ only in shape. Show the pick order as a small number in the corner of each selected tile (the Newsprint mock had this). It also helps to follow long words. On tiles under 36 px the number is left out, as the multiplayer value labels are.
+**Acceptance criteria:**
+- [ ] The number is decoration: the tile's accessible name stays its two letters, with the order in the pressed state's label
+- [ ] The desktop baseline is updated in the same commit, naming this change
+
+**Dependencies:** none · **Files:** web/js/game.js, web/js/grid.js, web/css/app.css, baselines · **Scope:** S
+
+### U2: Feedback when a word lands
+**Description:** An accepted word's tiles pop once in pick order (about 300 ms in all), and the score counts up to its new value. A rank (L3) or a daily win gets one short burst of small blocks from the banner. On phones a 10 ms vibration on accept and a longer one on reject, where `navigator.vibrate` exists. All motion is off under reduced motion. No sound.
+**Acceptance criteria:**
+- [ ] Under `prefers-reduced-motion` nothing moves, checked as the rejected shake is today
+- [ ] The animation never delays the next tap: tiles are selectable while it runs
+
+**Dependencies:** none (the rank burst needs L3) · **Files:** web/js/game.js, web/css/app.css, tests/e2e/test_mobile.py · **Scope:** S
+
+### Priority 4: Protect and compare
+
+### B1: Keep a player across devices and lost cookies
+**Description:** Per T31. The smallest version is a recovery code: the statistics panel offers "Save my player", which shows a code of four short words once. Entering it on the nickname screen of another browser sets that browser's cookie to the same player. Stored hashed, like the token. A new code replaces the old one.
+**Acceptance criteria:**
+- [ ] `POST /api/users/recover` is rate-limited per IP, answers the same for a wrong and an unknown code, and is in the S11 inventory
+- [ ] The security tests cover guessing, reuse after replacement, and a code entered while already signed in as another player
+- [ ] The privacy text on the nickname screen says what the code does
+
+**Dependencies:** T31, L1 · **Files:** trur/auth.py, trur/api.py, trur/db.py (migration), web/index.html, web/js/main.js, web/js/stats.js, tests/test_auth.py, tests/test_security.py · **Scope:** M
+
+### L5: How rare was each word
+**Why it works elsewhere:** post-game comparison ("only 4 % found this") gives a reason to look at yesterday's answers and to hunt odd words today.
+**Description:** `GET /api/daily/{day}/answers` gains a share per word: the part of that day's players who found it, from `submissions`. Past answers shows it as a small bar per word, and the statistics panel gains "rarest word you found". Only for closed days, and only when the day had at least a set number of players (in config), so a share never points at one person.
+**Acceptance criteria:**
+- [ ] Below the player threshold no share is sent at all
+- [ ] Hidden and flagged players are left out, as on the boards
+- [ ] The query runs once per day and is cached, checked by a test that counts queries
+
+**Dependencies:** L1 · **Files:** trur/daily.py, trur/api.py, trur/config.py, web/js/game.js, web/css/app.css, tests/test_daily.py · **Scope:** M
+
+### Priority 5: Later
+
+### U5: Design pass for the multiplayer screens
+**Description:** Lobby, match, vote and results took the Toy Blocks look by rule and have had no design pass of their own (open since M6). First add them to the shots helper and to the desktop baseline states, then review them on the Claude Design canvas with the owner and apply the result.
+**Acceptance criteria:**
+- [ ] `scripts.mobile_shots --list` shows the five multiplayer screens
+- [ ] The approved artboards are linked in docs/multiplayer.md
+
+**Dependencies:** none · **Files:** tests/e2e/screens.py, scripts/mobile_shots.py, web/css/app.css, docs/multiplayer.md, baselines · **Scope:** M
+
+### L6: Daily archive
+**Description:** Past answers gets a "Play this day" button, shown before the answers are. An archive game is a new mode that never reaches a board, a streak or the rarity shares.
+**Acceptance criteria:**
+- [ ] The API tests show an archive game can't change `rankings` or B2's numbers
+- [ ] Opening the answers for a day ends any archive game on it
+
+**Dependencies:** T31 · **Files:** trur/games.py, trur/api.py, trur/db.py (migration for the mode check), web/js/game.js, tests/test_games.py · **Scope:** M
+
+### U4: Typing on desktop
+**Description:** Typing two letters selects the matching tile (the first unused one when a pair exists twice), Backspace removes the last tile, Enter submits, Escape clears. Off while a text field has focus.
+**Acceptance criteria:**
+- [ ] No global shortcut fires while the nickname field or a dialog has focus
+- [ ] An E2E flow spells GEAR by typing
+
+**Dependencies:** none · **Files:** web/js/game.js, tests/e2e/test_flows.py · **Scope:** S
+
+### B4: The whole suite in one process
+**Description:** `pytest -m "not smoke"` in one process fails eight tests in test_daily, test_games and test_lobby with "asyncio.run() cannot be called from a running event loop" once the browser tests have run first. Each file passes alone, and CI runs the groups in separate jobs, so only local full runs are hit. First check whether `main` before the restyle shows it too.
+**Acceptance criteria:**
+- [ ] One local `pytest -m "not smoke"` run is green, or the README says to run the two groups separately and why
+
+**Dependencies:** none · **Files:** tests/conftest.py or README.md · **Scope:** S
+
+### B5: Caching for the static files
+**Description:** The static mount sends no `Cache-Control`, so browsers decide for themselves how long to keep the stylesheet and scripts. Measure a repeat visit first. If files are refetched or served stale after a deploy, add a version to the asset URLs in index.html and a long lifetime for versioned files and the font.
+**Acceptance criteria:**
+- [ ] A note in docs/architecture.md says what was measured and what was decided
+
+**Dependencies:** none · **Files:** trur/app.py, web/index.html, docs/architecture.md, tests/test_static.py · **Scope:** S
+
+### L7: Friends board
+**Why it works elsewhere:** small private groups compare results far longer than strangers on a global board.
+**Description:** A board for a group joined by a short code, showing today's daily and the month. No accounts: the code is the membership, and a player can leave. The largest item here, and the only one that adds a new kind of data.
+**Acceptance criteria:**
+- [ ] To be written after T31, if it is marked build
+
+**Dependencies:** T31, B1 · **Files:** to be planned · **Scope:** L
+

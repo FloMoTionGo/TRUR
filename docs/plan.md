@@ -149,7 +149,7 @@ On desktop, all of it fits a fixed **640×640 px** game area; phones get their o
   - **source words as orange tiles** (owner, 2026-10-14, from [Source Word Tiles](https://claude.ai/artifact/MHdFHCkeWe54sckt2DufPn); built 2026-10-15): each letter of the two source words sits on its own orange tile, bold, at 150 % (21 px on desktop in a 30 px head, 18 px in a 22 px head on phones). No frame and no shadow, so it stays apart from a selected tile. The logo keeps its plain head letters
   - olive headings and active states
   - light olive panels (`#EEF0E6`)
-  - Fonts: Space Grotesk for the interface, Space Mono for tiles and numbers, both self-hosted.
+  - Fonts: Fredoka for the interface, tiles and numbers, self-hosted as one variable file (since the "Toy Blocks" restyle, 2026-11-28; before that Space Grotesk and Space Mono).
 - **Light and dark, with a toggle** (owner, 2026-10-11):
   - Dark "Olive board": near-black olive ground (`#171A12`), the same olive tiles with white letters, dark olive panels (`#232819`).
   - In dark mode, tiles, selected tiles and orange buttons keep the 2 px border and the sharp offset shadow, in cream (`#F2EDE0`; shadow at 50 %).

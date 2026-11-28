@@ -7,7 +7,7 @@ return a list of problems, empty when the check holds. Rects are [left, top, rig
 from playwright.sync_api import Locator, Page
 
 EPS = 0.5
-SHADOW = 3  # tiles and primary buttons draw a 3 px shadow to the right and below
+SHADOW = 5  # tiles and primary buttons draw an edge of up to 5 px below (nothing to the right; 5 is the safe side)
 
 SNAPSHOT = """(extra) => {
   const W = document.documentElement.clientWidth;

@@ -610,9 +610,9 @@ What keeps players in other daily word games (Wordle, Spelling Bee, Connections)
 ### B3: Dependency audit is red
 **Description:** The CI audit step (`pip-audit -r requirements.txt`) fails on `opentelemetry-api` 1.45.1 (CVE-2026-126360, fixed in 1.45.2), so every push shows a failed `test` job although all 826 tests pass. The package is a transitive pin in both lock files. Recompile the hashed locks from `requirements.in` and `requirements-dev.in` with only that package raised, then check the diff touches nothing else.
 **Acceptance criteria:**
-- [ ] `pip-audit -r requirements.txt` is clean, locally and in CI
-- [ ] `pip install --require-hashes -r requirements-dev.txt` works in a fresh venv
-- [ ] The lock diff changes only `opentelemetry-api` and what it forces
+- [x] `pip-audit -r requirements.txt` is clean, locally and in CI
+- [x] `pip install --require-hashes -r requirements-dev.txt` works in a fresh venv
+- [x] The lock diff changes only `opentelemetry-api` and what it forces
 
 **Dependencies:** none · **Files:** requirements.txt, requirements-dev.txt · **Scope:** S
 

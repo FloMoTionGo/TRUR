@@ -1,6 +1,7 @@
 """E2E flows (docs/test-strategy.md §5) on the live server; only flow 9 keeps its mocked API."""
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -195,6 +196,9 @@ def test_flow_7_daily_game(game_page: Page) -> None:
     expect(game_page.locator(SEL.format("missed"))).to_be_hidden()  # no missed words in daily
     expect(game_page.locator(SEL.format("over-answers-note"))).to_contain_text("after midnight UTC")
     expect(game_page.locator(SEL.format("new-game"))).to_have_text("Play free")
+    # the server's clock stands at noon UTC; this browser's clock is today's real time
+    expect(game_page.locator(SEL.format("over-next"))).to_have_text("New daily in 12 h")
+    expect(game_page.locator(SEL.format("over-streak"))).to_have_text("1 day in a row")
 
 
 def test_daily_tab_again_shows_the_finished_game(game_page: Page) -> None:
@@ -357,3 +361,46 @@ def test_a_failed_statistics_request_leaves_the_game_playable(page: Page, live_s
     expect(page.locator(f'{SEL.format("stats-over")} .stats-more')).to_have_text("Couldn’t load your statistics.")
     expect(page.locator(SEL.format("new-game"))).to_be_enabled()
     expect(page.locator(SEL.format("streak"))).to_be_hidden()
+
+
+# --- the next daily (L4): a countdown on the server's clock ---
+
+SERVER_NOON = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)  # FakeApi.server_time
+COUNT_NOTES = """() => {
+  window.__notes = 0;
+  new MutationObserver((list) => { window.__notes += list.length; })
+    .observe(document.querySelector('[data-testid="over-next"]'), { childList: true, characterData: true, subtree: true });
+}"""
+
+
+def daily_over_page(page: Page, live_server, fake_api, device_time: datetime) -> None:
+    fake_api.mode, fake_api.daily_date, fake_api.word1, fake_api.word2 = "daily", "2026-10-11", "MEDICAL", "CORRECT"
+    fake_api.found, fake_api.over, fake_api.past = ["DEMOCRATIC"], True, {1: False, 2: False}
+    page.clock.install(time=device_time)
+    page.goto(live_server.base_url + "/")
+    expect(page.locator(SEL.format("over-streak"))).to_have_text("3 days in a row")
+
+
+@pytest.mark.parametrize("hours_off", [2, -2])
+def test_the_countdown_runs_on_the_servers_clock(page: Page, live_server, fake_api, console_errors, hours_off: int) -> None:
+    daily_over_page(page, live_server, fake_api, SERVER_NOON + timedelta(hours=hours_off))
+    note, button = page.locator(SEL.format("over-next")), page.locator(SEL.format("new-game"))
+    expect(note).to_have_text("New daily in 12 h")  # midnight UTC, whatever the device says
+    expect(button).to_have_text("Play free")
+    assert page.evaluate("document.querySelector('[data-testid=over-next]').closest('[aria-live], [role=status], [role=alert]')") is None
+
+    page.evaluate(COUNT_NOTES)
+    page.clock.run_for(3 * 60_000)
+    expect(note).to_have_text("New daily in 11 h 57 min")
+    assert page.evaluate("window.__notes") == 3  # once a minute, not every second
+
+    page.clock.fast_forward(11 * 3600_000 + 56 * 60_000)  # a jump, as after a sleeping laptop: the next tick catches up
+    expect(note).to_have_text("New daily in 1 min")
+    page.clock.fast_forward(60_000)
+    expect(note).to_have_text("Today’s daily is ready.")
+    expect(button).to_have_text("Play today’s daily")
+    fake_api.daily_date, fake_api.found, fake_api.over = "2026-10-12", [], False
+    button.click()
+    expect(page.locator(".tile").first).to_be_visible()
+    assert "POST /api/games" in fake_api.calls[-3:]
+    assert console_errors == []

@@ -653,10 +653,12 @@ Built differently from the first draft, which asked for a header button of its o
 **Dependencies:** B2 · **Files:** trur/api.py, web/index.html, web/js/{stats,boards,game,api}.js, web/css/app.css, tests/test_stats.py, tests/e2e/{conftest,screens,test_flows,test_mobile}.py, baselines · **Scope:** M
 
 ### L4: Next daily countdown and "see you tomorrow"
-**Description:** The daily game-over screen ends in a dead end today. Add the time until the next daily ("New daily in 5 h 12 min"), counted to midnight UTC and corrected by the server's time from the response headers, so a wrong device clock doesn't mislead. Under it, the streak from L1 ("3 days in a row"). When the countdown reaches zero the button becomes "Play today's daily".
+**Description:** The daily game-over screen ends in a dead end today. Add the time until the next daily ("New daily in 5 h 12 min"), counted to midnight UTC and corrected by the server's time, so a wrong device clock doesn't mislead. Under it, the streak from L1 ("3 days in a row"). When the countdown reaches zero the button becomes "Play today's daily".
+
+The server's time comes as `server_time` in the statistics response, which this screen loads anyway, not from the `Date` response header as first planned: that header is written by uvicorn from the system clock, so the tests' FakeClock couldn't reach it, and the app's own clock is the one that decides which day it is. On phones the countdown has a row of its own above the two buttons.
 **Acceptance criteria:**
-- [ ] With the device clock two hours off, the countdown is still right (E2E with a shifted page clock)
-- [ ] The text updates once a minute, not every second, and isn't announced to screen readers on each update
+- [x] With the device clock two hours off, the countdown is still right (E2E with a shifted page clock, two hours fast and two hours slow)
+- [x] The text updates once a minute, not every second, and isn't announced to screen readers on each update (it sits in no live region; a test counts the writes)
 
 **Dependencies:** L1 for the streak line · **Files:** web/js/game.js, web/index.html, web/css/app.css, tests/e2e/test_flows.py · **Scope:** S
 

@@ -244,7 +244,7 @@ Full request and response shapes, status codes and the error format are in [arch
 | --- | --- | --- |
 | POST | `/api/users` | `{nickname}` → sets the player cookie, returns `{nickname}` |
 | GET | `/api/users/me` | the player's nickname, or 401, which tells the frontend to show the nickname prompt |
-| GET | `/api/users/me/stats` | the player's own daily record: played, won, current and best streak, best score, longest word, the last 30 days |
+| GET | `/api/users/me/stats` | the player's own daily record: played, won, current and best streak, best score, longest word, the last 30 days; and the server's time, for the countdown to the next daily |
 | POST | `/api/games` | `{mode}` → `{game_id (UUID4), word1, word2, tries_left, total_words}`. For `daily`, it returns the player's existing game for today if there is one |
 | GET | `/api/games/current?mode=` | the player's open game, with found words, so a reload can resume it; `{"game": null}` if none |
 | POST | `/api/games/{id}/submit` | `{tiles:[[row,col],…]}` → `{status (accepted / duplicate / rejected), word, points, tries_left, found_count, won, game_over, missed_words (free play, once game_over)}` |

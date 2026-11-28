@@ -424,7 +424,11 @@ button:disabled { cursor: default; }
 }
 .over-list li, .over-grid li { display: flex; justify-content: space-between; }
 .over-list .pts, .over-grid .pts { color: var(--muted); }
-.over-note { flex: 1; color: var(--muted); font-size: 13px; }
+.over-note { flex: 1; margin: 0; color: var(--muted); font-size: 13px; }
+/* the daily's note: when the next one comes, and the streak under it */
+#screen-over .over-note { display: flex; flex-direction: column; gap: 2px; }
+#screen-over [data-testid="over-next"] { color: var(--ink); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#screen-over .solution { justify-content: flex-end; } /* the buttons keep to the right when the note is hidden */
 .over-hidden { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 2px solid var(--line); border-radius: 20px; overflow: hidden; }
 .over-hidden .over-head { border-bottom: 2px solid var(--line); }
 .over-hidden-text { margin: 0; padding: 0 12px 12px; font-size: 14px; line-height: 1.5; color: var(--muted); }
@@ -682,6 +686,10 @@ html:has(dialog[open]) { overflow: hidden; }
   .over-yours { width: auto; }
   .over-yours, .over-missed, .over-hidden { flex: none; }
   .over-hidden { order: -1; }
+  /* the countdown gets a row of its own above the buttons */
+  #screen-over .solution { flex-wrap: wrap; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); gap: 8px; }
+  #screen-over .over-note { flex: 1 0 100%; flex-direction: row; align-items: baseline; gap: 8px; }
+  #screen-over .solution .button { flex: 1; }
 
   .grid { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
 

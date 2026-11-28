@@ -57,6 +57,7 @@ class FakeApi:
     past: dict[int, bool] = field(default_factory=dict)  # earlier dailies: days back -> won
     best_score: int = 0              # of the earlier dailies
     longest_word: str | None = None  # of the earlier dailies
+    server_time: str = "2026-10-11T12:00:00.000000Z"  # what the server's clock says, whatever the page's does
     calls: list[str] = field(default_factory=list)
 
     @property
@@ -84,7 +85,7 @@ class FakeApi:
         longest = min([*mine, *([self.longest_word] if self.longest_word else [])], key=lambda w: (-len(w), w), default=None)
         recent = [today - timedelta(days=back) for back in range(stats.RECENT_DAYS - 1, -1, -1)]
         return {
-            "played": len(won), "won": sum(won.values()),
+            "played": len(won), "won": sum(won.values()), "server_time": self.server_time,
             "current_streak": stats.current_streak(won, today), "best_streak": stats.best_streak(won),
             "best_score": max(self.best_score, sum(points(w) for w in mine)), "longest_word": longest,
             "days": [{"date": d.isoformat(), "played": d in won, "won": won.get(d, False)} for d in recent],

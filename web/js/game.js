@@ -7,7 +7,7 @@ import { logEvent } from "./events.js";
 import { buildGrid, fitGrid, observeGrid, PHONE_QUERY } from "./grid.js";
 import { showScreen } from "./screens.js";
 import { openSheet } from "./sheet.js";
-import { loadStats, renderStats } from "./stats.js";
+import { daysText, loadStats, renderStats, serverNow } from "./stats.js";
 
 const grid = document.getElementById("grid");
 const foundList = document.getElementById("found-list");
@@ -28,6 +28,8 @@ let toastTimer = 0;
 let flashTimer = 0;
 let wonDismissed = false; // phones can dismiss the won banner to get its room back for the grid
 let streakFor = null;     // the game the header's streak badge was last loaded for
+let nextTimer = 0;        // the countdown to the next daily on the game-over screen
+let nextReady = false;    // it has run out: the button starts the new daily
 const coarse = window.matchMedia("(hover: none) and (pointer: coarse)");
 
 observeGrid(grid);
@@ -56,6 +58,7 @@ export async function startGame(mode) {
 }
 
 function show(state) {
+  clearTimeout(nextTimer);
   game = state;
   selection = [];
   wonDismissed = false;
@@ -246,7 +249,8 @@ byTestId("end").addEventListener("click", async () => {
 
 byTestId("new-game").addEventListener("click", async () => {
   try {
-    if (game && game.mode === "daily") await startGame("free"); // one daily game a day: offer free play
+    if (game && game.mode === "daily" && nextReady) await startGame("daily"); // midnight UTC has passed
+    else if (game && game.mode === "daily") await startGame("free"); // one daily game a day: offer free play
     else show(await api.newGame("free"));
   } catch (err) {
     showToast("rejected", "Couldn’t start a game", err instanceof ApiError ? err.message : "Something went wrong.");
@@ -286,7 +290,27 @@ function wordItem(word, points) {
   return li;
 }
 
+// "5 h 12 min", rounded up to the minute so it never reads 0 min while time is left.
+function countdownText(ms) {
+  const minutes = Math.ceil(ms / 60_000);
+  const h = Math.floor(minutes / 60);
+  const min = minutes % 60;
+  return [h ? `${h} h` : "", min ? `${min} min` : ""].filter(Boolean).join(" ");
+}
+
+// The daily game-over screen says when the next daily comes, on the server's clock. It changes once a
+// minute and sits in no live region, so screen readers aren't told each time.
+function showNextDaily() {
+  clearTimeout(nextTimer);
+  const left = Date.parse(`${addDays(game.daily_date, 1)}T00:00:00Z`) - serverNow();
+  nextReady = left <= 0;
+  setText(byTestId("over-next"), nextReady ? "Today’s daily is ready." : `New daily in ${countdownText(left)}`);
+  setText(byTestId("new-game"), nextReady ? "Play today’s daily" : "Play free");
+  if (!nextReady) nextTimer = setTimeout(showNextDaily, left % 60_000 || 60_000); // on the minute
+}
+
 function showGameOver() {
+  clearTimeout(nextTimer);
   document.getElementById("toast").hidden = true;
   const reason = game.tries_left === 0 ? "Three wrong words"
     : game.found_count === game.total_words ? "Every word found" : "You ended the game";
@@ -304,11 +328,23 @@ function showGameOver() {
   if (daily) byTestId("over-answers-note").textContent = answersNote();
   const loaded = daily || streakFor !== game.game_id ? loadStats() : null;
   streakFor = game.game_id;
-  if (daily) loaded.then((data) => renderStats(byTestId("stats-over"), data));
-  byTestId("over-note").textContent = daily ? "A new pair comes at midnight UTC." : "";
+  const over = game;
+  if (daily) {
+    loaded.then((data) => {
+      renderStats(byTestId("stats-over"), data);
+      if (game !== over || document.getElementById("screen-over").hidden) return; // the player has moved on
+      const streak = data ? data.current_streak : 0;
+      setText(byTestId("over-streak"), streak ? daysText(streak) : "");
+      showNextDaily(); // again, now on the server's clock
+    });
+  }
+  byTestId("over-note").hidden = !daily;
   byTestId("past-answers-over").hidden = !daily;
-  byTestId("new-game").textContent = daily ? "Play free" : "New game";
+  byTestId("over-streak").textContent = "";
+  nextReady = false;
+  byTestId("new-game").textContent = "New game";
   showScreen("over");
+  if (daily) showNextDaily();
 }
 
 function flashRejected(tiles) {

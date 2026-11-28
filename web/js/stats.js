@@ -9,7 +9,12 @@ const badge = document.querySelector('[data-testid="streak"]');
 const OPENER_LABEL = "Leaderboards and your statistics";
 const BADGE_FROM = 2; // a streak of one day is no news yet
 
-const daysText = (n) => (n === 1 ? "1 day in a row" : `${n} days in a row`);
+export const daysText = (n) => (n === 1 ? "1 day in a row" : `${n} days in a row`);
+
+// The server's clock, as far as the last statistics response told us: a device clock that is hours off
+// must not move the countdown to the next daily. Until then the device's own time.
+let clockOffset = 0;
+export const serverNow = () => Date.now() + clockOffset;
 
 function make(tag, className, text) {
   const el = document.createElement(tag);
@@ -31,6 +36,8 @@ function showStreak(streak) {
 export async function loadStats() {
   try {
     const data = await api.stats();
+    const serverTime = Date.parse(data.server_time);
+    if (!Number.isNaN(serverTime)) clockOffset = serverTime - Date.now();
     showStreak(data.current_streak);
     return data;
   } catch {

@@ -240,7 +240,8 @@ def test_the_route_returns_the_callers_record(player: Callable[[str], TestClient
     assert (before["played"], before["current_streak"], before["longest_word"]) == (0, 0, None)
     win_daily(alice)
     got = alice.get(STATS).json()
-    assert set(got) == {"played", "won", "current_streak", "best_streak", "best_score", "longest_word", "days"}
+    assert set(got) == {"played", "won", "current_streak", "best_streak", "best_score", "longest_word", "days", "server_time"}
+    assert got["server_time"] == "2026-10-11T12:00:00.000000Z"  # the app's clock, for the countdown to the next daily
     assert (got["played"], got["won"], got["current_streak"], got["best_streak"]) == (1, 1, 1, 1)
     assert (got["best_score"], got["longest_word"]) == (25, "DEMOCRATIC")
     assert got["days"][-1] == {"date": "2026-10-11", "played": True, "won": True}

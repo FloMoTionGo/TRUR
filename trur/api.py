@@ -289,8 +289,11 @@ def daily_board(
 
 @router.get("/api/users/me/stats")
 def my_stats(player: Player, conn_ro: ConnRo, now: Now) -> dict:
-    """The caller's own daily record. Like every route it takes no user id, so it can't show another's (S2)."""
-    return dict(stats.daily_stats(conn_ro, player["id"], now.date()))
+    """The caller's own daily record. Like every route it takes no user id, so it can't show another's (S2).
+
+    `server_time` lets the page count down to the next daily without trusting the device's clock.
+    """
+    return {**stats.daily_stats(conn_ro, player["id"], now.date()), "server_time": db.iso(now)}
 
 
 @router.post("/api/events", status_code=204, dependencies=POST)

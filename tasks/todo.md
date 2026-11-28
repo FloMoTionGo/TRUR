@@ -641,14 +641,16 @@ What keeps players in other daily word games (Wordle, Spelling Bee, Connections)
 
 ### L1: Daily streak and personal statistics
 **Why it works elsewhere:** the streak is Wordle's main reason to open the game on a dull day; its statistics screen turns single games into a record worth protecting.
-**Description:** `GET /api/users/me/stats` returns B2's numbers for the cookie's player. A statistics panel shows them: four numbers in a row (played, win rate, current streak, best streak), then the last 30 days as a strip of blocks. It opens from a header button next to the leaderboards button and appears on the daily game-over screen. The header shows the current streak as a small number once it is 2 or more.
-**Acceptance criteria:**
-- [ ] The route is in the S11 inventory and returns only the caller's own data; without a cookie it answers as `/api/users/me` does
-- [ ] An E2E flow: finish a daily, see the streak go from 0 to 1
-- [ ] The panel fits a 320 px phone without sideways scrolling, and the desktop baseline is updated in the same commit
-- [ ] The streak number has a text label for screen readers
+**Description:** `GET /api/users/me/stats` returns B2's numbers for the cookie's player. A statistics panel shows them: four numbers in a row (played, win rate, current streak, best streak), then the last 30 days as a strip of blocks. It appears on the daily game-over screen and as a "You" tab in the leaderboards. The leaderboards button in the header shows the current streak as a small badge once it is 2 or more.
 
-**Dependencies:** B2 · **Files:** trur/api.py, web/index.html, web/js/stats.js, web/js/game.js, web/css/app.css, tests/test_games.py, tests/e2e/test_flows.py, tests/e2e/screens.py, baselines · **Scope:** M
+Built differently from the first draft, which asked for a header button of its own: the phone header has no room for one without losing the wordmark below 440 px (see "Where the statistics open" in docs/plan.md). The owner hasn't confirmed this yet. Also changed on the way: the game-over lists stack on phones, because the record block didn't fit beside "Your words".
+**Acceptance criteria:**
+- [x] The route is in the S11 inventory and returns only the caller's own data; without a cookie it answers as `/api/users/me` does
+- [x] An E2E flow: finish a daily, see the streak go from 0 to 1
+- [x] The panel fits a 320 px phone without sideways scrolling, and the desktop baseline is updated in the same commit (Windows here; the Linux one comes from CI in the next commit)
+- [x] The streak number has a text label for screen readers: the badge is hidden from them and the button's label says "…, 4 days in a row"
+
+**Dependencies:** B2 · **Files:** trur/api.py, web/index.html, web/js/{stats,boards,game,api}.js, web/css/app.css, tests/test_stats.py, tests/e2e/{conftest,screens,test_flows,test_mobile}.py, baselines · **Scope:** M
 
 ### L4: Next daily countdown and "see you tomorrow"
 **Description:** The daily game-over screen ends in a dead end today. Add the time until the next daily ("New daily in 5 h 12 min"), counted to midnight UTC and corrected by the server's time from the response headers, so a wrong device clock doesn't mislead. Under it, the streak from L1 ("3 days in a row"). When the countdown reaches zero the button becomes "Play today's daily".

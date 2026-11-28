@@ -165,6 +165,7 @@ E2E against a mocked API (see §5).
 - **Players:**
   - `POST /api/users` → sets the cookie and returns 201 `{nickname}`. The database stores `sha256(token)`, never the token.
   - `GET /api/users/me` → the nickname, or 401 without a cookie.
+  - `GET /api/users/me/stats` → the caller's own daily record, whatever the query string says; 401 without a cookie, as above.
   - `POST /api/users` with a valid cookie → 409 `already_registered`.
   - A game endpoint with no cookie or an unknown token → 401, and no player is created.
 - **Logging:**

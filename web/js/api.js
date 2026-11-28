@@ -33,6 +33,7 @@ async function request(method, path, body) {
 
 export const api = {
   me: () => request("GET", "/api/users/me"),
+  stats: () => request("GET", "/api/users/me/stats"),
   register: (nickname) => request("POST", "/api/users", { nickname }),
   currentGame: (mode) => request("GET", `/api/games/current?mode=${encodeURIComponent(mode)}`),
   newGame: (mode) => request("POST", "/api/games", { mode }),

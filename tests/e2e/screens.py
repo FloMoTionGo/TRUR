@@ -38,6 +38,9 @@ def daily(api: FakeApi, over: bool = False) -> None:
     """Today's daily, MEDICAL × CORRECT, won with DEMOCRATIC."""
     api.mode, api.daily_date, api.word1, api.word2 = "daily", "2026-10-11", "MEDICAL", "CORRECT"
     api.found, api.won, api.over = ["DEMOCRATIC"], True, over
+    # earlier days: with today a streak of 4, the best 5; the header badge shows from 2
+    api.past = {1: False, 2: True, 3: False, 6: False, 7: True, 8: False, 9: False, 10: False, 14: False, 21: True}
+    api.best_score, api.longest_word = 41, "UNDEMOCRATIC"
 
 
 def over_free(api: FakeApi) -> None:
@@ -48,6 +51,11 @@ def over_free(api: FakeApi) -> None:
 def answers(api: FakeApi) -> None:
     daily(api, over=True)
     api.words = ["DEMOCRATIC", *long_words(39)]
+
+
+def open_you(page: Page) -> None:
+    page.locator(SEL.format("boards-open")).click()
+    page.get_by_role("tab", name="You").click()
 
 
 def nothing(_: object) -> None:
@@ -79,11 +87,12 @@ STATES = {
     "game-10x10": State(".tile", setup=shape("ABCDEFGHIJ", "KLMNOPQRST")),
     "daily-won": State(SEL.format("won"), setup=daily),
     "over-free": State(f'{SEL.format("missed")} li', setup=over_free),
-    "over-daily": State(SEL.format("over-answers-note"), setup=lambda api: daily(api, over=True)),
+    "over-daily": State(f'{SEL.format("stats-over")} [data-stat]', setup=lambda api: daily(api, over=True)),
     "answers": State(f'{SEL.format("answers-list")} li', setup=answers,
                      act=lambda page: page.locator(SEL.format("past-answers-over")).click()),
     "boards": State(f'{SEL.format("boards-rows")} tr', setup=lambda api: setattr(api, "board", long_board(25)),
                     act=lambda page: page.locator(SEL.format("boards-open")).click()),
+    "boards-you": State(f'{SEL.format("stats-you")} [data-stat]', setup=lambda api: daily(api, over=True), act=open_you),
 }
 
 
@@ -95,6 +104,8 @@ def reach(page: Page, base_url: str, lex: Lexicon, state: State) -> FakeApi:
     page.clock.install(time=NOW)
     page.goto(base_url + "/")
     expect(page.locator("#screen-loading")).to_be_hidden()
+    if api.nickname is not None:  # the streak badge comes with its own request: wait until it has landed
+        page.locator(f'{SEL.format("boards-open")}[data-streak]').wait_for(state="attached")
     state.act(page)
     page.locator(state.ready).first.wait_for()
     if state.paused:  # the page clock is stopped, so frames come from run_for

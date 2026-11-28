@@ -7,6 +7,7 @@ import { logEvent } from "./events.js";
 import { buildGrid, fitGrid, observeGrid, PHONE_QUERY } from "./grid.js";
 import { showScreen } from "./screens.js";
 import { openSheet } from "./sheet.js";
+import { loadStats, renderStats } from "./stats.js";
 
 const grid = document.getElementById("grid");
 const foundList = document.getElementById("found-list");
@@ -26,6 +27,7 @@ let busy = false;
 let toastTimer = 0;
 let flashTimer = 0;
 let wonDismissed = false; // phones can dismiss the won banner to get its room back for the grid
+let streakFor = null;     // the game the header's streak badge was last loaded for
 const coarse = window.matchMedia("(hover: none) and (pointer: coarse)");
 
 observeGrid(grid);
@@ -62,6 +64,8 @@ function show(state) {
     else button.removeAttribute("aria-current");
   }
   if (game.game_over) return showGameOver();
+  if (streakFor !== game.game_id) loadStats(); // the header's streak badge, once per game
+  streakFor = game.game_id;
   buildGrid(grid, game.word1, game.word2);
   render();
   showScreen("game");
@@ -194,6 +198,7 @@ submitButton.addEventListener("click", async () => {
     if (result.status === "accepted") {
       game.found = [...game.found, { word: result.word, points: result.points }];
       flashFound(result.points);
+      if (game.mode === "daily" && result.found_count === 1) loadStats(); // the day's first word counts for the streak
       announce("status", `${result.word}, ${result.points} points. ${result.found_count} of ${result.total_words} found.`);
     } else if (result.status === "duplicate") {
       showToast("duplicate", `${result.word} is already in your list`, "You found it earlier. No points, and no try used.");
@@ -297,6 +302,9 @@ function showGameOver() {
   document.getElementById("over-missed-section").hidden = daily; // daily answers stay hidden until midnight UTC
   document.getElementById("over-hidden").hidden = !daily;
   if (daily) byTestId("over-answers-note").textContent = answersNote();
+  const loaded = daily || streakFor !== game.game_id ? loadStats() : null;
+  streakFor = game.game_id;
+  if (daily) loaded.then((data) => renderStats(byTestId("stats-over"), data));
   byTestId("over-note").textContent = daily ? "A new pair comes at midnight UTC." : "";
   byTestId("past-answers-over").hidden = !daily;
   byTestId("new-game").textContent = daily ? "Play free" : "New game";

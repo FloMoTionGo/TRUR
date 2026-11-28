@@ -24,6 +24,7 @@ ROUTES = {
     ("GET", "/healthz"),
     ("POST", "/api/users"),
     ("GET", "/api/users/me"),
+    ("GET", "/api/users/me/stats"),
     ("POST", "/api/games"),
     ("GET", "/api/games/current"),
     ("POST", "/api/games/{game_id}/submit"),

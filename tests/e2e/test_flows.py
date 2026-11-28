@@ -295,3 +295,65 @@ def test_flow_8_nickname_shows_as_text_on_the_board(game_page: Page, live_server
     expect(cells).to_have_text(["1", XSS, "99"])
     expect(game_page.locator("#screen-boards img")).to_have_count(0)
     assert game_page.evaluate("window.__x") is None
+
+
+# --- the daily record (L1): the streak and the statistics ---
+
+def stat(page: Page, block: str, key: str):
+    return page.locator(f'{SEL.format(block)} [data-stat="{key}"] dd')
+
+
+def open_you(page: Page) -> None:
+    page.locator(SEL.format("boards-open")).click()
+    page.get_by_role("tab", name="You", exact=True).click()
+
+
+def test_finishing_a_daily_takes_the_streak_from_0_to_1(game_page: Page) -> None:
+    open_you(game_page)
+    expect(stat(game_page, "stats-you", "streak")).to_have_text("0")
+    expect(game_page.locator(f'{SEL.format("stats-you")} .stats-more')).to_have_text("Find a word in the daily to start a streak.")
+    expect(game_page.locator(SEL.format("boards-period"))).to_be_hidden()  # no month to page through here
+    game_page.locator(SEL.format("boards-back")).click()
+
+    open_daily(game_page)
+    play(game_page, *DEMOCRATIC)
+    game_page.locator(SEL.format("end")).click()
+    for key, text in (("played", "1"), ("rate", "100"), ("streak", "1"), ("best", "1")):
+        expect(stat(game_page, "stats-over", key)).to_have_text(text)
+    record = game_page.locator(SEL.format("stats-over"))
+    expect(record.locator(".stats-more")).to_have_text("Best score 25 · Longest word DEMOCRATIC")
+    expect(record.locator(".stats-days span")).to_have_count(30)
+    expect(record.locator('.stats-days [data-day="won"]')).to_have_count(1)
+    expect(record.locator(".stats-days")).to_have_attribute("aria-label", "Last 30 days: played on 1, won on 1. Today is last.")
+    expect(game_page.locator(SEL.format("streak"))).to_be_hidden()  # one day is no badge yet
+
+    open_you(game_page)
+    expect(stat(game_page, "stats-you", "streak")).to_have_text("1")
+    game_page.get_by_role("tab", name="Free · month").click()  # the board comes back with its month
+    expect(game_page.locator(SEL.format("boards-period"))).to_have_text("October 2026")
+    expect(game_page.locator(SEL.format("stats-you"))).to_be_hidden()
+
+
+def test_the_header_shows_the_streak_from_two_days_on(page: Page, live_server, fake_api, console_errors) -> None:
+    fake_api.mode, fake_api.daily_date, fake_api.word1, fake_api.word2 = "daily", "2026-10-11", "MEDICAL", "CORRECT"
+    fake_api.past = {1: False}  # played yesterday: a streak of one until today's first word
+    page.goto(live_server.base_url + "/")
+    opener, badge = page.locator(SEL.format("boards-open")), page.locator(SEL.format("streak"))
+    expect(opener).to_have_attribute("data-streak", "1")
+    expect(badge).to_be_hidden()
+    expect(opener).to_have_attribute("aria-label", "Leaderboards and your statistics")
+
+    play(page, *DEMOCRATIC)
+    expect(badge).to_have_text("2")
+    expect(badge).to_have_attribute("aria-hidden", "true")  # the button's label carries it for screen readers
+    expect(opener).to_have_attribute("aria-label", "Leaderboards and your statistics, 2 days in a row")
+    assert console_errors == []
+
+
+def test_a_failed_statistics_request_leaves_the_game_playable(page: Page, live_server, fake_api, console_errors) -> None:
+    page.route("**/api/users/me/stats", lambda route: route.abort())
+    fake_api.mode, fake_api.daily_date, fake_api.over = "daily", "2026-10-11", True
+    page.goto(live_server.base_url + "/")
+    expect(page.locator(f'{SEL.format("stats-over")} .stats-more')).to_have_text("Couldn’t load your statistics.")
+    expect(page.locator(SEL.format("new-game"))).to_be_enabled()
+    expect(page.locator(SEL.format("streak"))).to_be_hidden()

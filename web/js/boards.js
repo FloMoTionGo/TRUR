@@ -3,6 +3,7 @@
 
 import { api, ApiError } from "./api.js";
 import { popScreen, pushScreen, showScreen } from "./screens.js";
+import { loadStats, renderStats } from "./stats.js";
 
 const byTestId = (id) => document.querySelector(`[data-testid="${id}"]`);
 const list = byTestId("answers-list");
@@ -99,7 +100,8 @@ prev.addEventListener("click", () => go(-1));
 next.addEventListener("click", () => { if (day < lastDay) go(1); });
 byTestId("answers-back").addEventListener("click", popScreen);
 
-// --- leaderboards (docs/plan.md, screen 4): monthly per mode and one day's daily board ---
+// --- leaderboards (docs/plan.md, screen 4): monthly per mode and one day's daily board; the last tab is
+// the player's own daily record (js/stats.js) ---
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"];
@@ -107,6 +109,7 @@ const BOARDS = {
   free: { hint: "Best single game", daily: false, fetch: (month) => api.monthlyBoard("free", month) },
   daily: { hint: "Best daily game", daily: false, fetch: (month) => api.monthlyBoard("daily", month) },
   today: { hint: "One game per player", daily: true, fetch: (iso) => api.dailyBoard(iso) },
+  you: { own: true, fetch: loadStats }, // null when it can't be loaded; renderStats says so
 };
 const tabs = [...document.querySelectorAll('#screen-boards [role="tab"]')];
 const table = document.getElementById("boards-table");
@@ -114,6 +117,8 @@ const rows = byTestId("boards-rows");
 const boardEmpty = byTestId("boards-empty");
 const boardPrev = byTestId("boards-prev");
 const boardNext = byTestId("boards-next");
+const ownPanel = document.getElementById("boards-you");
+const boardParts = [document.querySelector(".boards-top"), document.querySelector(".boards-scroll")];
 
 // month is shared by both monthly tabs; null asks the server for the current month / today (UTC)
 const board = { tab: "free", month: null, day: null, lastMonth: null, lastDay: null, me: null, request: 0 };
@@ -158,6 +163,10 @@ function renderBoard(spec, data, message) {
     tab.setAttribute("aria-selected", String(on));
     tab.tabIndex = on ? 0 : -1;
   }
+  const own = Boolean(spec.own);
+  ownPanel.hidden = !own;
+  for (const part of boardParts) part.hidden = own;
+  if (own) return renderStats(byTestId("stats-you"), data);
   byTestId("boards-hint").textContent = spec.hint;
   if (data && spec.daily) {
     board.day = data.date;

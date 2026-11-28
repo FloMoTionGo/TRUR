@@ -43,6 +43,7 @@ A browser word game. Two source words make a grid of letter pairs. The player cl
 | Implementation | Module layout, API contract and schema in [architecture.md](architecture.md); tests in [test-strategy.md](test-strategy.md) |
 | Daily streak | **A day counts once at least one word is found** (owner, 2026-11-28). Starting the daily isn't enough, and a win isn't needed: a win-only streak would break on hard pairs. Wins are counted separately. The rule is one function, `stats.counts_as_played` |
 | Streaks and lost cookies | **Ship the streak first** (owner, 2026-11-28). A streak is lost with the cookie until the recovery code (todo B1) is built |
+| Where the statistics open | **A "You" tab in the leaderboards, and a block on the daily game-over screen** (built 2026-11-28, not yet confirmed by the owner). The task asked for a header button of its own. On phones the header's first row has 18 px left at 320 px and 17 px at 400 px, and a 44 px button would cost the wordmark below 440 px (mobile.md P4.3) and the logo below 360 px. The streak shows as a badge on the leaderboards button from 2 days on |
 | Multiplayer | **Public quick-match for 2–6 players**, 3 minutes on one shared board. Each use of a tile halves its value for everyone, and scores stay hidden until the end. Each player can set one unchecked **showcase word**; after play, a vote on creativity (up to 60 s) adds a bonus of up to 5 points. Rules, design and build steps in [multiplayer.md](multiplayer.md). It's built **after go-live** (step 8) |
 | Hosting | **Fly.io app `trur`** in Frankfurt (`fra`), separate from GoCalypse. It **stops when idle** and **goes live at the end** of the solo build (step 7); multiplayer follows after go-live |
 
@@ -243,6 +244,7 @@ Full request and response shapes, status codes and the error format are in [arch
 | --- | --- | --- |
 | POST | `/api/users` | `{nickname}` → sets the player cookie, returns `{nickname}` |
 | GET | `/api/users/me` | the player's nickname, or 401, which tells the frontend to show the nickname prompt |
+| GET | `/api/users/me/stats` | the player's own daily record: played, won, current and best streak, best score, longest word, the last 30 days |
 | POST | `/api/games` | `{mode}` → `{game_id (UUID4), word1, word2, tries_left, total_words}`. For `daily`, it returns the player's existing game for today if there is one |
 | GET | `/api/games/current?mode=` | the player's open game, with found words, so a reload can resume it; `{"game": null}` if none |
 | POST | `/api/games/{id}/submit` | `{tiles:[[row,col],…]}` → `{status (accepted / duplicate / rejected), word, points, tries_left, found_count, won, game_over, missed_words (free play, once game_over)}` |

@@ -7,12 +7,17 @@ page.route, so these flows don't depend on the backend's state.
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
 import pytest
 from playwright.sync_api import ConsoleMessage, Page, Route
 
 from tests.e2e.devices import Device, selected
+from trur import stats
 from trur.solver import Lexicon, points, word_from_tiles
+
+
+TODAY = "2026-10-11"  # the FakeClock start (tests/conftest.py)
 
 
 def by_points(words) -> list[str]:
@@ -49,6 +54,9 @@ class FakeApi:
     words: list[str] | None = None   # the answers; None: the solver's answers for the pair
     nickname: str | None = "Tester"  # None: no player yet, so /api/users/me answers 401
     board: list[tuple[str, int]] = field(default_factory=list)  # (nickname, score), best first
+    past: dict[int, bool] = field(default_factory=dict)  # earlier dailies: days back -> won
+    best_score: int = 0              # of the earlier dailies
+    longest_word: str | None = None  # of the earlier dailies
     calls: list[str] = field(default_factory=list)
 
     @property
@@ -64,6 +72,22 @@ class FakeApi:
             "total_words": len(self.answers), "found": [{"word": w, "points": points(w)} for w in self.found],
             "found_count": len(self.found), "score": score, "won": self.won, "game_over": self.over,
             "missed_words": missed,
+        }
+
+    def stats(self) -> dict:
+        """The daily record as trur.stats builds it: the earlier days, and today once a daily word is found."""
+        today = date.fromisoformat(self.daily_date or TODAY)
+        won = {today - timedelta(days=back): w for back, w in self.past.items()}
+        mine = self.found if self.mode == "daily" else []
+        if mine:
+            won[today] = self.won
+        longest = min([*mine, *([self.longest_word] if self.longest_word else [])], key=lambda w: (-len(w), w), default=None)
+        recent = [today - timedelta(days=back) for back in range(stats.RECENT_DAYS - 1, -1, -1)]
+        return {
+            "played": len(won), "won": sum(won.values()),
+            "current_streak": stats.current_streak(won, today), "best_streak": stats.best_streak(won),
+            "best_score": max(self.best_score, sum(points(w) for w in mine)), "longest_word": longest,
+            "days": [{"date": d.isoformat(), "played": d in won, "won": won.get(d, False)} for d in recent],
         }
 
     def entries(self) -> list[dict]:
@@ -93,6 +117,8 @@ class FakeApi:
             if self.nickname is None:
                 return route.fulfill(status=401, json={"error": {"code": "not_authenticated", "message": "No player."}})
             return route.fulfill(json={"nickname": self.nickname})
+        if request.method == "GET" and path == "/api/users/me/stats":
+            return route.fulfill(json=self.stats())
         if request.method == "POST" and path == "/api/users":
             self.nickname = json.loads(request.post_data)["nickname"]
             return route.fulfill(status=201, json={"nickname": self.nickname})

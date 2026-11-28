@@ -785,3 +785,34 @@ def test_results_long_list_scrolls_above_the_action_area(phone: Page, live_serve
         top = s["named"]["bar"]["rect"][1]
         word = end.bounding_box()
         assert word["y"] + word["height"] <= top + 0.5, f"{end} ends at {word['y'] + word['height']}, under the bar at {top}"
+
+
+# --- L1: the daily record ---
+
+RECORD = """(selector) => {
+  const block = document.querySelector(selector);
+  const rect = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
+  return { block: rect(block), parts: [...block.querySelectorAll("[data-stat], .stats-days span, .stats-more")].map(rect),
+           labels: [...block.querySelectorAll("dt")].map((el) => el.scrollWidth <= el.clientWidth) };
+}"""
+
+
+@pytest.mark.parametrize("where", ["over", "you"])
+def test_l1_the_daily_record_fits_down_to_320_px(phone: Page, live_server, lex: Lexicon, phone_device, where: str) -> None:
+    fields = daily_over({"past": {1: False, 2: True, 3: False}, "best_score": 144, "longest_word": "UNDEMOCRATICALLY"})
+    open_page(phone, live_server, lex, ready=f'{SEL.format("stats-over")} [data-stat]', **fields)
+    block = SEL.format("stats-over")
+    if where == "you":
+        press(phone.locator(SEL.format("boards-open")))
+        press(phone.get_by_role("tab", name="You", exact=True))
+        block = SEL.format("stats-you")
+        phone.locator(f"{block} [data-stat]").first.wait_for()
+    for width in (phone_device.width, 320):
+        phone.set_viewport_size({"width": width, "height": phone_device.height})
+        s = snapshot(phone)
+        assert l1(s) == [] and l2(s) == [] and l3(s) == [], width
+        got = phone.evaluate(RECORD, block)
+        left, _, right, _ = got["block"]
+        assert left >= 0 and right <= width, width
+        assert all(p[0] >= left - 0.5 and p[2] <= right + 0.5 for p in got["parts"]), width
+        assert all(got["labels"]), width  # no label is cut off

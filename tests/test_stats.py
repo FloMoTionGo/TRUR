@@ -220,3 +220,54 @@ def test_games_started_either_side_of_midnight_utc_are_two_days(
         conn.close()
     assert (got["played"], got["current_streak"], got["best_streak"]) == (2, 2, 2)
     assert [d["date"] for d in got["days"] if d["played"]] == ["2026-10-10", "2026-10-11"]
+
+
+# --- the route (L1): GET /api/users/me/stats ---
+
+STATS = "/api/users/me/stats"
+DEMOCRATIC = [[4, 2], [1, 0], [2, 4], [6, 5], [0, 3]]  # DE MO CR AT IC on MEDICAL × CORRECT, 2026-10-11
+
+
+def win_daily(c: TestClient) -> None:
+    game = c.post("/api/games", json={"mode": "daily"}).json()
+    r = c.post(f"/api/games/{game['game_id']}/submit", json={"tiles": DEMOCRATIC})
+    assert r.status_code == 200 and r.json()["status"] == "accepted", r.text
+
+
+def test_the_route_returns_the_callers_record(player: Callable[[str], TestClient]) -> None:
+    alice = player("Alice")
+    before = alice.get(STATS).json()
+    assert (before["played"], before["current_streak"], before["longest_word"]) == (0, 0, None)
+    win_daily(alice)
+    got = alice.get(STATS).json()
+    assert set(got) == {"played", "won", "current_streak", "best_streak", "best_score", "longest_word", "days"}
+    assert (got["played"], got["won"], got["current_streak"], got["best_streak"]) == (1, 1, 1, 1)
+    assert (got["best_score"], got["longest_word"]) == (25, "DEMOCRATIC")
+    assert got["days"][-1] == {"date": "2026-10-11", "played": True, "won": True}
+
+
+def test_the_route_shows_only_the_callers_own_games(player: Callable[[str], TestClient], db_path: Path) -> None:
+    alice, bob = player("Alice"), player("Bob")
+    win_daily(alice)
+    conn = db.connect(db_path)
+    alice_id = conn.execute("SELECT id FROM users WHERE nickname = 'Alice'").fetchone()["id"]
+    conn.close()
+    for url in (STATS, f"{STATS}?user_id={alice_id}", f"{STATS}?nickname=Alice"):  # no input picks a player (S2)
+        got = bob.get(url).json()
+        assert (got["played"], got["best_score"], got["longest_word"]) == (0, 0, None), url
+
+
+def test_the_route_without_a_cookie_answers_as_me_does(client: TestClient) -> None:
+    mine, me = client.get(STATS), client.get("/api/users/me")
+    assert mine.status_code == me.status_code == 401
+    assert mine.json() == me.json()
+
+
+def test_the_route_reads_the_days_from_the_servers_clock(player: Callable[[str], TestClient], clock: FakeClock) -> None:
+    alice = player("Alice")
+    win_daily(alice)
+    clock.set(datetime(2026, 10, 12, 0, 1, tzinfo=timezone.utc))
+    tomorrow = alice.get(STATS).json()
+    assert tomorrow["current_streak"] == 1 and tomorrow["days"][-1] == {"date": "2026-10-12", "played": False, "won": False}
+    clock.set(datetime(2026, 10, 13, 0, 1, tzinfo=timezone.utc))
+    assert alice.get(STATS).json()["current_streak"] == 0

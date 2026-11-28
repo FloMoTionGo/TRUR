@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import Receive, Scope, Send
 
-from trur import auth, daily, db, games, match, rankings
+from trur import auth, daily, db, games, match, rankings, stats
 from trur.config import Settings
 from trur.errors import ApiError
 from trur.lobby import TERMINAL, Item, Lobby, public_results
@@ -285,6 +285,12 @@ def daily_board(
     when = now.date() if day is None else parse_day(day)
     games.sweep_abandoned(conn, lex, s, now)
     return {"date": when.isoformat(), "entries": rankings.daily_board(conn_ro, when, s.board_limit)}
+
+
+@router.get("/api/users/me/stats")
+def my_stats(player: Player, conn_ro: ConnRo, now: Now) -> dict:
+    """The caller's own daily record. Like every route it takes no user id, so it can't show another's (S2)."""
+    return dict(stats.daily_stats(conn_ro, player["id"], now.date()))
 
 
 @router.post("/api/events", status_code=204, dependencies=POST)
